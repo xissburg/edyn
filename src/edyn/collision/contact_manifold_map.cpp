@@ -45,4 +45,8 @@ void contact_manifold_map::on_destroy_contact_manifold(entt::registry &registry,
     m_pair_map.erase(q);
 }
 
+void contact_manifold_map::clear() {
+    m_pair_map.clear();
+}
+
 }

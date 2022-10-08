@@ -4,7 +4,7 @@
 #include <map>
 #include <utility>
 #include <entt/entity/fwd.hpp>
-#include "edyn/util/entity_pair.hpp"
+#include "edyn/core/entity_pair.hpp"
 
 namespace edyn {
 
@@ -37,6 +37,8 @@ public:
 
     void on_construct_contact_manifold(entt::registry &, entt::entity);
     void on_destroy_contact_manifold(entt::registry &, entt::entity);
+
+    void clear();
 
 private:
     std::map<entity_pair, entt::entity> m_pair_map;

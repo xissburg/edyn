@@ -9,7 +9,7 @@
 #include "edyn/math/coordinate_axis.hpp"
 #include "edyn/shapes/cylinder_shape.hpp"
 #include "edyn/util/shape_util.hpp"
-#include "edyn/util/triangle_util.hpp"
+#include "edyn/math/triangle.hpp"
 #include <type_traits>
 
 namespace edyn {

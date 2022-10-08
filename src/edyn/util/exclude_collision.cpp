@@ -7,9 +7,14 @@ namespace edyn {
 
 static
 void exclude_collision_one_way(entt::registry &registry, entt::entity first, entt::entity second) {
-    auto &exclusion = registry.get_or_emplace<collision_exclusion>(first);
-    EDYN_ASSERT(exclusion.num_entities() + 1 < collision_exclusion::max_exclusions);
-    exclusion.entity[exclusion.num_entities()] = second;
+    if (!registry.all_of<collision_exclusion>(first)) {
+        registry.emplace<collision_exclusion>(first);
+    }
+    registry.patch<collision_exclusion>(first,
+        [&](collision_exclusion &exclusion) {
+            EDYN_ASSERT(exclusion.num_entities() + 1 < collision_exclusion::max_exclusions);
+            exclusion.entity[exclusion.num_entities()] = second;
+        });
 }
 
 void exclude_collision(entt::registry &registry, entt::entity first, entt::entity second) {

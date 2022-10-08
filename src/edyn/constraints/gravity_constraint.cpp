@@ -1,61 +1,31 @@
 #include "edyn/constraints/gravity_constraint.hpp"
-#include "edyn/constraints/constraint_row.hpp"
-#include "edyn/comp/position.hpp"
-#include "edyn/comp/orientation.hpp"
-#include "edyn/comp/mass.hpp"
-#include "edyn/comp/inertia.hpp"
-#include "edyn/comp/linvel.hpp"
-#include "edyn/comp/angvel.hpp"
-#include "edyn/comp/delta_linvel.hpp"
-#include "edyn/comp/delta_angvel.hpp"
-#include "edyn/comp/tag.hpp"
 #include "edyn/dynamics/row_cache.hpp"
-#include "edyn/util/constraint_util.hpp"
-#include <entt/entity/registry.hpp>
 
 namespace edyn {
 
-template<>
-void prepare_constraints<gravity_constraint>(entt::registry &registry, row_cache &cache, scalar dt) {
-    auto body_view = registry.view<position, orientation,
-                                   linvel, angvel,
-                                   mass_inv, inertia_world_inv,
-                                   delta_linvel, delta_angvel>();
-    auto con_view = registry.view<gravity_constraint>(entt::exclude_t<disabled_tag>{});
+void gravity_constraint::prepare(
+    const entt::registry &, entt::entity,
+    constraint_row_prep_cache &cache, scalar dt,
+    const constraint_body &bodyA, const constraint_body &bodyB) {
 
-    con_view.each([&](entt::entity entity, gravity_constraint &con) {
-        auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = body_view.get(con.body[0]);
-        auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] = body_view.get(con.body[1]);
+    auto d = bodyA.pos - bodyB.pos;
+    auto l2 = length_sqr(d);
+    l2 = std::max(l2, EDYN_EPSILON);
 
-        auto d = posA - posB;
-        auto l2 = length_sqr(d);
-        l2 = std::max(l2, EDYN_EPSILON);
+    auto l = std::sqrt(l2);
+    auto dn = d / l;
 
-        auto l = std::sqrt(l2);
-        auto dn = d / l;
+    auto F = gravitational_constant / (l2 * bodyA.inv_m * bodyB.inv_m);
+    auto P = F * dt;
 
-        auto F = gravitational_constant / (l2 * inv_mA * inv_mB);
-        auto P = F * dt;
+    auto &row = cache.add_row();
+    row.J = {dn, vector3_zero, -dn, -vector3_zero};
+    row.lower_limit = -P;
+    row.upper_limit = P;
+    row.impulse = impulse;
 
-        auto &row = cache.rows.emplace_back();
-        row.J = {dn, vector3_zero, -dn, -vector3_zero};
-        row.lower_limit = -P;
-        row.upper_limit = P;
-
-        row.inv_mA = inv_mA; row.inv_IA = inv_IA;
-        row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-        row.dvA = &dvA; row.dwA = &dwA;
-        row.dvB = &dvB; row.dwB = &dwB;
-        row.impulse = con.impulse;
-
-        auto options = constraint_row_options{};
-        options.error = large_scalar;
-
-        prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
-        warm_start(row);
-
-        cache.con_num_rows.push_back(1);
-    });
+    auto &options = cache.get_options();
+    options.error = large_scalar;
 }
 
 }

@@ -14,25 +14,12 @@ job_dispatcher &job_dispatcher::global() {
     return instance;
 }
 
-job_dispatcher::job_dispatcher()
-    : m_scheduler(*this)
-{}
-
 job_dispatcher::~job_dispatcher() {
     stop();
 }
 
-void job_dispatcher::start() {
-    auto num_threads = std::thread::hardware_concurrency();
-
-    if (num_threads == 0) {
-        num_threads = 2;
-    }
-
-    start(num_threads);
-}
-
 void job_dispatcher::start(size_t num_worker_threads) {
+    EDYN_ASSERT(num_worker_threads > 0);
     EDYN_ASSERT(m_workers.empty());
 
     for (size_t i = 0; i < num_worker_threads; ++i) {
@@ -43,13 +30,9 @@ void job_dispatcher::start(size_t num_worker_threads) {
         m_threads.push_back(std::move(t));
         m_workers[id] = std::move(w);
     }
-
-    m_scheduler.start();
 }
 
 void job_dispatcher::stop() {
-    m_scheduler.stop();
-
     for (auto &pair : m_workers) {
         pair.second->stop();
     }
@@ -102,10 +85,6 @@ void job_dispatcher::async(const job &j) {
     EDYN_ASSERT(m_workers.count(best_id));
 
     m_workers[best_id]->push_job(j);
-}
-
-void job_dispatcher::async_after(double delta_time, const job &j) {
-    m_scheduler.schedule_after(j, delta_time);
 }
 
 void job_dispatcher::async(std::thread::id id, const job &j) {

@@ -71,29 +71,6 @@ bool toggle_network_client_extrapolation_enabled(entt::registry &);
 bool get_network_client_extrapolation_enabled(entt::registry &);
 
 /**
- * @brief Set number of maximum concurrent extrapolations.
- * @remark Extrapolations are run in background jobs thus never blocking the
- * current simulation. The extrapolations jobs are created and launched as soon
- * as a registry snapshot arrives from the server. If the simulation contains
- * many entities, the extrapolation might take a while to complete. If the rate
- * with which registry snapshots arrive is greater than the rate with which
- * extrapolation jobs finish, the number of extrapolation jobs will steadly
- * grow, leading to a vicious cycle and excessive resource consumption. Thus, a
- * hard limit is established where new registry snapshots will be ignored if
- * the number of active extrapolation jobs is greater than or equal to the limit.
- * @param registry Data source.
- * @param count Maximum number of concurrent extrapolations.
- */
-void set_network_client_max_concurrent_extrapolations(entt::registry &, unsigned);
-
-/**
- * @brief Get maximum number of concurrent extrapolations.
- * @param registry Data source.
- * @return Maximum number of concurrent extrapolations.
- */
-unsigned get_network_client_max_concurrent_extrapolations(entt::registry &);
-
-/**
  * @brief Set discontinuity decay rate, which is a value in [0, 1) that is
  * multiplied by the discontinuity offset after every simulation step.
  * @remark This is applied in every step of the simulation thus making this

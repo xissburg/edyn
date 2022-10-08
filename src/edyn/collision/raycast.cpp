@@ -1,11 +1,59 @@
 #include "edyn/collision/raycast.hpp"
 #include "edyn/collision/tree_node.hpp"
+#include "edyn/comp/island.hpp"
 #include "edyn/math/geom.hpp"
 #include "edyn/math/math.hpp"
 #include "edyn/math/transform.hpp"
-#include "edyn/util/triangle_util.hpp"
+#include "edyn/simulation/stepper_async.hpp"
+#include "edyn/math/triangle.hpp"
+#include <unordered_set>
 
 namespace edyn {
+
+raycast_id_type raycast_async(entt::registry &registry, vector3 p0, vector3 p1,
+                              const raycast_delegate_type &delegate,
+                              const std::vector<entt::entity> &ignore_entities) {
+    auto &stepper = registry.ctx().at<stepper_async>();
+    return stepper.raycast(p0, p1, delegate, ignore_entities);
+}
+
+raycast_result raycast(entt::registry &registry, vector3 p0, vector3 p1,
+                       const std::vector<entt::entity> &ignore_entities) {
+    auto index_view = registry.view<shape_index>();
+    auto tr_view = registry.view<position, orientation>();
+    auto origin_view = registry.view<origin>();
+    auto shape_views_tuple = get_tuple_of_shape_views(registry);
+
+    entt::entity hit_entity {entt::null};
+    shape_raycast_result result;
+
+    auto raycast_shape = [&](entt::entity entity) {
+        auto sh_idx = index_view.get<shape_index>(entity);
+        auto pos = origin_view.contains(entity) ?
+            static_cast<vector3>(origin_view.get<origin>(entity)) :
+            tr_view.get<position>(entity);
+        auto orn = tr_view.get<orientation>(entity);
+        auto ctx = raycast_context{pos, orn, p0, p1};
+
+        visit_shape(sh_idx, entity, shape_views_tuple, [&](auto &&shape) {
+            auto res = shape_raycast(shape, ctx);
+
+            if (res.fraction < result.fraction) {
+                result = res;
+                hit_entity = entity;
+            }
+        });
+    };
+
+    auto &bphase = registry.ctx().at<broadphase>();
+    bphase.raycast(p0, p1, [&](entt::entity entity) {
+        if (!vector_contains(ignore_entities, entity)) {
+            raycast_shape(entity);
+        }
+    });
+
+    return {result, hit_entity};
+}
 
 shape_raycast_result shape_raycast(const box_shape &box, const raycast_context &ctx) {
     // Reference: Real-Time Collision Detection - Christer Ericson,

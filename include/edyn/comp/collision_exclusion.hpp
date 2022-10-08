@@ -1,7 +1,7 @@
 #ifndef EDYN_COMP_COLLISION_EXCLUSION_HPP
 #define EDYN_COMP_COLLISION_EXCLUSION_HPP
 
-#include "edyn/util/array.hpp"
+#include "edyn/util/array_util.hpp"
 #include <array>
 #include <cstdint>
 #include <entt/entity/fwd.hpp>

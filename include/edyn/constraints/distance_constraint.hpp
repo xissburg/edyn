@@ -5,14 +5,23 @@
 #include <entt/entity/fwd.hpp>
 #include "edyn/math/vector3.hpp"
 #include "edyn/constraints/constraint_base.hpp"
-#include "edyn/constraints/prepare_constraints.hpp"
+#include "edyn/constraints/constraint_body.hpp"
 
 namespace edyn {
+
+struct matrix3x3;
+struct quaternion;
+struct constraint_row_prep_cache;
 
 struct distance_constraint : public constraint_base {
     std::array<vector3, 2> pivot;
     scalar distance {0};
     scalar impulse {0};
+
+    void prepare(
+        const entt::registry &, entt::entity,
+        constraint_row_prep_cache &cache, scalar dt,
+        const constraint_body &bodyA, const constraint_body &bodyB);
 };
 
 template<typename Archive>
@@ -22,9 +31,6 @@ void serialize(Archive &archive, distance_constraint &c) {
     archive(c.distance);
     archive(c.impulse);
 }
-
-template<>
-void prepare_constraints<distance_constraint>(entt::registry &, row_cache &, scalar dt);
 
 }
 

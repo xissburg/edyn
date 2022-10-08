@@ -7,7 +7,7 @@
 #include "edyn/math/vector3.hpp"
 #include "edyn/math/transform.hpp"
 #include "edyn/util/shape_util.hpp"
-#include "edyn/util/triangle_util.hpp"
+#include "edyn/math/triangle.hpp"
 
 namespace edyn {
 

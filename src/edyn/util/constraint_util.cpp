@@ -1,23 +1,21 @@
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_manifold_events.hpp"
-#include "edyn/comp/continuous.hpp"
 #include "edyn/comp/material.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/graph_edge.hpp"
 #include "edyn/comp/graph_node.hpp"
-#include "edyn/comp/delta_linvel.hpp"
-#include "edyn/comp/delta_angvel.hpp"
+#include "edyn/constraints/contact_constraint.hpp"
+#include "edyn/constraints/null_constraint.hpp"
 #include "edyn/context/settings.hpp"
-#include "edyn/parallel/entity_graph.hpp"
-#include "edyn/parallel/component_index_source.hpp"
+#include "edyn/core/entity_graph.hpp"
 #include "edyn/constraints/constraint_row.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
 
 namespace edyn {
 
 namespace internal {
-    bool pre_make_constraint(entt::entity entity, entt::registry &registry,
+    bool pre_make_constraint(entt::registry &registry, entt::entity entity,
                              entt::entity body0, entt::entity body1) {
         // Multiple constraints of different types can be assigned to the same
         // entity. If this entity already has a graph edge, just do a few
@@ -31,10 +29,13 @@ namespace internal {
             return false;
         }
 
+        // Assign graph edge.
         auto node_index0 = registry.get<graph_node>(body0).node_index;
         auto node_index1 = registry.get<graph_node>(body1).node_index;
         auto edge_index = registry.ctx().at<entity_graph>().insert_edge(entity, node_index0, node_index1);
         registry.emplace<graph_edge>(entity, edge_index);
+
+        registry.emplace<constraint_tag>(entity);
 
         return true;
     }
@@ -55,24 +56,13 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
     registry.emplace<contact_manifold>(manifold_entity, body0, body1, separation_threshold);
     registry.emplace<contact_manifold_events>(manifold_entity);
 
-    auto &dirty = registry.get_or_emplace<edyn::dirty>(manifold_entity);
-    dirty.set_new().created<contact_manifold, contact_manifold_events>();
-
-    if (registry.any_of<continuous_contacts_tag>(body0) ||
-        registry.any_of<continuous_contacts_tag>(body1)) {
-
-        auto &settings = registry.ctx().at<edyn::settings>();
-        registry.emplace<continuous>(manifold_entity).insert(settings.index_source->index_of<edyn::contact_manifold>());
-        dirty.created<continuous>();
-    }
-
     auto material_view = registry.view<material>();
 
     // Only create contact constraint if bodies have material.
     if (!material_view.contains(body0) || !material_view.contains(body1)) {
         // If not, emplace a null constraint to ensure an edge will exist in
         // the entity graph.
-        make_constraint<null_constraint>(manifold_entity, registry, body0, body1);
+        make_constraint<null_constraint>(registry, manifold_entity, body0, body1);
         return;
     }
 
@@ -90,11 +80,10 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
 
     if (restitution > EDYN_EPSILON) {
         registry.emplace<contact_manifold_with_restitution>(manifold_entity);
-        dirty.created<contact_manifold_with_restitution>();
     }
 
     // Assign contact constraint to manifold.
-    make_constraint<contact_constraint>(manifold_entity, registry, body0, body1);
+    make_constraint<contact_constraint>(registry, manifold_entity, body0, body1);
 }
 
 void swap_manifold(contact_manifold &manifold) {
@@ -138,38 +127,6 @@ scalar get_relative_speed(const std::array<vector3, 4> &J,
                   dot(J[2], linvelB) +
                   dot(J[3], angvelB);
     return relspd;
-}
-
-void prepare_row(constraint_row &row,
-                 const constraint_row_options &options,
-                 const vector3 &linvelA, const vector3 &angvelA,
-                 const vector3 &linvelB, const vector3 &angvelB) {
-    auto J_invM_JT = dot(row.J[0], row.J[0]) * row.inv_mA +
-                     dot(row.inv_IA * row.J[1], row.J[1]) +
-                     dot(row.J[2], row.J[2]) * row.inv_mB +
-                     dot(row.inv_IB * row.J[3], row.J[3]);
-    row.eff_mass = 1 / J_invM_JT;
-
-    auto relvel = dot(row.J[0], linvelA) +
-                  dot(row.J[1], angvelA) +
-                  dot(row.J[2], linvelB) +
-                  dot(row.J[3], angvelB);
-
-    row.rhs = -(options.error * options.erp + relvel * (1 + options.restitution));
-}
-
-void apply_impulse(scalar impulse, constraint_row &row) {
-    // Apply linear impulse.
-    *row.dvA += row.inv_mA * row.J[0] * impulse;
-    *row.dvB += row.inv_mB * row.J[2] * impulse;
-
-    // Apply angular impulse.
-    *row.dwA += row.inv_IA * row.J[1] * impulse;
-    *row.dwB += row.inv_IB * row.J[3] * impulse;
-}
-
-void warm_start(constraint_row &row) {
-    apply_impulse(row.impulse, row);
 }
 
 }

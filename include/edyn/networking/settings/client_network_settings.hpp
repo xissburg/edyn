@@ -9,7 +9,6 @@ struct client_network_settings {
     double snapshot_rate {20};
     double round_trip_time {0};
     bool extrapolation_enabled {true};
-    unsigned max_concurrent_extrapolations {2};
 
     // The discontinuity error will be multiplied by this value after every
     // step. That means this value is sensitive to the fixed delta time since
@@ -18,7 +17,7 @@ struct client_network_settings {
 
     /**
      * Even though the timestamp of a registry snapshot lies right after the time
-     * an action happenend, it is possible that the action wasn't still applied
+     * an action happened, it is possible that the action wasn't still applied
      * in the server side at the time the snapshot was generated. Perhaps the
      * action was applied at the same time the snapshot was generated and then
      * its effects were only visible in the next update, which will cause a glitch

@@ -16,7 +16,6 @@
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/collision_filter.hpp"
 #include "edyn/comp/collision_exclusion.hpp"
-#include "edyn/comp/continuous.hpp"
 #include "edyn/comp/roll_direction.hpp"
 #include "edyn/networking/comp/action_history.hpp"
 #include "edyn/shapes/sphere_shape.hpp"
@@ -27,6 +26,7 @@
 #include "edyn/shapes/compound_shape.hpp"
 #include "edyn/shapes/plane_shape.hpp"
 #include "edyn/networking/comp/entity_owner.hpp"
+#include "edyn/constraints/null_constraint.hpp"
 
 namespace edyn {
 
@@ -44,7 +44,6 @@ static const auto networked_components = std::tuple_cat(std::tuple<
     material,
     position,
     orientation,
-    continuous,
     center_of_mass,
     dynamic_tag,
     kinematic_tag,
@@ -52,9 +51,9 @@ static const auto networked_components = std::tuple_cat(std::tuple<
     procedural_tag,
     sleeping_disabled_tag,
     disabled_tag,
-    continuous_contacts_tag,
     external_tag,
     rigidbody_tag,
+    constraint_tag,
     rolling_tag,
     roll_direction,
     null_constraint,

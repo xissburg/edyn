@@ -36,7 +36,7 @@ void serialize(Archive &archive, action_list<Action> &list) {
 template<typename Action>
 void merge_component(action_list<Action> &list, const action_list<Action> &new_value) {
     // Accumulate received actions. Action updates are only sent from
-    // coordinator to worker.
+    // main to worker.
     list.actions.insert(list.actions.end(), new_value.actions.begin(), new_value.actions.end());
 }
 

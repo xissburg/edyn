@@ -1,12 +1,15 @@
 #include "edyn/networking/sys/server_side.hpp"
 #include "edyn/comp/graph_edge.hpp"
 #include "edyn/comp/graph_node.hpp"
+#include "edyn/comp/inertia.hpp"
 #include "edyn/comp/island.hpp"
+#include "edyn/comp/mass.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/tag.hpp"
+#include "edyn/constraints/constraint.hpp"
+#include "edyn/constraints/null_constraint.hpp"
 #include "edyn/networking/comp/action_history.hpp"
-#include "edyn/networking/comp/network_dirty.hpp"
 #include "edyn/networking/packet/client_created.hpp"
 #include "edyn/networking/packet/edyn_packet.hpp"
 #include "edyn/networking/packet/registry_snapshot.hpp"
@@ -15,111 +18,38 @@
 #include "edyn/networking/comp/aabb_of_interest.hpp"
 #include "edyn/networking/comp/entity_owner.hpp"
 #include "edyn/networking/sys/update_aabbs_of_interest.hpp"
-#include "edyn/networking/sys/update_network_dirty.hpp"
 #include "edyn/networking/context/server_network_context.hpp"
 #include "edyn/networking/util/process_update_entity_map_packet.hpp"
-#include "edyn/parallel/island_coordinator.hpp"
+#include "edyn/networking/util/snap_to_pool_snapshot.hpp"
+#include "edyn/simulation/stepper_async.hpp"
 #include "edyn/parallel/message.hpp"
+#include "edyn/simulation/stepper_sequential.hpp"
 #include "edyn/time/time.hpp"
-#include "edyn/util/entity_map.hpp"
+#include "edyn/replication/entity_map.hpp"
 #include "edyn/util/island_util.hpp"
-#include "edyn/util/vector.hpp"
+#include "edyn/util/vector_util.hpp"
 #include "edyn/util/aabb_util.hpp"
+#include "edyn/time/simulation_time.hpp"
+#include <entt/entity/fwd.hpp>
 #include <entt/entity/registry.hpp>
 #include <algorithm>
 #include <set>
 
 namespace edyn {
 
-static void update_island_entity_owners(entt::registry &registry) {
-    // The client has ownership of their entities if they're the only client in
-    // the island where the entity resides. They're also granted temporary
-    // ownership of all other entities in that island.
-    auto owner_view = registry.view<entity_owner>();
-
-    for (auto [island_entity, island, island_owner] : registry.view<island, entity_owner>().each()) {
-        // Set island owner to null and find out whether it can have a single owner.
-        island_owner.client_entity = entt::null;
-
-        for (auto it = island.nodes.begin(); it != island.edges.end(); ++it) {
-            if (it == island.nodes.end()) {
-                it = island.edges.begin();
-            }
-
-            auto entity = *it;
-
-            if (!owner_view.contains(entity)) {
-                continue;
-            }
-
-            auto [owner] = owner_view.get(entity);
-
-            if (owner.client_entity == entt::null) {
-                continue;
-            }
-
-            if (island_owner.client_entity == entt::null) {
-                // Island is not owned by any client yet, thus assign this
-                // client as the owner.
-                island_owner.client_entity = owner.client_entity;
-            } else if (island_owner.client_entity != owner.client_entity) {
-                // Island contains more than one client in it, thus it cannot
-                // be owned by either.
-                island_owner.client_entity = entt::null;
-                break;
-            }
-        }
-    }
-}
-
-bool is_fully_owned_by_client(const entt::registry &registry, entt::entity client_entity, entt::entity entity) {
-    auto &client = registry.get<remote_client>(client_entity);
-
-    if (!client.allow_full_ownership) {
-        return false;
-    }
-
-    auto owner_view = registry.view<entity_owner>();
-
-    if (auto *resident = registry.try_get<island_resident>(entity)) {
-        auto [island_owner] = owner_view.get(resident->island_entity);
-        return island_owner.client_entity == client_entity;
-    } else if (auto *resident = registry.try_get<multi_island_resident>(entity)) {
-        for (auto island_entity : resident->island_entities) {
-            auto [island_owner] = owner_view.get(island_entity);
-
-            if (island_owner.client_entity != client_entity) {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
-    return true;
-}
-
 static void process_packet(entt::registry &registry, entt::entity client_entity, packet::registry_snapshot &snapshot) {
     auto &ctx = registry.ctx().at<server_network_context>();
+    auto &settings = registry.ctx().at<edyn::settings>();
 
-    // Import inputs directly into the main registry.
-    ctx.snapshot_importer->import_input_local(registry, client_entity, snapshot, performance_time());
+    if (settings.execution_mode == edyn::execution_mode::asynchronous) {
+        // Import inputs directly into the main registry.
+        ctx.snapshot_importer->import_input_local(registry, client_entity, snapshot);
 
-    // Get islands of all entities contained in the snapshot and send the
-    // snapshot to them. They will import the pre-processed state into their
-    // registries. Later, these components will be updated in the main registry
-    // via registry operations.
-    bool include_multi_resident = true;
-    auto island_entities = collect_islands_from_residents(registry,
-                                                          snapshot.entities.begin(),
-                                                          snapshot.entities.end(),
-                                                          include_multi_resident);
-    auto &coordinator = registry.ctx().at<island_coordinator>();
-    auto msg = msg::apply_network_pools{std::move(snapshot.entities), std::move(snapshot.pools)};
-
-    for (auto island_entity : island_entities) {
-        coordinator.send_island_message<msg::apply_network_pools>(island_entity, msg);
-        coordinator.wake_up_island(island_entity);
+        auto &stepper = registry.ctx().at<stepper_async>();
+        stepper.send_message_to_worker<msg::apply_network_pools>(std::move(snapshot.entities), std::move(snapshot.pools));
+    } else {
+        snap_to_pool_snapshot(registry, snapshot.entities, snapshot.pools);
+        wake_up_island_residents(registry, snapshot.entities);
     }
 }
 
@@ -135,8 +65,13 @@ void create_graph_edge(entt::registry &registry, entt::entity entity) {
 }
 
 template<typename... Ts>
-void maybe_create_graph_edge(entt::registry &registry, entt::entity entity, [[maybe_unused]] std::tuple<Ts...>) {
+void maybe_create_graph_edge(entt::registry &registry, entt::entity entity) {
     ((registry.any_of<Ts>(entity) ? create_graph_edge<Ts>(registry, entity) : void(0)), ...);
+}
+
+template<typename... Ts>
+void maybe_create_graph_edge(entt::registry &registry, entt::entity entity, [[maybe_unused]] std::tuple<Ts...>) {
+    maybe_create_graph_edge<Ts...>(registry, entity);
 }
 
 static void process_packet(entt::registry &registry, entt::entity client_entity,
@@ -151,14 +86,16 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     // Create entities first, import pools later, since components might contain
     // entities which have to be mapped from remote to local.
     for (auto remote_entity : packet.entities) {
-        if (client.entity_map.contains(remote_entity)) continue;
+        if (client.entity_map.contains(remote_entity)) {
+            continue;
+        }
 
         auto local_entity = registry.create();
         registry.emplace<entity_owner>(local_entity, client_entity);
 
         emap_packet.pairs.emplace_back(remote_entity, local_entity);
         client.entity_map.insert(remote_entity, local_entity);
-        client.owned_entities.push_back(local_entity);
+        client.owned_entities.emplace(local_entity);
     }
 
     if (!emap_packet.pairs.empty()) {
@@ -226,6 +163,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     for (auto remote_entity : packet.entities) {
         auto local_entity = client.entity_map.at(remote_entity);
         maybe_create_graph_edge(registry, local_entity, constraints_tuple);
+        maybe_create_graph_edge<null_constraint>(registry, local_entity);
     }
 }
 
@@ -243,13 +181,11 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
                 if (owner && owner->client_entity == client_entity) {
                     registry.destroy(local_entity);
                     client.entity_map.erase(remote_entity);
-                    vector_erase(client.owned_entities, local_entity);
+                    client.owned_entities.erase(local_entity);
 
                     // Remove from AABB of interest of owner to prevent notifying
                     // the requester itself of destruction of these entities.
-                    if (aabboi.entities.contains(local_entity)) {
-                        aabboi.entities.erase(local_entity);
-                    }
+                    aabboi.entities.remove(local_entity);
                 }
             }
         }
@@ -287,9 +223,7 @@ static void process_packet(entt::registry &, entt::entity, const packet::set_pla
 static void process_packet(entt::registry &, entt::entity, const packet::server_settings &) {}
 
 void init_network_server(entt::registry &registry) {
-    registry.ctx().emplace<server_network_context>();
-    // Assign an entity owner to every island created.
-    registry.on_construct<island>().connect<&entt::registry::emplace<entity_owner>>();
+    registry.ctx().emplace<server_network_context>(registry);
 
     auto &settings = registry.ctx().at<edyn::settings>();
     settings.network_settings = server_network_settings{};
@@ -297,7 +231,6 @@ void init_network_server(entt::registry &registry) {
 
 void deinit_network_server(entt::registry &registry) {
     registry.ctx().erase<server_network_context>();
-    registry.on_construct<island>().disconnect<&entt::registry::emplace<entity_owner>>();
 
     auto &settings = registry.ctx().at<edyn::settings>();
     settings.network_settings = {};
@@ -344,7 +277,6 @@ static void publish_pending_created_clients(entt::registry &registry) {
 
 static void process_aabb_of_interest_destroyed_entities(entt::registry &registry,
                                                         entt::entity client_entity,
-                                                        remote_client &client,
                                                         aabb_of_interest &aabboi,
                                                         double time) {
     if (aabboi.destroy_entities.empty()) {
@@ -376,7 +308,6 @@ static void process_aabb_of_interest_destroyed_entities(entt::registry &registry
 
 static void process_aabb_of_interest_created_entities(entt::registry &registry,
                                                       entt::entity client_entity,
-                                                      remote_client &client,
                                                       aabb_of_interest &aabboi,
                                                       double time) {
     if (aabboi.create_entities.empty()) {
@@ -384,8 +315,7 @@ static void process_aabb_of_interest_created_entities(entt::registry &registry,
     }
 
     auto owner_view = registry.view<entity_owner>();
-    auto packet = packet::create_entity{};
-    packet.timestamp = time;
+    entt::sparse_set entities;
 
     for (auto entity : aabboi.create_entities) {
         // Ignore entities owned by client, since these entities must be
@@ -393,13 +323,16 @@ static void process_aabb_of_interest_created_entities(entt::registry &registry,
         if (!owner_view.contains(entity) ||
             std::get<0>(owner_view.get(entity)).client_entity != client_entity)
         {
-            packet.entities.push_back(entity);
+            entities.emplace(entity);
         }
     }
 
-    if (!packet.entities.empty()) {
+    if (!entities.empty()) {
+        auto packet = packet::create_entity{};
+        packet.timestamp = time;
+
         auto &ctx = registry.ctx().at<server_network_context>();
-        ctx.snapshot_exporter->export_all(registry, packet);
+        ctx.snapshot_exporter->export_all(packet, entities);
 
         // Sort components to ensure order of construction on the other end.
         std::sort(packet.pools.begin(), packet.pools.end(), [](auto &&lhs, auto &&rhs) {
@@ -425,44 +358,10 @@ static void maybe_publish_client_registry_snapshot(entt::registry &registry,
 
     auto &ctx = registry.ctx().at<server_network_context>();
     auto packet = packet::registry_snapshot{};
-
-    // Only include entities which are in islands not fully owned by the client
-    // since the server allows the client to have full control over entities in
-    // the islands where there are no other clients present.
-    auto should_include = [&](entt::entity entity) {
-        return
-            !registry.any_of<sleeping_tag>(entity) &&
-            registry.all_of<networked_tag, network_dirty>(entity) &&
-            !is_fully_owned_by_client(registry, client_entity, entity);
-    };
-
-    for (auto entity : aabboi.entities) {
-        if (should_include(entity)) {
-            packet.entities.push_back(entity);
-        }
-    }
-
-    ctx.snapshot_exporter->export_dirty(registry, packet, client_entity);
+    ctx.snapshot_exporter->export_modified(packet, aabboi.entities, client_entity);
 
     if (!packet.entities.empty() && !packet.pools.empty()) {
-        // Assign island timestamp as packet timestamp if available.
-        // Use current time otherwise.
-        auto island_entities = collect_islands_from_residents(registry,
-                                                              packet.entities.begin(),
-                                                              packet.entities.end());
-
-        if (island_entities.empty()) {
-            packet.timestamp = time;
-        } else {
-            auto timestamp_view = registry.view<island_timestamp>();
-            packet.timestamp = timestamp_view.get<island_timestamp>(*island_entities.begin()).value;
-
-            for (auto island_entity : island_entities) {
-                auto [isle_time] = timestamp_view.get(island_entity);
-                packet.timestamp = std::min(isle_time.value, packet.timestamp);
-            }
-        }
-
+        packet.timestamp = get_simulation_timestamp(registry);
         ctx.packet_signal.publish(client_entity, packet::edyn_packet{packet});
     }
 }
@@ -503,8 +402,8 @@ static void calculate_client_playout_delay(entt::registry &registry,
 
 static void process_aabbs_of_interest(entt::registry &registry, double time) {
     for (auto [client_entity, client, aabboi] : registry.view<remote_client, aabb_of_interest>().each()) {
-        process_aabb_of_interest_destroyed_entities(registry, client_entity, client, aabboi, time);
-        process_aabb_of_interest_created_entities(registry, client_entity, client, aabboi, time);
+        process_aabb_of_interest_destroyed_entities(registry, client_entity, aabboi, time);
+        process_aabb_of_interest_created_entities(registry, client_entity, aabboi, time);
         maybe_publish_client_registry_snapshot(registry, client_entity, client, aabboi, time);
         calculate_client_playout_delay(registry, client_entity, client, aabboi);
     }
@@ -528,6 +427,7 @@ static void dispatch_actions(entt::registry &registry, double time) {
 
         auto [client] = client_view.get(owner.client_entity);
         auto it = history.entries.begin();
+        auto last_timestamp = client.last_executed_history_entry_timestamp;
 
         for (; it != history.entries.end(); ++it) {
             if (it->timestamp <= client.last_executed_history_entry_timestamp) {
@@ -540,28 +440,27 @@ static void dispatch_actions(entt::registry &registry, double time) {
                 break;
             }
 
-            ctx.snapshot_importer->import_action(registry, entity, history.action_index, it->data);
+            ctx.snapshot_importer->import_action(registry, entity, it->action_index, it->data);
+            last_timestamp = it->timestamp;
         }
 
-        // Go back to the previous action, which is the action that was last
-        // executed.
-        std::advance(it, -1);
-        client.last_executed_history_entry_timestamp = it->timestamp;
+        client.last_executed_history_entry_timestamp = last_timestamp;
 
-        // Erase processed actions but keep last. Only newer actions are
-        // inserted when remote packets arrive so the last entry must be kept
-        // in order to have something to compare with (see
-        // `server_snapshot_importer_impl::merge_action_history`).
+        // Delete all actions up to the last one that was executed.
         history.entries.erase(history.entries.begin(), it);
     }
+}
+
+void update_server_snapshot_exporter(entt::registry &registry, double time) {
+    auto &ctx = registry.ctx().at<server_network_context>();
+    ctx.snapshot_exporter->update(time);
 }
 
 void update_network_server(entt::registry &registry) {
     auto time = performance_time();
     server_update_clock_sync(registry, time);
     server_process_timed_packets(registry, time);
-    update_island_entity_owners(registry);
-    update_network_dirty(registry, time);
+    update_server_snapshot_exporter(registry, time);
     update_aabbs_of_interest(registry);
     process_aabbs_of_interest(registry, time);
     publish_pending_created_clients(registry);
@@ -721,8 +620,7 @@ void server_notify_created_entities(entt::registry &registry,
 
     auto packet = edyn::packet::create_entity{};
     packet.timestamp = performance_time();
-    packet.entities = entities;
-    ctx.snapshot_exporter->export_all(registry, packet);
+    ctx.snapshot_exporter->export_all(packet, entities);
 
     // Sort components to ensure order of construction.
     std::sort(packet.pools.begin(), packet.pools.end(), [](auto &&lhs, auto &&rhs) {

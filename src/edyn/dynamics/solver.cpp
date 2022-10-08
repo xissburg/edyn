@@ -1,8 +1,23 @@
 #include "edyn/dynamics/solver.hpp"
+#include "edyn/collision/contact_manifold.hpp"
+#include "edyn/comp/graph_edge.hpp"
+#include "edyn/comp/inertia.hpp"
+#include "edyn/comp/island.hpp"
+#include "edyn/comp/mass.hpp"
+#include "edyn/comp/origin.hpp"
+#include "edyn/comp/tag.hpp"
+#include "edyn/comp/position.hpp"
+#include "edyn/comp/orientation.hpp"
+#include "edyn/dynamics/island_solver.hpp"
+#include "edyn/config/execution_mode.hpp"
+#include "edyn/constraints/constraint_body.hpp"
+#include "edyn/dynamics/island_constraint_entities.hpp"
 #include "edyn/dynamics/row_cache.hpp"
+#include "edyn/parallel/atomic_counter_sync.hpp"
+#include "edyn/parallel/job_dispatcher.hpp"
+#include "edyn/parallel/parallel_for.hpp"
+#include "edyn/serialization/s11n_util.hpp"
 #include "edyn/sys/apply_gravity.hpp"
-#include "edyn/sys/integrate_linvel.hpp"
-#include "edyn/sys/integrate_angvel.hpp"
 #include "edyn/sys/update_aabbs.hpp"
 #include "edyn/sys/update_rotated_meshes.hpp"
 #include "edyn/sys/update_inertias.hpp"
@@ -12,183 +27,135 @@
 #include "edyn/comp/angvel.hpp"
 #include "edyn/comp/delta_linvel.hpp"
 #include "edyn/comp/delta_angvel.hpp"
-#include "edyn/collision/contact_point.hpp"
-#include "edyn/collision/contact_manifold.hpp"
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/dynamics/restitution_solver.hpp"
+#include "edyn/dynamics/island_solver.hpp"
 #include "edyn/context/settings.hpp"
+#include "edyn/util/entt_util.hpp"
+#include "edyn/util/island_util.hpp"
 #include <entt/entity/registry.hpp>
+#include <optional>
 #include <type_traits>
 
 namespace edyn {
 
-scalar solve(constraint_row &row) {
-    auto delta_relvel = dot(row.J[0], *row.dvA) +
-                        dot(row.J[1], *row.dwA) +
-                        dot(row.J[2], *row.dvB) +
-                        dot(row.J[3], *row.dwB);
-    auto delta_impulse = (row.rhs - delta_relvel) * row.eff_mass;
-    auto impulse = row.impulse + delta_impulse;
-
-    if (impulse < row.lower_limit) {
-        delta_impulse = row.lower_limit - row.impulse;
-        row.impulse = row.lower_limit;
-    } else if (impulse > row.upper_limit) {
-        delta_impulse = row.upper_limit - row.impulse;
-        row.impulse = row.upper_limit;
-    } else {
-        row.impulse = impulse;
-    }
-
-    return delta_impulse;
-}
-
-template<typename C>
-void update_impulse(entt::registry &registry, row_cache &cache, size_t &con_idx, size_t &row_idx) {
-    auto con_view = registry.view<C>(entt::exclude_t<disabled_tag>{});
-
-    for (auto entity : con_view) {
-        auto [con] = con_view.get(entity);
-        auto num_rows = cache.con_num_rows[con_idx];
-
-        // Check if the constraint `impulse` member is a scalar, otherwise
-        // an array is expected.
-        if constexpr(std::is_same_v<decltype(con.impulse), scalar>) {
-            EDYN_ASSERT(num_rows == 1);
-            con.impulse = cache.rows[row_idx].impulse;
-        } else {
-            EDYN_ASSERT(con.impulse.size() >= num_rows);
-            for (size_t i = 0; i < num_rows; ++i) {
-                con.impulse[i] = cache.rows[row_idx + i].impulse;
-            }
-        }
-
-        row_idx += num_rows;
-        ++con_idx;
-    }
-}
-
-// Specialization for `null_constraint` which is a no-op.
-template<>
-void update_impulse<null_constraint>(entt::registry &, row_cache &, size_t &, size_t &) {}
-
-// Specialization to assign the impulses of friction constraints which are not
-// stored in traditional constraint rows.
-template<>
-void update_impulse<contact_constraint>(entt::registry &registry, row_cache &cache, size_t &con_idx, size_t &row_idx) {
-    auto con_view = registry.view<contact_constraint, contact_manifold>();
-    auto &ctx = registry.ctx().at<internal::contact_constraint_context>();
-    auto global_pt_idx = size_t(0);
-    auto roll_idx = size_t(0);
-
-    for (auto entity : con_view) {
-        auto &manifold = con_view.get<contact_manifold>(entity);
-
-        for (unsigned pt_idx = 0; pt_idx < manifold.num_points; ++pt_idx) {
-            auto &cp = manifold.get_point(pt_idx);
-            cp.normal_impulse = cache.rows[row_idx++].impulse;
-
-            // Friction impulse.
-            auto &friction_rows = ctx.friction_rows[global_pt_idx];
-
-            for (auto i = 0; i < 2; ++i) {
-                cp.friction_impulse[i] = friction_rows.row[i].impulse;
-            }
-
-            // Rolling friction impulse.
-            if (cp.roll_friction > 0) {
-                auto &roll_rows = ctx.roll_friction_rows[roll_idx];
-                for (auto i = 0; i < 2; ++i) {
-                    cp.rolling_friction_impulse[i] = roll_rows.row[i].impulse;
-                }
-                ++roll_idx;
-            }
-
-            // Spinning friction impulse.
-            if (cp.spin_friction > 0) {
-                cp.spin_friction_impulse = cache.rows[row_idx++].impulse;
-            }
-
-            ++global_pt_idx;
-        }
-
-        ++con_idx;
-    }
-}
-
-void update_impulses(entt::registry &registry, row_cache &cache) {
-    // Assign impulses from constraint rows back into the constraints. The rows
-    // are inserted into the cache for each constraint type in the order they're
-    // found in `constraints_tuple` and in the same order they're in their EnTT
-    // pools, which means the rows in the cache can be matched by visiting each
-    // constraint type in the order they appear in the tuple.
-    size_t con_idx = 0;
-    size_t row_idx = 0;
-
-    std::apply([&](auto ... c) {
-        (update_impulse<decltype(c)>(registry, cache, con_idx, row_idx), ...);
-    }, constraints_tuple);
-}
-
 solver::solver(entt::registry &registry)
     : m_registry(&registry)
 {
-    registry.on_construct<linvel>().connect<&entt::registry::emplace<delta_linvel>>();
-    registry.on_construct<angvel>().connect<&entt::registry::emplace<delta_angvel>>();
-
-    registry.ctx().emplace<internal::contact_constraint_context>();
+    m_connections.emplace_back(registry.on_construct<linvel>().connect<&entt::registry::emplace<delta_linvel>>());
+    m_connections.emplace_back(registry.on_construct<angvel>().connect<&entt::registry::emplace<delta_angvel>>());
+    m_connections.emplace_back(registry.on_construct<island_tag>().connect<&entt::registry::emplace<row_cache>>());
+    m_connections.emplace_back(registry.on_construct<island_tag>().connect<&entt::registry::emplace<island_constraint_entities>>());
+    m_connections.emplace_back(registry.on_construct<constraint_tag>().connect<&entt::registry::emplace<constraint_row_prep_cache>>());
 }
 
-solver::~solver() = default;
+template<typename C, typename BodyView, typename OriginView, typename ManifoldView>
+void invoke_prepare_constraint(entt::registry &registry, entt::entity entity, C &&con,
+                               constraint_row_prep_cache &cache, scalar dt,
+                               const BodyView &body_view, const OriginView &origin_view,
+                               const ManifoldView &manifold_view) {
+    auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = body_view.get(con.body[0]);
+    auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] = body_view.get(con.body[1]);
 
-void solver::update(scalar dt) {
-    auto &registry = *m_registry;
-    auto &settings = registry.ctx().at<edyn::settings>();
+    auto originA = origin_view.contains(con.body[0]) ?
+        origin_view.template get<origin>(con.body[0]) : static_cast<vector3>(posA);
+    auto originB = origin_view.contains(con.body[1]) ?
+        origin_view.template get<origin>(con.body[1]) : static_cast<vector3>(posB);
 
-    m_row_cache.clear();
+    const auto bodyA = constraint_body{originA, posA, ornA, linvelA, angvelA, inv_mA, inv_IA};
+    const auto bodyB = constraint_body{originB, posB, ornB, linvelB, angvelB, inv_mB, inv_IB};
 
-    // Apply restitution impulses before gravity to prevent resting objects to
-    // start bouncing due to the initial gravity acceleration.
-    solve_restitution(registry, dt);
+    cache.add_constraint();
 
-    apply_gravity(registry, dt);
+    // Grab index of first row so all rows that will be added can be iterated
+    // later to finish their setup. Note that no rows could be added as well.
+    auto row_start_index = cache.num_rows;
 
-    // Setup constraints.
-    prepare_constraints(registry, m_row_cache, dt);
-
-    // Solve constraints.
-    for (unsigned i = 0; i < settings.num_solver_velocity_iterations; ++i) {
-        // Prepare constraints for iteration.
-        iterate_constraints(registry, m_row_cache, dt);
-
-        // Solve rows.
-        for (auto &row : m_row_cache.rows) {
-            auto delta_impulse = solve(row);
-            apply_impulse(delta_impulse, row);
-        }
+    if constexpr(std::is_same_v<std::decay_t<C>, contact_constraint>) {
+        auto &manifold = manifold_view.template get<contact_manifold>(entity);
+        con.prepare(registry, entity, manifold, cache, dt, bodyA, bodyB);
+    } else {
+        con.prepare(registry, entity, cache, dt, bodyA, bodyB);
     }
 
-    // Apply constraint velocity correction.
-    auto vel_view = registry.view<linvel, angvel, delta_linvel, delta_angvel, dynamic_tag>();
-    vel_view.each([](linvel &v, angvel &w, delta_linvel &dv, delta_angvel &dw) {
-        v += dv;
-        w += dw;
-        dv = vector3_zero;
-        dw = vector3_zero;
-    });
+    // Assign masses and deltas to new rows.
+    for (auto i = row_start_index; i < cache.num_rows; ++i) {
+        auto &row = cache.rows[i].row;
+        row.inv_mA = inv_mA; row.inv_IA = inv_IA;
+        row.inv_mB = inv_mB; row.inv_IB = inv_IB;
+        row.dvA = &dvA; row.dwA = &dwA;
+        row.dvB = &dvB; row.dwB = &dwB;
 
-    // Assign applied impulses.
-    update_impulses(registry, m_row_cache);
+        auto &options = cache.rows[i].options;
+        prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
+    }
+}
 
-    // Integrate velocities to obtain new transforms.
-    integrate_linvel(registry, dt);
-    integrate_angvel(registry, dt);
+static void prepare_constraints(entt::registry &registry, scalar dt, bool mt) {
+    auto body_view = registry.view<position, orientation,
+                                   linvel, angvel,
+                                   mass_inv, inertia_world_inv,
+                                   delta_linvel, delta_angvel>();
+    auto origin_view = registry.view<origin>();
+    auto cache_view = registry.view<constraint_row_prep_cache>(exclude_sleeping_disabled);
+    auto manifold_view = registry.view<contact_manifold>();
+    auto con_view_tuple = get_tuple_of_views(registry, constraints_tuple);
 
-    // Now that rigid bodies have moved, perform positional correction.
-    for (unsigned i = 0; i < settings.num_solver_position_iterations; ++i) {
-        if (solve_position_constraints(registry, dt)) {
-            break;
+    auto for_loop_body = [&registry, body_view, cache_view, origin_view,
+                          manifold_view, con_view_tuple, dt](entt::entity entity) {
+        auto &prep_cache = cache_view.get<constraint_row_prep_cache>(entity);
+        prep_cache.clear();
+
+        std::apply([&](auto &&... con_view) {
+            ((con_view.contains(entity) ?
+                invoke_prepare_constraint(registry, entity, std::get<0>(con_view.get(entity)), prep_cache,
+                                          dt, body_view, origin_view, manifold_view) : void(0)), ...);
+        }, con_view_tuple);
+    };
+
+    const size_t max_sequential_size = 4;
+    auto num_constraints = calculate_view_size(registry.view<constraint_tag>(exclude_sleeping_disabled));
+
+    if (mt && num_constraints > max_sequential_size) {
+        auto &dispatcher = job_dispatcher::global();
+        parallel_for_each(dispatcher, cache_view.begin(), cache_view.end(), for_loop_body);
+    } else {
+        for (auto entity : cache_view) {
+            for_loop_body(entity);
+        }
+    }
+}
+
+void solver::update(bool mt) {
+    auto &registry = *m_registry;
+    auto &settings = registry.ctx().at<edyn::settings>();
+    auto dt = settings.fixed_dt;
+
+    solve_restitution(registry, dt);
+    apply_gravity(registry, dt);
+
+    prepare_constraints(registry, dt, mt);
+
+    auto island_view = registry.view<island>(exclude_sleeping_disabled);
+    auto num_islands = calculate_view_size(island_view);
+
+    if (mt && num_islands > 1) {
+        auto counter = atomic_counter_sync(num_islands);
+
+        for (auto island_entity : island_view) {
+            run_island_solver_seq_mt(registry, island_entity,
+                                     settings.num_solver_velocity_iterations,
+                                     settings.num_solver_position_iterations,
+                                     dt, &counter);
+        }
+
+        counter.wait();
+    } else {
+        for (auto island_entity : island_view) {
+            run_island_solver_seq(registry, island_entity,
+                                  settings.num_solver_velocity_iterations,
+                                  settings.num_solver_position_iterations, dt);
         }
     }
 
@@ -201,6 +168,7 @@ void solver::update(scalar dt) {
 
     // Update AABBs after transforms change.
     update_aabbs(registry);
+    update_island_aabbs(registry);
 
     // Update world-space moment of inertia.
     update_inertias(registry);

@@ -3,12 +3,17 @@
 
 #include <array>
 #include <entt/entity/fwd.hpp>
-#include "edyn/util/array.hpp"
+#include "edyn/util/array_util.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/constraints/constraint_base.hpp"
-#include "edyn/constraints/prepare_constraints.hpp"
+#include "edyn/constraints/constraint_body.hpp"
 
 namespace edyn {
+
+struct constraint_row_prep_cache;
+class position_solver;
+struct quaternion;
+struct matrix3x3;
 
 /**
  * @brief Constrains two points on a pair of rigid bodies to match in space.
@@ -20,6 +25,11 @@ struct point_constraint : public constraint_base {
     scalar friction_torque{};
 
     std::array<scalar, 4> impulse {make_array<4>(scalar{})};
+
+    void prepare(
+        const entt::registry &, entt::entity,
+        constraint_row_prep_cache &cache, scalar dt,
+        const constraint_body &bodyA, const constraint_body &bodyB);
 };
 
 template<typename Archive>
@@ -29,9 +39,6 @@ void serialize(Archive &archive, point_constraint &c) {
     archive(c.friction_torque);
     archive(c.impulse);
 }
-
-template<>
-void prepare_constraints<point_constraint>(entt::registry &, row_cache &, scalar dt);
 
 }
 
