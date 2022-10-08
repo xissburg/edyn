@@ -160,12 +160,21 @@ public:
                 temporary_ownership = dest_client_reachable && !other_client_reachable;
             }
 
+            auto owned_by_destination_client = owner_view.contains(entity) &&
+                                               owner_view.get<entity_owner>(entity).client_entity == dest_client_entity;
+
             if (modified_view.contains(entity)) {
                 auto [modified] = modified_view.get(entity);
 
                 if (!modified.empty()) {
+                    // Components that have been modified recently must be included in the
+                    // packet, except if the client has temporary ownership of it or if it's
+                    // an input component and the entity owner is the same as the destination
+                    // client.
                     unsigned i = 0;
-                    (((modified.time_remaining[i] > 0 && (!temporary_ownership || !(std::is_base_of_v<network_input, Components> || std::is_same_v<Components, action_history>)) ?
+                    ((((modified.time_remaining[i] > 0 && !temporary_ownership &&
+                        !(owned_by_destination_client && std::is_base_of_v<network_input, Components>) &&
+                        !std::is_same_v<Components, action_history>) ?
                         internal::get_pool<Components>(snap.pools, i)->insert_single(registry, entity, snap.entities) : void(0)), ++i), ...);
                 }
             }
