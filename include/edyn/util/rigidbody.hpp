@@ -33,9 +33,12 @@ struct rigidbody_def {
     vector3 position {vector3_zero};
     quaternion orientation {quaternion_identity};
 
-    // Mass properties for dynamic entities.
+    // Mass for dynamic entities.
     scalar mass {1};
-    matrix3x3 inertia {matrix3x3_identity};
+
+    // Custom moment of inertia. If not set, it will be calculated from mass
+    // and shape. Must not be empty if entity is dynamic and amorphous.
+    std::optional<matrix3x3> inertia;
 
     // Initial linear and angular velocity.
     vector3 linvel {vector3_zero};
@@ -67,13 +70,6 @@ struct rigidbody_def {
 
     // Share this rigid body over the network.
     bool networked {false};
-
-    /**
-     * @brief Assigns the default moment of inertia of the current shape
-     * using the current mass.
-     * Assumes `shape` to contain a value.
-     */
-    void update_inertia();
 };
 
 /**

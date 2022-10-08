@@ -4,6 +4,7 @@
 #include "edyn/constraints/cvjoint_constraint.hpp"
 #include "edyn/constraints/hinge_constraint.hpp"
 #include "edyn/math/coordinate_axis.hpp"
+#include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/transform.hpp"
 #include "edyn/shapes/cylinder_shape.hpp"
 #include "edyn/util/constraint_util.hpp"
@@ -95,7 +96,6 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
             break;
         }
 
-        def.update_inertia();
         entities.head = make_rigidbody(registry, def);
     }
 
@@ -125,7 +125,6 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
             break;
         }
 
-        def.update_inertia();
         entities.neck = make_rigidbody(registry, def);
     }
 
@@ -154,7 +153,6 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
             break;
         }
 
-        def.update_inertia();
         entities.torso_upper = make_rigidbody(registry, def);
     }
 
@@ -182,7 +180,6 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
             break;
         }
 
-        def.update_inertia();
         entities.torso_middle = make_rigidbody(registry, def);
     }
 
@@ -209,7 +206,6 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
             break;
         }
 
-        def.update_inertia();
         entities.torso_lower = make_rigidbody(registry, def);
     }
 
@@ -233,7 +229,6 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
             break;
         }
 
-        def.update_inertia();
         entities.hip = make_rigidbody(registry, def);
     }
 
@@ -263,8 +258,6 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
             break;
         }
 
-        def.update_inertia();
-
         *std::array{&entities.leg_upper_left, &entities.leg_upper_right}[i] = make_rigidbody(registry, def);
     }
 
@@ -291,8 +284,6 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
             def.shape = cylinder_shape{rag_def.leg_lower_size.x / 2, rag_def.leg_lower_size.y / 2, coordinate_axis::y};
             break;
         }
-
-        def.update_inertia();
 
         *std::array{&entities.leg_lower_left, &entities.leg_lower_right}[i] = make_rigidbody(registry, def);
     }
@@ -322,8 +313,6 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
             def.shape = cylinder_shape{rag_def.foot_size.x / 2, rag_def.foot_size.z / 2, coordinate_axis::z};
             break;
         }
-
-        def.update_inertia();
 
         *std::array{&entities.foot_left, &entities.foot_right}[i] = make_rigidbody(registry, def);
     }
@@ -382,8 +371,6 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
             break;
         }
 
-        def.update_inertia();
-
         *std::array{&entities.arm_upper_left, &entities.arm_upper_right}[i] = make_rigidbody(registry, def);
     }
 
@@ -413,10 +400,11 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
             def.shape = cylinder_shape{rag_def.arm_lower_size.y / 2, rag_def.arm_lower_size.x / 2, coordinate_axis::x};
             break;
         }
-        def.update_inertia();
 
         *std::array{&entities.arm_lower_left, &entities.arm_lower_right}[i] = make_rigidbody(registry, def);
 
+        // Make a body with no collision shape for the twist. Use the same inertia.
+        def.inertia = moment_of_inertia(*def.shape, def.mass);
         def.shape = {};
         *std::array{&entities.arm_twist_left, &entities.arm_twist_right}[i] = make_rigidbody(registry, def);
     }
@@ -450,7 +438,6 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
             def.shape = cylinder_shape{rag_def.hand_size.y / 2, rag_def.hand_size.x / 2, coordinate_axis::x};
             break;
         }
-        def.update_inertia();
 
         *std::array{&entities.hand_left, &entities.hand_right}[i] = make_rigidbody(registry, def);
     }

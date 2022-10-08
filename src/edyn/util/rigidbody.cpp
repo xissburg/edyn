@@ -28,16 +28,6 @@
 
 namespace edyn {
 
-void rigidbody_def::update_inertia() {
-    inertia = moment_of_inertia(*shape, mass);
-
-    if (center_of_mass) {
-        // Use parallel-axis theorem to calculate moment of inertia along
-        // axes away from the origin.
-        inertia = shift_moment_of_inertia(inertia, mass, *center_of_mass);
-    }
-}
-
 void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbody_def &def) {
     registry.emplace<position>(entity, def.position);
     registry.emplace<orientation>(entity, def.orientation);
@@ -46,9 +36,23 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         EDYN_ASSERT(def.mass > EDYN_EPSILON && def.mass < large_scalar);
         registry.emplace<mass>(entity, def.mass);
         registry.emplace<mass_inv>(entity, scalar(1) / def.mass);
-        registry.emplace<inertia>(entity, def.inertia);
 
-        auto I_inv = inverse_matrix_symmetric(def.inertia);
+        matrix3x3 inertia;
+
+        if (def.inertia) {
+            inertia = *def.inertia;
+        } else {
+            inertia = moment_of_inertia(*def.shape, def.mass);
+
+            if (def.center_of_mass) {
+                // Use parallel-axis theorem to calculate moment of inertia along
+                // axes away from the origin.
+                inertia = shift_moment_of_inertia(inertia, def.mass, *def.center_of_mass);
+            }
+        }
+
+        auto I_inv = inverse_matrix_symmetric(inertia);
+        registry.emplace<edyn::inertia>(entity, inertia);
         registry.emplace<inertia_inv>(entity, I_inv);
         registry.emplace<inertia_world_inv>(entity, I_inv);
     } else {
