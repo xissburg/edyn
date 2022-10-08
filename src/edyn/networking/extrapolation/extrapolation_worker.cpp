@@ -14,6 +14,7 @@
 #include "edyn/networking/context/client_network_context.hpp"
 #include "edyn/networking/extrapolation/extrapolation_request.hpp"
 #include "edyn/networking/util/input_state_history.hpp"
+#include "edyn/parallel/message.hpp"
 #include "edyn/replication/registry_operation_observer.hpp"
 #include "edyn/serialization/memory_archive.hpp"
 #include "edyn/core/entity_graph.hpp"
@@ -43,7 +44,10 @@ extrapolation_worker::extrapolation_worker(const settings &settings,
     , m_island_manager(m_registry)
     , m_make_extrapolation_modified_comp(make_extrapolation_modified_comp)
     , m_message_queue(message_dispatcher::global().make_queue<
-        extrapolation_request>("extrapolation_worker"))
+        extrapolation_request,
+        msg::set_settings,
+        msg::set_registry_operation_context,
+        msg::set_material_table>("extrapolation_worker"))
 {
     m_registry.ctx().emplace<contact_manifold_map>(m_registry);
     m_registry.ctx().emplace<broadphase>(m_registry);
@@ -54,6 +58,9 @@ extrapolation_worker::extrapolation_worker(const settings &settings,
     m_registry.ctx().emplace<material_mix_table>(material_table);
 
     m_message_queue.sink<extrapolation_request>().connect<&extrapolation_worker::on_extrapolation_request>(*this);
+    m_message_queue.sink<msg::set_settings>().connect<&extrapolation_worker::on_set_settings>(*this);
+    m_message_queue.sink<msg::set_registry_operation_context>().connect<&extrapolation_worker::on_set_reg_op_ctx>(*this);
+    m_message_queue.sink<msg::set_material_table>().connect<&extrapolation_worker::on_set_material_table>(*this);
     m_message_queue.push_sink().connect<&extrapolation_worker::on_push_message>(*this);
 }
 
@@ -75,10 +82,37 @@ void extrapolation_worker::stop() {
     m_thread.reset();
 }
 
+void extrapolation_worker::set_settings(const edyn::settings &settings) {
+    auto &dispatcher = message_dispatcher::global();
+    dispatcher.send<msg::set_settings>(m_message_queue.identifier, {"unknown"}, settings);
+}
+
+void extrapolation_worker::set_material_table(const material_mix_table &material_table) {
+    auto &dispatcher = message_dispatcher::global();
+    dispatcher.send<msg::set_material_table>(m_message_queue.identifier, {"unknown"}, material_table);
+}
+
+void extrapolation_worker::set_registry_operation_context(const registry_operation_context &reg_op_ctx) {
+    auto &dispatcher = message_dispatcher::global();
+    dispatcher.send<msg::set_registry_operation_context>(m_message_queue.identifier, {"unknown"}, reg_op_ctx);
+}
+
 void extrapolation_worker::on_extrapolation_request(message<extrapolation_request> &msg) {
     m_destination_queue = msg.sender;
     m_request = std::move(msg.content);
     m_has_work = true;
+}
+
+void extrapolation_worker::on_set_settings(message<msg::set_settings> &msg) {
+    m_registry.ctx().at<settings>() = msg.content.settings;
+}
+
+void extrapolation_worker::on_set_reg_op_ctx(message<msg::set_registry_operation_context> &msg) {
+    m_registry.ctx().at<registry_operation_context>() = msg.content.ctx;
+}
+
+void extrapolation_worker::on_set_material_table(message<msg::set_material_table> &msg) {
+    m_registry.ctx().at<material_mix_table>() = msg.content.table;
 }
 
 void extrapolation_worker::on_push_message() {
@@ -93,6 +127,12 @@ void extrapolation_worker::apply_history() {
 }
 
 void extrapolation_worker::init_extrapolation() {
+    m_start_time = performance_time();
+    m_current_time = m_start_time;
+    m_step_count = 0;
+    m_island_manager.set_last_time(m_start_time);
+    m_terminated_early = false;
+
     // Import entities and components.
     m_request.ops.execute(m_registry, m_entity_map);
 
@@ -160,12 +200,6 @@ void extrapolation_worker::init_extrapolation() {
     }
 
     m_modified_comp = (*m_make_extrapolation_modified_comp)(m_registry, relevant_entities, owned_entities);
-
-    m_start_time = performance_time();
-    m_current_time = m_start_time;
-    m_step_count = 0;
-    m_island_manager.set_last_time(m_start_time);
-    m_terminated_early = false;
 }
 
 void extrapolation_worker::finish_extrapolation() {

@@ -21,6 +21,11 @@ void edit_client_settings(entt::registry &registry, Func func) {
     if (auto *stepper = registry.ctx().find<stepper_async>()) {
         stepper->settings_changed();
     }
+
+    if (auto *ctx = registry.ctx().find<client_network_context>()) {
+        auto &settings = registry.ctx().at<edyn::settings>();
+        ctx->extrapolator->set_settings(settings);
+    }
 }
 
 void set_network_client_snapshot_rate(entt::registry &registry, double rate) {

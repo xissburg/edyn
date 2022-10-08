@@ -1,6 +1,7 @@
 #include "edyn/replication/register_external.hpp"
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/context/registry_operation_context.hpp"
+#include "edyn/networking/context/client_network_context.hpp"
 
 namespace edyn {
 
@@ -15,6 +16,11 @@ void remove_external_components(entt::registry &registry) {
     if (auto *stepper = registry.ctx().find<stepper_async>()) {
         stepper->settings_changed();
         stepper->reg_op_ctx_changed();
+    }
+
+    if (auto *ctx = registry.ctx().find<client_network_context>()) {
+        ctx->extrapolator->set_settings(settings);
+        ctx->extrapolator->set_registry_operation_context(reg_op_ctx);
     }
 }
 

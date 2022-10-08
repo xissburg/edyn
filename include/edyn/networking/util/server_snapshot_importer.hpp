@@ -264,7 +264,7 @@ class server_snapshot_importer_impl : public server_snapshot_importer {
         if constexpr(sizeof...(Actions) == 1) {
             (import_action_single<Actions>(registry, entity, data), ...);
         } else {
-            auto actions = std::tuple<Actions...>{};
+            static const auto actions = std::tuple<Actions...>{};
             visit_tuple(actions, action_index, [&](auto &&a) {
                 using ActionType = std::decay_t<decltype(a)>;
                 import_action_single<ActionType>(registry, entity, data);

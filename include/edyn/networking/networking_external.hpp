@@ -45,7 +45,7 @@ void register_networked_components(entt::registry &registry, std::tuple<Actions.
             auto external = std::tuple<Components...>{};
             auto all = std::tuple_cat(networked_components, external);
             return std::unique_ptr<extrapolation_modified_comp>(
-                    new extrapolation_modified_comp_impl(registry, relevant_entities, owned_entities, all));
+                new extrapolation_modified_comp_impl(registry, relevant_entities, owned_entities, all));
         };
     }
 

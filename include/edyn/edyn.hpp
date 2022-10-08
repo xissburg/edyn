@@ -67,6 +67,16 @@ scalar get_fixed_dt(const entt::registry &registry);
 void set_fixed_dt(entt::registry &registry, scalar dt);
 
 /**
+ * @brief The time that has passed since the last update determines how many
+ * steps with a fixed delta time will be performed in the current update.
+ * If too much time has passed, too many steps will be ran, which could cause
+ * slow downs. For that reason, the number of steps per update is capped.
+ * @param registry Data source.
+ * @param max_steps Maximum number of steps per update.
+ */
+void set_max_steps_per_update(entt::registry &registry, unsigned);
+
+/**
  * @brief Checks if simulation is paused.
  * @param registry Data source.
  * @return Whether simulation is paused.

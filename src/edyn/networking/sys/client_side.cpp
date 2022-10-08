@@ -641,6 +641,10 @@ static void process_packet(entt::registry &registry, const packet::server_settin
     if (auto *stepper = registry.ctx().find<stepper_async>()) {
         stepper->settings_changed();
     }
+
+    if (auto *ctx = registry.ctx().find<client_network_context>()) {
+        ctx->extrapolator->set_settings(settings);
+    }
 }
 
 static void process_packet(entt::registry &, const packet::set_aabb_of_interest &) {}

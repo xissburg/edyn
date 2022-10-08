@@ -5,6 +5,7 @@
 #include <type_traits>
 #include <entt/entity/fwd.hpp>
 #include <utility>
+#include "edyn/networking/comp/action_history.hpp"
 #include "edyn/networking/comp/network_input.hpp"
 #include "edyn/replication/registry_operation_builder.hpp"
 #include "edyn/util/tuple_util.hpp"
@@ -66,7 +67,7 @@ public:
         (m_connections.push_back(registry.on_update<Components>().template connect<&extrapolation_modified_comp_impl<Components...>::template on_update<Components>>(*this)), ...);
 
         unsigned i = 0;
-        ((m_is_network_input[i++] = std::is_base_of_v<network_input, Components>), ...);
+        ((m_is_network_input[i++] = std::disjunction_v<std::is_base_of<network_input, Components>, std::is_same<action_history, Components>>), ...);
     }
 
     void export_to_builder(registry_operation_builder &builder) override {

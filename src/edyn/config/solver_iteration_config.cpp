@@ -1,5 +1,6 @@
 #include "edyn/config/solver_iteration_config.hpp"
 #include "edyn/context/settings.hpp"
+#include "edyn/networking/context/client_network_context.hpp"
 #include "edyn/simulation/stepper_async.hpp"
 #include <entt/entity/registry.hpp>
 
@@ -16,6 +17,10 @@ void set_solver_velocity_iterations(entt::registry &registry, unsigned iteration
     if (auto *stepper = registry.ctx().find<stepper_async>()) {
         stepper->settings_changed();
     }
+
+    if (auto *ctx = registry.ctx().find<client_network_context>()) {
+        ctx->extrapolator->set_settings(settings);
+    }
 }
 
 unsigned get_solver_position_iterations(const entt::registry &registry) {
@@ -28,6 +33,10 @@ void set_solver_position_iterations(entt::registry &registry, unsigned iteration
 
     if (auto *stepper = registry.ctx().find<stepper_async>()) {
         stepper->settings_changed();
+    }
+
+    if (auto *ctx = registry.ctx().find<client_network_context>()) {
+        ctx->extrapolator->set_settings(settings);
     }
 }
 
@@ -42,6 +51,10 @@ void set_solver_restitution_iterations(entt::registry &registry, unsigned iterat
     if (auto *stepper = registry.ctx().find<stepper_async>()) {
         stepper->settings_changed();
     }
+
+    if (auto *ctx = registry.ctx().find<client_network_context>()) {
+        ctx->extrapolator->set_settings(settings);
+    }
 }
 
 unsigned get_solver_individual_restitution_iterations(const entt::registry &registry) {
@@ -54,6 +67,10 @@ void set_solver_individual_restitution_iterations(entt::registry &registry, unsi
 
     if (auto *stepper = registry.ctx().find<stepper_async>()) {
         stepper->settings_changed();
+    }
+
+    if (auto *ctx = registry.ctx().find<client_network_context>()) {
+        ctx->extrapolator->set_settings(settings);
     }
 }
 

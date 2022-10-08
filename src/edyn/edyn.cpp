@@ -12,6 +12,7 @@
 #include "edyn/context/registry_operation_context.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/networking/comp/entity_owner.hpp"
+#include "edyn/networking/context/client_network_context.hpp"
 #include "edyn/simulation/stepper_async.hpp"
 #include "edyn/simulation/stepper_sequential.hpp"
 #include "edyn/sys/update_presentation.hpp"
@@ -111,10 +112,28 @@ scalar get_fixed_dt(const entt::registry &registry) {
 }
 
 void set_fixed_dt(entt::registry &registry, scalar dt) {
-    registry.ctx().at<settings>().fixed_dt = dt;
+    auto &settings = registry.ctx().at<edyn::settings>();
+    settings.fixed_dt = dt;
 
     if (auto *stepper = registry.ctx().find<stepper_async>()) {
         stepper->settings_changed();
+    }
+
+    if (auto *ctx = registry.ctx().find<client_network_context>()) {
+        ctx->extrapolator->set_settings(settings);
+    }
+}
+
+void set_max_steps_per_update(entt::registry &registry, unsigned max_steps) {
+    auto &settings = registry.ctx().at<edyn::settings>();
+    settings.max_steps_per_update = max_steps;
+
+    if (auto *stepper = registry.ctx().find<stepper_async>()) {
+        stepper->settings_changed();
+    }
+
+    if (auto *ctx = registry.ctx().find<client_network_context>()) {
+        ctx->extrapolator->set_settings(settings);
     }
 }
 
