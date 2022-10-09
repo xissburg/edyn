@@ -1,5 +1,5 @@
 #include "../common/common.hpp"
-#include <edyn/parallel/entity_graph.hpp>
+#include <edyn/core/entity_graph.hpp>
 
 TEST(entity_graph_test, test_connected_components) {
     auto registry = entt::registry();

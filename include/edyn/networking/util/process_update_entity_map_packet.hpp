@@ -2,7 +2,7 @@
 #define EDYN_NETWORKING_UTIL_PROCESS_UPDATE_ENTITY_MAP_PACKET_HPP
 
 #include "edyn/networking/packet/update_entity_map.hpp"
-#include "edyn/util/entity_map.hpp"
+#include "edyn/replication/entity_map.hpp"
 #include <entt/entity/fwd.hpp>
 
 namespace edyn {

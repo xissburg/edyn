@@ -1,8 +1,10 @@
 #include "../common/common.hpp"
+#include "edyn/util/shape_util.hpp"
+#include "edyn/math/shape_volume.hpp"
 
 TEST(test_shape_volume, polyhedron_volume) {
     auto mesh = std::make_shared<edyn::convex_mesh>();
-    edyn::make_box_mesh({0.5, 0.5, 0.5}, mesh->vertices, 
+    edyn::make_box_mesh({0.5, 0.5, 0.5}, mesh->vertices,
                         mesh->indices, mesh->faces);
     mesh->initialize();
     auto polyhedron = edyn::polyhedron_shape(mesh);

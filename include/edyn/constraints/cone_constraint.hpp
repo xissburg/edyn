@@ -2,12 +2,14 @@
 #define EDYN_CONSTRAINTS_CONE_CONSTRAINT_HPP
 
 #include "edyn/constraints/constraint_base.hpp"
-#include "edyn/constraints/prepare_constraints.hpp"
+#include "edyn/constraints/constraint_body.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/vector3.hpp"
-#include "edyn/util/array.hpp"
+#include "edyn/util/array_util.hpp"
 
 namespace edyn {
+
+struct constraint_row_prep_cache;
 
 /**
  * @brief Constrains a point in one body to a cone in the other body.
@@ -41,10 +43,12 @@ struct cone_constraint : public constraint_base {
 
     static constexpr auto num_rows = 2;
     std::array<scalar, num_rows> impulse {make_array<num_rows>(scalar{})};
-};
 
-template<>
-void prepare_constraints<cone_constraint>(entt::registry &, row_cache &, scalar dt);
+    void prepare(
+        const entt::registry &, entt::entity,
+        constraint_row_prep_cache &cache, scalar dt,
+        const constraint_body &bodyA, const constraint_body &bodyB);
+};
 
 template<typename Archive>
 void serialize(Archive &archive, cone_constraint &c) {

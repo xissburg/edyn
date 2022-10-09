@@ -2,11 +2,17 @@
 #define EDYN_PARALLEL_MESSAGE_HPP
 
 #include <entt/entity/fwd.hpp>
+#include "edyn/collision/raycast.hpp"
+#include "edyn/comp/aabb.hpp"
+#include "edyn/comp/island.hpp"
+#include "edyn/context/registry_operation_context.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
 #include "edyn/networking/util/pool_snapshot.hpp"
-#include "edyn/util/registry_operation.hpp"
+#include "edyn/parallel/message_dispatcher.hpp"
+#include "edyn/core/entity_pair.hpp"
+#include "edyn/replication/registry_operation.hpp"
 
 namespace edyn::msg {
 
@@ -18,19 +24,36 @@ struct set_settings {
     edyn::settings settings;
 };
 
+struct set_registry_operation_context {
+    edyn::registry_operation_context ctx;
+};
+
 struct set_material_table {
     edyn::material_mix_table table;
 };
 
 struct step_simulation {};
 
-struct wake_up_island {};
-
-struct split_island {};
-
 struct set_com {
     entt::entity entity;
     vector3 com;
+};
+
+/**
+ * Message sent by worker to the main thread after every step of the simulation
+ * containing everything that changed since the previous update.
+ */
+struct step_update {
+    registry_operation ops;
+    double timestamp;
+};
+
+/**
+ * Message sent by the stepper to a worker asking entities and components
+ * to be created, destroyed or updated.
+ */
+struct update_entities {
+    registry_operation ops;
 };
 
 struct apply_network_pools {
@@ -38,8 +61,35 @@ struct apply_network_pools {
     std::vector<pool_snapshot> pools;
 };
 
-struct island_reg_ops {
-    registry_operation_collection ops;
+struct raycast_request {
+    unsigned int id;
+    vector3 p0, p1;
+    std::vector<entt::entity> ignore_entities;
+};
+
+struct raycast_response {
+    unsigned int id;
+    raycast_result result;
+};
+
+struct query_aabb_request {
+    unsigned id;
+    AABB aabb;
+    bool query_procedural;
+    bool query_non_procedural;
+    bool query_islands;
+};
+
+struct query_aabb_of_interest_request {
+    unsigned id;
+    AABB aabb;
+};
+
+struct query_aabb_response {
+    unsigned id;
+    std::vector<entt::entity> procedural_entities;
+    std::vector<entt::entity> non_procedural_entities;
+    std::vector<entt::entity> island_entities;
 };
 
 }

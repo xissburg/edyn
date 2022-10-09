@@ -98,7 +98,7 @@ namespace detail {
         std::array<VisitFuncType, sizeof...(Ts)> functions;
 
         constexpr visit_tuple_function_array() : functions{} {
-            size_t i = 0;
+            unsigned i = 0;
             ((functions[i++] = make_visit_tuple_function<VisitorType, TupleType, Ts>()), ...);
         }
     };
@@ -122,7 +122,7 @@ namespace detail {
         std::array<VisitFuncType, sizeof...(Ts)> functions;
 
         constexpr visit_const_tuple_function_array() : functions{} {
-            size_t i = 0;
+            unsigned i = 0;
             ((functions[i++] = make_visit_const_tuple_function<VisitorType, TupleType, Ts>()), ...);
         }
     };

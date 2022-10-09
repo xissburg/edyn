@@ -3,7 +3,7 @@
 #include <numeric>
 #include "edyn/math/quaternion.hpp"
 #include "edyn/shapes/box_shape.hpp"
-#include "edyn/util/array.hpp"
+#include "edyn/util/array_util.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/math.hpp"
 #include "edyn/math/vector2_3_util.hpp"

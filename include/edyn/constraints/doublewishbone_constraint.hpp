@@ -2,12 +2,15 @@
 #define EDYN_CONSTRAINTS_DOUBLEWISHBONE_CONSTRAINT
 
 #include <entt/fwd.hpp>
+#include "edyn/constraints/constraint_body.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/constraints/constraint_base.hpp"
-#include "edyn/constraints/prepare_constraints.hpp"
-#include "edyn/util/array.hpp"
+#include "edyn/util/array_util.hpp"
 
 namespace edyn {
+
+struct quaternion;
+struct constraint_row_prep_cache;
 
 struct doublewishbone_constraint : public constraint_base {
     vector3 upper_pivotA;
@@ -20,10 +23,12 @@ struct doublewishbone_constraint : public constraint_base {
 
     static const auto num_rows = 6;
     std::array<scalar, num_rows> impulse = make_array<num_rows>(scalar{});
-};
 
-template<>
-void prepare_constraints<doublewishbone_constraint>(entt::registry &, row_cache &, scalar dt);
+    void prepare(
+        const entt::registry &, entt::entity,
+        constraint_row_prep_cache &cache, scalar dt,
+        const constraint_body &bodyA, const constraint_body &bodyB);
+};
 
 template<typename Archive>
 void serialize(Archive &archive, doublewishbone_constraint &con) {

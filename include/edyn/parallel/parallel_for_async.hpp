@@ -25,9 +25,9 @@ struct parallel_for_async_context {
     job completion;
     Function func;
 
-    parallel_for_async_context(IndexType first, IndexType last, IndexType step, 
-                               IndexType chunk_size, size_t num_jobs, const job &completion, 
-                               job_dispatcher &dispatcher, Function func) 
+    parallel_for_async_context(IndexType first, IndexType last, IndexType step,
+                               IndexType chunk_size, size_t num_jobs, const job &completion,
+                               job_dispatcher &dispatcher, Function func)
         : current(first)
         , first(first)
         , last(last)
@@ -93,8 +93,8 @@ struct parallel_for_each_async_context {
     Function func;
 
     parallel_for_each_async_context(Iterator first, Iterator last, size_t total_size,
-                                    size_t chunk_size, size_t num_jobs, const job &completion, 
-                                    job_dispatcher &dispatcher, Function func) 
+                                    size_t chunk_size, size_t num_jobs, const job &completion,
+                                    job_dispatcher &dispatcher, Function func)
         : current(0)
         , first(first)
         , last(last)
@@ -123,15 +123,18 @@ void parallel_for_each_async_job_func(job::data_type &data) {
             break;
         }
 
-        auto it = ctx->first;
-        std::advance(it, first_index);
+        auto first = ctx->first;
+        std::advance(first, first_index);
 
+        auto last = first;
+        std::advance(last, std::min(ctx->chunk_size, ctx->total_size - first_index));
         size_t progress = 0;
-        for (; progress < ctx->chunk_size && it != ctx->last; ++progress, ++it) {
+
+        for (; first != last; ++first, ++progress) {
             if constexpr(std::is_invocable_v<Function, value_type, size_t>) {
-                ctx->func(*it, first_index + progress);
+                ctx->func(*first, first_index + progress);
             } else {
-                ctx->func(*it);
+                ctx->func(*first);
             }
         }
 

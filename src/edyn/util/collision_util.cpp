@@ -1,5 +1,6 @@
 #include "edyn/util/collision_util.hpp"
 #include "edyn/collision/contact_manifold.hpp"
+#include "edyn/collision/contact_manifold_events.hpp"
 #include "edyn/comp/material.hpp"
 #include "edyn/comp/tire_material.hpp"
 #include "edyn/comp/orientation.hpp"
@@ -16,19 +17,20 @@
 #include "edyn/math/vector2_3_util.hpp"
 #include "edyn/math/math.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
-#include "edyn/util/triangle_util.hpp"
+#include "edyn/math/triangle.hpp"
+#include "edyn/util/island_util.hpp"
 #include <limits>
 
 namespace edyn {
 
 void update_contact_distances(entt::registry &registry) {
-    auto manifold_view = registry.view<contact_manifold>();
+    auto manifold_view = registry.view<contact_manifold>(exclude_sleeping_disabled);
     auto tr_view = registry.view<position, orientation>();
     auto origin_view = registry.view<origin>();
 
     manifold_view.each([&](contact_manifold &manifold) {
-        auto [posA, ornA] = tr_view.get<position, orientation>(manifold.body[0]);
-        auto [posB, ornB] = tr_view.get<position, orientation>(manifold.body[1]);
+        auto [posA, ornA] = tr_view.get(manifold.body[0]);
+        auto [posB, ornB] = tr_view.get(manifold.body[1]);
         auto originA = origin_view.contains(manifold.body[0]) ? origin_view.get<origin>(manifold.body[0]) : static_cast<vector3>(posA);
         auto originB = origin_view.contains(manifold.body[1]) ? origin_view.get<origin>(manifold.body[1]) : static_cast<vector3>(posB);
 
@@ -292,7 +294,7 @@ static void assign_material_properties(entt::registry &registry, contact_manifol
     }
 }
 
-void create_contact_point(entt::registry& registry,
+void create_contact_point(entt::registry &registry,
                           entt::entity manifold_entity,
                           contact_manifold& manifold,
                           const collision_result::collision_point& rp) {
@@ -347,13 +349,15 @@ void create_contact_point(entt::registry& registry,
         assign_material_properties(registry, manifold, cp);
     }
 
-    // Add contact created event.
-    auto &events = registry.get<contact_manifold_events>(manifold_entity);
-    events.contact_started |= is_first_contact;
-    EDYN_ASSERT(events.num_contacts_created < max_contacts);
-    events.contacts_created[events.num_contacts_created++] = pt_id;
+    // Force update signal to be triggered for contact manifold.
+    registry.patch<contact_manifold>(manifold_entity);
 
-    registry.get_or_emplace<dirty>(manifold_entity).updated<contact_manifold, contact_manifold_events>();
+    // Add contact created event.
+    registry.patch<contact_manifold_events>(manifold_entity, [&](contact_manifold_events &events) {
+        events.contact_started |= is_first_contact;
+        EDYN_ASSERT(events.num_contacts_created < max_contacts);
+        events.contacts_created[events.num_contacts_created++] = pt_id;
+    });
 }
 
 bool maybe_remove_point(contact_manifold &manifold,
@@ -395,9 +399,10 @@ bool maybe_remove_point(contact_manifold &manifold,
 void destroy_contact_point(entt::registry &registry, entt::entity manifold_entity, contact_manifold::contact_id_type pt_id) {
     // Finalize contact point destruction. At this point, it was already
     // removed from the manifold and the event inserted in
-    // `maybe_remove_point`, which can be run in parallel, while the
-    // operations below cannot.
-    registry.get_or_emplace<dirty>(manifold_entity).updated<contact_manifold, contact_manifold_events>();
+    // `maybe_remove_point`, which can be run in parallel.
+    // Force update signal to be triggered for contact manifold.
+    registry.patch<contact_manifold>(manifold_entity);
+    registry.patch<contact_manifold_events>(manifold_entity);
 }
 
 void detect_collision(std::array<entt::entity, 2> body, collision_result &result,

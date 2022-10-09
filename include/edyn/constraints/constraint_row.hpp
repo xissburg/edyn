@@ -5,12 +5,12 @@
 #include "edyn/math/vector3.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/config/constants.hpp"
+#include "edyn/comp/delta_linvel.hpp"
+#include "edyn/comp/delta_angvel.hpp"
 
 namespace edyn {
 
-struct delta_linvel;
-struct delta_angvel;
-struct delta_spin;
+struct constraint_row_options;
 
 /**
  * `constraint_row` contains all and only the information that's required
@@ -19,7 +19,7 @@ struct delta_spin;
  */
 struct constraint_row {
     // Jacobian diagonals.
-    std::array<vector3, 2 * 3> J;
+    std::array<vector3, 4> J;
 
     // Effective mass (J M^-1 J^T)^-1.
     scalar eff_mass;
@@ -36,32 +36,25 @@ struct constraint_row {
     scalar impulse;
 
     // Inverse masses and inertias used during the solver iterations.
-    scalar inv_mA, inv_mB, inv_mC;
-    matrix3x3 inv_IA, inv_IB, inv_IC;
+    scalar inv_mA, inv_mB;
+    matrix3x3 inv_IA, inv_IB;
 
     // Reference to delta velocities used during solver iterations. It is not
     // safe to dereference these outside of the solver update context.
-    delta_linvel *dvA, *dvB, *dvC;
-    delta_angvel *dwA, *dwB, *dwC;
-    delta_spin *dsA, *dsB, *dsC;
-
-    std::array<bool, 3> use_spin {false, false, false};
-    vector3 spin_axis[3];
-
-    unsigned num_entities {2};
+    delta_linvel *dvA, *dvB;
+    delta_angvel *dwA, *dwB;
 };
 
-/**
- * Optional info to be used when setting up a constraint row.
- */
-struct constraint_row_options {
-    scalar error {scalar(0)};
+void prepare_row(constraint_row &row,
+                 const constraint_row_options &options,
+                 const vector3 &linvelA, const vector3 &angvelA,
+                 const vector3 &linvelB, const vector3 &angvelB);
 
-    // Error reduction parameter.
-    scalar erp {scalar(0.2)};
+void apply_row_impulse(scalar impulse, constraint_row &row);
 
-    scalar restitution {scalar(0)};
-};
+void warm_start(constraint_row &row);
+
+scalar solve(constraint_row &row);
 
 }
 

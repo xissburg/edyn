@@ -9,6 +9,16 @@ namespace edyn {
 struct rigidbody_tag {};
 
 /**
+ * Identifies a constraint.
+ */
+struct constraint_tag {};
+
+/**
+ * An island.
+ */
+struct island_tag {};
+
+/**
  * Dynamic rigid body.
  */
 struct dynamic_tag {};
@@ -50,12 +60,6 @@ struct sleeping_disabled_tag {};
 struct disabled_tag {};
 
 /**
- * A rigid body which will have its contact state continuously updated in the
- * main registry.
- */
-struct continuous_contacts_tag {};
-
-/**
  * A rigid body which holds a shape that can roll. An extra step will be
  * performed to help improve contact point persistence when rolling at
  * higher speeds.
@@ -70,6 +74,12 @@ struct rolling_tag {};
  * `edyn::null_constraint`.
  */
 struct external_tag {};
+
+/**
+ * Assigned to entities that are shared with the simulation worker when running
+ * in asynchronous execution mode.
+ */
+struct shared_tag {};
 
 }
 

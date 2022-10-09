@@ -2,11 +2,15 @@
 #define EDYN_CONSTRAINTS_ANTIROLL_CONSTRAINT_HPP
 
 #include <entt/fwd.hpp>
+#include "edyn/constraints/constraint_body.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/constraints/constraint_base.hpp"
-#include "edyn/constraints/prepare_constraints.hpp"
 
 namespace edyn {
+
+struct constraint_row_prep_cache;
+struct quaternion;
+class position_solver;
 
 struct antiroll_constraint : public constraint_base {
     entt::entity m_third_entity;
@@ -32,10 +36,12 @@ struct antiroll_constraint : public constraint_base {
     vector3 m_other_ctrl_arm_pivot;
 
     scalar impulse;
-};
 
-template<>
-void prepare_constraints<antiroll_constraint>(entt::registry &, row_cache &, scalar dt);
+    void prepare(
+        const entt::registry &, entt::entity,
+        constraint_row_prep_cache &cache, scalar dt,
+        const constraint_body &bodyA, const constraint_body &bodyB, const constraint_body &bodyC);
+};
 
 template<typename Archive>
 void serialize(Archive &archive, antiroll_constraint &con) {

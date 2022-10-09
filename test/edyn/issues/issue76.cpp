@@ -5,8 +5,9 @@ TEST(issue_test, test_issue_76) {
 	// https://github.com/xissburg/edyn/issues/76
 	entt::registry registry;
 
-	edyn::init({2});
-	edyn::attach(registry);
+	auto config = edyn::init_config{};
+	config.num_worker_threads = 2;
+	edyn::attach(registry, config);
 
 	// Create floor
 	auto floor_def = edyn::rigidbody_def();
@@ -19,5 +20,4 @@ TEST(issue_test, test_issue_76) {
 	auto entity2 = edyn::make_rigidbody(registry, floor_def);
 	edyn::update(registry);
 	edyn::detach(registry);
-	edyn::deinit();
 }

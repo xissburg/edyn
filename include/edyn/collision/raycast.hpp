@@ -1,12 +1,21 @@
 #ifndef EDYN_COLLISION_RAYCAST_HPP
 #define EDYN_COLLISION_RAYCAST_HPP
 
+#include <entt/signal/fwd.hpp>
+#include <limits>
 #include <variant>
-#include <entt/entity/fwd.hpp>
-#include <entt/entity/entity.hpp>
+#include <entt/entity/registry.hpp>
 #include "edyn/math/vector3.hpp"
 #include "edyn/shapes/cylinder_shape.hpp"
 #include "edyn/shapes/capsule_shape.hpp"
+#include "edyn/util/tuple_util.hpp"
+#include "edyn/comp/position.hpp"
+#include "edyn/comp/orientation.hpp"
+#include "edyn/comp/origin.hpp"
+#include "edyn/comp/shape_index.hpp"
+#include "edyn/collision/broadphase.hpp"
+#include "edyn/shapes/shapes.hpp"
+#include "edyn/util/vector_util.hpp"
 
 namespace edyn {
 
@@ -119,10 +128,15 @@ struct shape_raycast_result {
 struct raycast_result : public shape_raycast_result {
     // The entity that was hit. It's set to `entt::null` if no entity is hit.
     entt::entity entity { entt::null };
+
+    raycast_result & operator=(const shape_raycast_result &result) {
+        shape_raycast_result::operator=(result);
+        return *this;
+    }
 };
 
 /**
- * @brief Input for a shape-specific raycast query containg the spatial
+ * @brief Input for a shape-specific raycast query containing the spatial
  * configuration.
  */
 struct raycast_context {
@@ -136,14 +150,36 @@ struct raycast_context {
     vector3 p1;
 };
 
+using raycast_id_type = unsigned;
+static constexpr auto invalid_raycast_id = std::numeric_limits<raycast_id_type>::max();
+using raycast_delegate_type = entt::delegate<void(raycast_id_type, const raycast_result &, vector3, vector3)>;
+
 /**
- * @brief Performs a raycast query on a registry.
+ * @brief Performs a raycast against all rigid bodies. Do not call this if Edyn
+ * was initialized with `execution_mode::asynchronous`, use `raycast_async`
+ * instead.
  * @param registry Data source.
  * @param p0 First point in the ray.
  * @param p1 Second point in the ray.
- * @return Result.
+ * @param ignore_entities Entities to be ignored during raycast.
+ * @return Result containing the first entity that was hit by the ray.
  */
-raycast_result raycast(entt::registry &registry, vector3 p0, vector3 p1);
+raycast_result raycast(entt::registry &registry, vector3 p0, vector3 p1,
+                       const std::vector<entt::entity> &ignore_entities = {});
+
+/**
+ * @brief Performs a raycast query asynchronously. Only call this function if
+ * Edyn was initialized in `execution_mode::asynchronous`.
+ * @param registry Data source.
+ * @param p0 First point in the ray.
+ * @param p1 Second point in the ray.
+ * @param delegate Triggered when the results are available.
+ * @param ignore_entities Entities to be ignored during raycast.
+ * @return Request id, which will be passed to the delegate when it is invoked.
+ */
+raycast_id_type raycast_async(entt::registry &registry, vector3 p0, vector3 p1,
+                              const raycast_delegate_type &delegate,
+                              const std::vector<entt::entity> &ignore_entities = {});
 
 // Raycast functions for each shape.
 

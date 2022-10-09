@@ -1,4 +1,6 @@
 #include "../common/common.hpp"
+#include "edyn/parallel/job_dispatcher.hpp"
+#include "edyn/shapes/create_paged_triangle_mesh.hpp"
 
 class triangle_mesh_page_loader: public edyn::triangle_mesh_page_loader_base {
 public:
@@ -12,7 +14,7 @@ private:
 };
 
 TEST(test_paged_trimesh, voronoi_regions) {
-    edyn::init({2});
+    edyn::job_dispatcher::global().start(1);
 
     std::vector<edyn::vector3> vertices;
     std::vector<edyn::triangle_mesh::index_type> indices;
@@ -49,5 +51,5 @@ TEST(test_paged_trimesh, voronoi_regions) {
         }
     });
 
-	edyn::deinit();
+    edyn::job_dispatcher::global().stop();
 }

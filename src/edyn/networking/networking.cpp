@@ -1,6 +1,6 @@
 #include "edyn/networking/networking.hpp"
 #include "edyn/config/config.h"
-#include "edyn/parallel/island_coordinator.hpp"
+#include "edyn/simulation/stepper_async.hpp"
 #include <entt/entity/registry.hpp>
 #include <variant>
 
@@ -17,7 +17,15 @@ template<typename Func>
 void edit_client_settings(entt::registry &registry, Func func) {
     auto &client_settings = get_client_settings(registry);
     func(client_settings);
-    registry.ctx().at<island_coordinator>().settings_changed();
+
+    if (auto *stepper = registry.ctx().find<stepper_async>()) {
+        stepper->settings_changed();
+    }
+
+    if (auto *ctx = registry.ctx().find<client_network_context>()) {
+        auto &settings = registry.ctx().at<edyn::settings>();
+        ctx->extrapolator->set_settings(settings);
+    }
 }
 
 void set_network_client_snapshot_rate(entt::registry &registry, double rate) {
@@ -62,17 +70,6 @@ bool toggle_network_client_extrapolation_enabled(entt::registry &registry) {
 
 bool get_network_client_extrapolation_enabled(entt::registry &registry) {
     return get_client_settings(registry).extrapolation_enabled;
-}
-
-void set_network_client_max_concurrent_extrapolations(entt::registry &registry, unsigned count) {
-    EDYN_ASSERT(count > 0);
-    edit_client_settings(registry, [count](auto &client_settings) {
-        client_settings.max_concurrent_extrapolations = count;
-    });
-}
-
-unsigned get_network_client_max_concurrent_extrapolations(entt::registry &registry) {
-    return get_client_settings(registry).max_concurrent_extrapolations;
 }
 
 void set_network_client_discontinuity_decay_rate(entt::registry &registry, scalar rate) {

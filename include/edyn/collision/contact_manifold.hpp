@@ -2,9 +2,9 @@
 #define EDYN_COLLISION_CONTACT_MANIFOLD_HPP
 
 #include <array>
+#include <limits>
 #include <entt/entity/fwd.hpp>
 #include <entt/entity/entity.hpp>
-#include <limits>
 #include "edyn/config/config.h"
 #include "edyn/config/constants.hpp"
 #include "edyn/collision/contact_point.hpp"
@@ -20,7 +20,7 @@ struct contact_manifold {
 
     // If the AABB of one of the bodies inflated by this amount does not
     // intersect the AABB of the other, the manifold will be destroyed.
-    // See `edy::broadphase_worker::destroy_separated_manifolds`.
+    // See `edyn::broadphase::destroy_separated_manifolds`.
     scalar separation_threshold;
 
     // Number of contact points in this manifold.

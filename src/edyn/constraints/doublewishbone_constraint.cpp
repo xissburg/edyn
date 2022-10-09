@@ -20,196 +20,128 @@
 
 namespace edyn {
 
-template<>
-void prepare_constraints<doublewishbone_constraint>(entt::registry &registry, row_cache &cache, scalar dt) {
-    auto body_view = registry.view<position, orientation,
-                                   linvel, angvel,
-                                   mass_inv, inertia_world_inv,
-                                   delta_linvel, delta_angvel>();
-    auto con_view = registry.view<doublewishbone_constraint>();
-    auto origin_view = registry.view<origin>();
+void doublewishbone_constraint::prepare(
+    const entt::registry &, entt::entity,
+    constraint_row_prep_cache &cache, scalar dt,
+    const constraint_body &bodyA, const constraint_body &bodyB) {
 
-    con_view.each([&] (entt::entity entity, doublewishbone_constraint &con) {
-        auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = body_view.get(con.body[0]);
-        auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] = body_view.get(con.body[1]);
+    // Upper control arm locations.
+    auto upivotA = to_world_space(upper_pivotA, bodyA.origin, bodyA.orn);
+    auto urA = upivotA - bodyA.pos;
 
-        auto originA = origin_view.contains(con.body[0]) ? origin_view.get<origin>(con.body[0]) : static_cast<vector3>(posA);
-        auto originB = origin_view.contains(con.body[1]) ? origin_view.get<origin>(con.body[1]) : static_cast<vector3>(posB);
+    auto upivotB = to_world_space(upper_pivotB, bodyB.origin, bodyB.orn);
+    auto urB = upivotB - bodyB.pos;
 
-        // Upper control arm locations.
-        auto upivotA = to_world_space(con.upper_pivotA, originA, ornA);
-        auto urA = upivotA - posA;
+    auto ud = upivotA - upivotB;
+    auto ul2 = length_sqr(ud);
 
-        auto upivotB = to_world_space(con.upper_pivotB, originB, ornB);
-        auto urB = upivotB - posB;
+    // Lower control arm locations.
+    auto lpivotA = to_world_space(lower_pivotA, bodyA.origin, bodyA.orn);
+    auto lrA = lpivotA - bodyA.pos;
 
-        auto ud = upivotA - upivotB;
-        auto ul2 = length_sqr(ud);
+    auto lpivotB = to_world_space(lower_pivotB, bodyB.origin, bodyB.orn);
+    auto lrB = lpivotB - bodyB.pos;
 
-        // Lower control arm locations.
-        auto lpivotA = to_world_space(con.lower_pivotA, originA, ornA);
-        auto lrA = lpivotA - posA;
+    auto ld = lpivotA - lpivotB;
+    auto ll2 = length_sqr(ld);
 
-        auto lpivotB = to_world_space(con.lower_pivotB, originB, ornB);
-        auto lrB = lpivotB - posB;
+    // Z axis points forward.
+    auto chassis_z = rotate(bodyA.orn, vector3_z);
 
-        auto ld = lpivotA - lpivotB;
-        auto ll2 = length_sqr(ld);
+    // Wheel rotation axis.
+    scalar side = lower_pivotA.x > 0 ? 1 : -1;
+    auto wheel_x = rotate(bodyB.orn, vector3_x * side);
 
-        // Z axis points forward.
-        auto chassis_z = rotate(ornA, vector3_z);
+    auto row_idx = size_t(0);
 
-        // Wheel rotation axis.
-        scalar side = con.lower_pivotA.x > 0 ? 1 : -1;
-        auto wheel_x = rotate(ornB, vector3_x * side);
+    // Upper control arm distance constraint.
+    {
+        auto &row = cache.add_row();
+        row.J = {ud, cross(urA, ud), -ud, -cross(urB, ud)};
+        row.lower_limit = -large_scalar;
+        row.upper_limit = large_scalar;
+        row.impulse = impulse[row_idx++];
 
-        auto row_idx = size_t(0);
+        cache.get_options().error = 0.5 * (ul2 - upper_length * upper_length) / dt;
+    }
 
-        // Upper control arm distance constraint.
-        {
-            auto &row = cache.rows.emplace_back();
-            row.J = {ud, cross(urA, ud), -ud, -cross(urB, ud)};
-            row.lower_limit = -large_scalar;
-            row.upper_limit = large_scalar;
+    // Lower control arm distance constraint
+    {
+        auto &row = cache.add_row();
+        row.J = {ld, cross(lrA, ld), -ld, -cross(lrB, ld)};
+        row.lower_limit = -large_scalar;
+        row.upper_limit = large_scalar;
+        row.impulse = impulse[row_idx++];
 
-            row.inv_mA = inv_mA;  row.inv_IA = inv_IA;
-            row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-            row.dvA = &dvA; row.dwA = &dwA;
-            row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = con.impulse[row_idx++];
+        cache.get_options().error = 0.5 * (ll2 - lower_length * lower_length) / dt;
+    }
 
-            auto options = constraint_row_options{};
-            options.error = 0.5 * (ul2 - con.upper_length * con.upper_length) / dt;
+    // Constrain upper pivot on wheel to a plane that passes through upper pivot
+    // on chassis with normal equals chassis' z axis
+    {
+        auto p = cross(urA, chassis_z) + cross(chassis_z, ud);
+        auto q = cross(urB, chassis_z);
 
-            prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
-            warm_start(row);
-        }
+        auto &row = cache.add_row();
+        row.J = {chassis_z, p, -chassis_z, -q};
+        row.lower_limit = -large_scalar;
+        row.upper_limit = large_scalar;
+        row.impulse = impulse[row_idx++];
 
-        // Lower control arm distance constraint
-        {
-            auto &row = cache.rows.emplace_back();
-            row.J = {ld, cross(lrA, ld), -ld, -cross(lrB, ld)};
-            row.lower_limit = -large_scalar;
-            row.upper_limit = large_scalar;
+        cache.get_options().error = dot(ud, chassis_z) / dt;
+    }
 
-            row.inv_mA = inv_mA;  row.inv_IA = inv_IA;
-            row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-            row.dvA = &dvA; row.dwA = &dwA;
-            row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = con.impulse[row_idx++];
+    // Constrain lower pivot on wheel to a plane that passes through lower pivot
+    // on chassis with normal equals chassis' z axis
+    {
+        auto p = cross(lrA, chassis_z) + cross(chassis_z, ld);
+        auto q = cross(lrB, chassis_z);
 
-            auto options = constraint_row_options{};
-            options.error = 0.5 * (ll2 - con.lower_length * con.lower_length) / dt;
+        auto &row = cache.add_row();
+        row.J = {chassis_z, p, -chassis_z, -q};
+        row.lower_limit = -large_scalar;
+        row.upper_limit = large_scalar;
+        row.impulse = impulse[row_idx++];
 
-            prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
-            warm_start(row);
-        }
+        cache.get_options().error = dot(ld, chassis_z) / dt;
+    }
 
-        // Constrain upper pivot on wheel to a plane that passes through upper pivot
+    auto mrA = (urA + lrA) / 2;
+    auto mrB = (urB + lrB) / 2;
+    auto mposA = (upivotA + lpivotA) / 2;
+    auto mposB = (upivotB + lpivotB) / 2;
+    auto md = mposA - mposB;
+
+    // Constrain the middle of the axis on the wheel to always stay in front of
+    // a plane passing through the middle of the axis on the chassis with normal
+    // pointing outside the vehicle.
+    {
+        auto chassis_x = rotate(bodyA.orn, vector3_x * side);
+        auto p = cross(mrA, chassis_x) + cross(chassis_x, md);
+        auto q = cross(mrB, chassis_x);
+
+        auto &row = cache.add_row();
+        row.J = {chassis_x, p, -chassis_x, -q};
+        row.lower_limit = -large_scalar;
+        row.upper_limit = 0;
+        row.impulse = impulse[row_idx++];
+
+        cache.get_options().error = 0.2 * (dot(md, chassis_x) + 0.2) / dt; // be gentle
+    }
+
+    if (!steerable) {
+        // Constrain wheel rotation axis to a plane that passes through upper pivot
         // on chassis with normal equals chassis' z axis
-        {
-            auto p = cross(urA, chassis_z) + cross(chassis_z, ud);
-            auto q = cross(urB, chassis_z);
+        auto q = cross(chassis_z, wheel_x);
 
-            auto &row = cache.rows.emplace_back();
-            row.J = {chassis_z, p, -chassis_z, -q};
-            row.lower_limit = -large_scalar;
-            row.upper_limit = large_scalar;
+        auto &row = cache.add_row();
+        row.J = {vector3_zero, q, vector3_zero, -q};
+        row.lower_limit = -large_scalar;
+        row.upper_limit = large_scalar;
+        row.impulse = impulse[row_idx++];
 
-            row.inv_mA = inv_mA;  row.inv_IA = inv_IA;
-            row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-            row.dvA = &dvA; row.dwA = &dwA;
-            row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = con.impulse[row_idx++];
-
-            auto options = constraint_row_options{};
-            options.error = dot(ud, chassis_z) / dt;
-
-            prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
-            warm_start(row);
-        }
-
-        // Constrain lower pivot on wheel to a plane that passes through lower pivot
-        // on chassis with normal equals chassis' z axis
-        {
-            auto p = cross(lrA, chassis_z) + cross(chassis_z, ld);
-            auto q = cross(lrB, chassis_z);
-
-            auto &row = cache.rows.emplace_back();
-            row.J = {chassis_z, p, -chassis_z, -q};
-            row.lower_limit = -large_scalar;
-            row.upper_limit = large_scalar;
-
-            row.inv_mA = inv_mA;  row.inv_IA = inv_IA;
-            row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-            row.dvA = &dvA; row.dwA = &dwA;
-            row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = con.impulse[row_idx++];
-
-            auto options = constraint_row_options{};
-            options.error = dot(ld, chassis_z) / dt;
-
-            prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
-            warm_start(row);
-        }
-
-        auto mrA = (urA + lrA) / 2;
-        auto mrB = (urB + lrB) / 2;
-        auto mposA = (upivotA + lpivotA) / 2;
-        auto mposB = (upivotB + lpivotB) / 2;
-        auto md = mposA - mposB;
-
-        // Constrain the middle of the axis on the wheel to always stay in front of
-        // a plane passing through the middle of the axis on the chassis with normal
-        // pointing outside the vehicle.
-        {
-            auto chassis_x = rotate(ornA, vector3_x * side);
-            auto p = cross(mrA, chassis_x) + cross(chassis_x, md);
-            auto q = cross(mrB, chassis_x);
-
-            auto &row = cache.rows.emplace_back();
-            row.J = {chassis_x, p, -chassis_x, -q};
-            row.lower_limit = -large_scalar;
-            row.upper_limit = 0;
-
-            row.inv_mA = inv_mA;  row.inv_IA = inv_IA;
-            row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-            row.dvA = &dvA; row.dwA = &dwA;
-            row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = con.impulse[row_idx++];
-
-            auto options = constraint_row_options{};
-            options.error = 0.2 * (dot(md, chassis_x) + 0.2) / dt; // be gentle
-
-            prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
-            warm_start(row);
-        }
-
-        if (!con.steerable) {
-            // Constrain wheel rotation axis to a plane that passes through upper pivot
-            // on chassis with normal equals chassis' z axis
-            auto q = cross(chassis_z, wheel_x);
-
-            auto &row = cache.rows.emplace_back();
-            row.J = {vector3_zero, q, vector3_zero, -q};
-            row.lower_limit = -large_scalar;
-            row.upper_limit = large_scalar;
-
-            row.inv_mA = inv_mA;  row.inv_IA = inv_IA;
-            row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-            row.dvA = &dvA; row.dwA = &dwA;
-            row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = con.impulse[row_idx++];
-
-            auto options = constraint_row_options{};
-            options.error = dot(chassis_z, wheel_x) / dt;
-
-            prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
-            warm_start(row);
-        }
-
-        cache.con_num_rows.push_back(row_idx);
-    });
+        cache.get_options().error = dot(chassis_z, wheel_x) / dt;
+    }
 }
 
 }

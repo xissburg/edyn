@@ -4,7 +4,9 @@
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/aabb.hpp"
 #include "edyn/comp/tag.hpp"
+#include "edyn/comp/island.hpp"
 #include "edyn/util/aabb_util.hpp"
+#include "edyn/util/island_util.hpp"
 #include <entt/entity/registry.hpp>
 
 namespace edyn {
@@ -27,7 +29,8 @@ AABB updated_aabb(const polyhedron_shape &polyhedron,
 }
 
 template<typename ShapeType, typename TransformView, typename OriginView>
-void update_aabb(entt::entity entity, ShapeType &shape, TransformView &tr_view, OriginView &origin_view) {
+void update_aabb(entt::entity entity, ShapeType &shape, TransformView &tr_view,
+                 OriginView &origin_view) {
     auto [orn, aabb] = tr_view.template get<orientation, AABB>(entity);
     auto origin = origin_view.contains(entity) ?
         static_cast<vector3>(origin_view.template get<edyn::origin>(entity)) :
@@ -36,8 +39,8 @@ void update_aabb(entt::entity entity, ShapeType &shape, TransformView &tr_view, 
 }
 
 void update_aabb(entt::registry &registry, entt::entity entity) {
-    auto tr_view = registry.view<position, orientation, AABB>();
     auto origin_view = registry.view<origin>();
+    auto tr_view = registry.view<position, orientation, AABB>();
 
     visit_shape(registry, entity, [&](auto &&shape) {
         update_aabb(entity, shape, tr_view, origin_view);
@@ -46,8 +49,8 @@ void update_aabb(entt::registry &registry, entt::entity entity) {
 
 template<typename ShapeType>
 void update_aabbs(entt::registry &registry) {
+    auto tr_view = registry.view<position, orientation, ShapeType, AABB>(exclude_sleeping_disabled);
     auto origin_view = registry.view<origin>();
-    auto tr_view = registry.view<position, orientation, ShapeType, AABB>();
 
     for (auto entity : tr_view) {
         auto &shape = tr_view.template get<ShapeType>(entity);
@@ -63,6 +66,31 @@ void update_aabbs(entt::registry &registry, std::tuple<Ts...>) {
 void update_aabbs(entt::registry &registry) {
     // Update AABBs for all shapes that can be transformed.
     update_aabbs(registry, dynamic_shapes_tuple);
+}
+
+void update_island_aabbs(entt::registry &registry) {
+    auto aabb_view = registry.view<AABB>();
+    auto procedural_view = registry.view<procedural_tag>();
+
+    registry.view<island, island_AABB>(entt::exclude_t<sleeping_tag>{})
+        .each([&](island &island, island_AABB &aabb) {
+        auto is_first_node = true;
+
+        for (auto entity : island.nodes) {
+            if (!procedural_view.contains(entity) || !aabb_view.contains(entity)) {
+                continue;
+            }
+
+            auto &node_aabb = aabb_view.get<AABB>(entity);
+
+            if (is_first_node) {
+                aabb = {node_aabb};
+                is_first_node = false;
+            } else {
+                aabb = {enclosing_aabb(aabb, node_aabb)};
+            }
+        }
+    });
 }
 
 }

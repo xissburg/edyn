@@ -1,6 +1,12 @@
 #include "edyn/dynamics/restitution_solver.hpp"
+#include "edyn/comp/island.hpp"
+#include "edyn/comp/tag.hpp"
+#include "edyn/constraints/constraint_row_friction.hpp"
+#include "edyn/constraints/constraint_row_options.hpp"
+#include "edyn/constraints/constraint_row_with_spin.hpp"
 #include "edyn/constraints/contact_constraint.hpp"
 #include "edyn/constraints/constraint_row.hpp"
+#include "edyn/constraints/constraint_row_options.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/util/constraint_util.hpp"
@@ -12,14 +18,16 @@
 #include "edyn/comp/delta_angvel.hpp"
 #include "edyn/comp/origin.hpp"
 #include "edyn/comp/mass.hpp"
+#include "edyn/comp/spin.hpp"
 #include "edyn/comp/inertia.hpp"
 #include "edyn/math/geom.hpp"
 #include "edyn/math/transform.hpp"
 #include "edyn/dynamics/solver.hpp"
-#include "edyn/parallel/entity_graph.hpp"
+#include "edyn/core/entity_graph.hpp"
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/context/settings.hpp"
 #include <entt/entity/registry.hpp>
+#include <entt/entity/utility.hpp>
 
 namespace edyn {
 
@@ -57,17 +65,19 @@ scalar get_manifold_min_relvel(const contact_manifold &manifold, const BodyView 
     return min_relvel;
 }
 
-bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned individual_iterations) {
+bool solve_restitution_iteration(entt::registry &registry, entt::entity island_entity,
+                                 scalar dt, unsigned individual_iterations) {
     auto body_view = registry.view<position, orientation, linvel, angvel,
                                    mass_inv, inertia_world_inv,
                                    delta_linvel, delta_angvel>();
     auto origin_view = registry.view<origin>();
     auto restitution_view = registry.view<contact_manifold_with_restitution>();
     auto manifold_view = registry.view<contact_manifold>();
+    auto spin_view = registry.view<spin, delta_spin>();
 
     // Solve manifolds in small groups, these groups being all manifolds connected
     // to one rigid body, usually a fast moving one. Ignore manifolds which are
-    // separating, i.e. positive normal relative velocity. Intially, pick the
+    // separating, i.e. positive normal relative velocity. Initially, pick the
     // manifold with the highest penetration velocity (i.e. lowest normal relative
     // velocity) and select the fastest rigid body to start graph traversal. Traverse
     // the entity graph starting at that rigid body's node and visit the edges of
@@ -77,8 +87,13 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
     // Find manifold with highest penetration velocity.
     auto min_relvel = EDYN_SCALAR_MAX;
     auto fastest_manifold_entity = entt::entity{entt::null};
+    auto &island = registry.get<edyn::island>(island_entity);
 
-    for (auto entity : restitution_view) {
+    for (auto entity : island.edges) {
+        if (!restitution_view.contains(entity)) {
+            continue;
+        }
+
         auto &manifold = manifold_view.get<contact_manifold>(entity);
         auto local_min_relvel = get_manifold_min_relvel(manifold, body_view, origin_view);
 
@@ -105,15 +120,15 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
     }
 
     // Reuse collections of rows to prevent a high number of allocations.
-    auto normal_rows = std::vector<constraint_row>{};
-    auto friction_row_pairs = std::vector<internal::contact_friction_row_pair>{};
+    auto normal_rows = std::vector<constraint_row_with_spin>{};
+    auto friction_rows = std::vector<constraint_row_friction>{};
 
     normal_rows.reserve(10);
-    friction_row_pairs.reserve(10);
+    friction_rows.reserve(10);
 
-    auto solveManifolds = [&](const std::vector<entt::entity> &manifold_entities) {
+    auto solve_manifolds = [&](const std::vector<entt::entity> &manifold_entities) {
         normal_rows.clear();
-        friction_row_pairs.clear();
+        friction_rows.clear();
 
         for (auto manifold_entity : manifold_entities) {
             auto &manifold = manifold_view.get<contact_manifold>(manifold_entity);
@@ -121,8 +136,28 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
             auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = body_view.get(manifold.body[0]);
             auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] = body_view.get(manifold.body[1]);
 
-            auto originA = origin_view.contains(manifold.body[0]) ? origin_view.get<origin>(manifold.body[0]) : static_cast<vector3>(posA);
-            auto originB = origin_view.contains(manifold.body[1]) ? origin_view.get<origin>(manifold.body[1]) : static_cast<vector3>(posB);
+            auto originA = origin_view.contains(manifold.body[0]) ?
+                origin_view.get<origin>(manifold.body[0]) : static_cast<vector3>(posA);
+            auto originB = origin_view.contains(manifold.body[1]) ?
+                origin_view.get<origin>(manifold.body[1]) : static_cast<vector3>(posB);
+
+            auto spin_axisA = quaternion_x(ornA);
+            auto spin_axisB = quaternion_x(ornB);
+
+            auto spinA = scalar{};
+            auto spinB = scalar{};
+            delta_spin *dsA = nullptr;
+            delta_spin *dsB = nullptr;
+
+            if (spin_view.contains(manifold.body[0])) {
+                dsA = &spin_view.get<delta_spin>(manifold.body[0]);
+                spinA = spin_view.get<spin>(manifold.body[0]);
+            }
+
+            if (spin_view.contains(manifold.body[1])) {
+                dsB = &spin_view.get<delta_spin>(manifold.body[1]);
+                spinB = spin_view.get<spin>(manifold.body[1]);
+            }
 
             // Create constraint rows for non-penetration constraints for each
             // contact point.
@@ -135,6 +170,7 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
                 auto rA = pivotA - posA;
                 auto rB = pivotB - posB;
 
+                auto normal_row_index = normal_rows.size();
                 auto &normal_row = normal_rows.emplace_back();
                 normal_row.J = {normal, cross(rA, normal), -normal, -cross(rB, normal)};
                 normal_row.inv_mA = inv_mA; normal_row.inv_IA = inv_IA;
@@ -143,23 +179,31 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
                 normal_row.dvB = &dvB; normal_row.dwB = &dwB;
                 normal_row.lower_limit = 0;
                 normal_row.upper_limit = large_scalar;
+                normal_row.impulse = 0;
+                normal_row.use_spin[0] = true;
+                normal_row.use_spin[1] = true;
+                normal_row.spin_axis[0] = spin_axisA;
+                normal_row.spin_axis[1] = spin_axisB;
+                normal_row.dsA = dsA;
+                normal_row.dsB = dsB;
 
                 auto normal_options = constraint_row_options{};
                 normal_options.restitution = cp.restitution;
 
-                prepare_row(normal_row, normal_options, linvelA, angvelA, linvelB, angvelB);
+                prepare_row(normal_row, normal_options, linvelA, angvelA, spinA, linvelB, angvelB, spinB);
 
-                auto &friction_row_pair = friction_row_pairs.emplace_back();
-                friction_row_pair.friction_coefficient = cp.friction;
+                auto &friction_row = friction_rows.emplace_back();
+                friction_row.friction_coefficient = cp.friction;
+                friction_row.normal_row_index = normal_row_index;
 
                 vector3 tangents[2];
                 plane_space(normal, tangents[0], tangents[1]);
 
                 for (auto i = 0; i < 2; ++i) {
-                    auto &friction_row = friction_row_pair.row[i];
-                    friction_row.J = {tangents[i], cross(rA, tangents[i]), -tangents[i], -cross(rB, tangents[i])};
-                    friction_row.eff_mass = get_effective_mass(friction_row.J, inv_mA, inv_IA, inv_mB, inv_IB);
-                    friction_row.rhs = -get_relative_speed(friction_row.J, linvelA, angvelA, linvelB, angvelB);
+                    auto &individual_row = friction_row.row[i];
+                    individual_row.J = {tangents[i], cross(rA, tangents[i]), -tangents[i], -cross(rB, tangents[i])};
+                    individual_row.eff_mass = get_effective_mass(individual_row.J, inv_mA, inv_IA, inv_mB, inv_IB);
+                    individual_row.rhs = -get_relative_speed(individual_row.J, linvelA, angvelA, linvelB, angvelB);
                 }
             }
         }
@@ -169,10 +213,10 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
             for (size_t row_idx = 0; row_idx < normal_rows.size(); ++row_idx) {
                 auto &normal_row = normal_rows[row_idx];
                 auto delta_impulse = solve(normal_row);
-                apply_impulse(delta_impulse, normal_row);
+                apply_row_impulse(delta_impulse, normal_row);
 
-                auto &friction_row_pair = friction_row_pairs[row_idx];
-                internal::solve_friction_row_pair(friction_row_pair, normal_row);
+                auto &friction_row_pair = friction_rows[row_idx];
+                solve_friction(friction_row_pair, normal_rows);
             }
         }
 
@@ -190,7 +234,7 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
                 auto &normal_row = normal_rows[row_idx];
                 cp.normal_restitution_impulse = normal_row.impulse;
 
-                auto &friction_row_pair = friction_row_pairs[row_idx];
+                auto &friction_row_pair = friction_rows[row_idx];
 
                 for (auto i = 0; i < 2; ++i) {
                     cp.friction_restitution_impulse[i] = friction_row_pair.row[i].impulse;
@@ -208,10 +252,10 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
                 // There are duplicates among all manifold bodies but this
                 // operation is idempotent since the delta velocity is set
                 // to zero.
-                auto [lv, av, dv, dw] = body_view.get<linvel, angvel, delta_linvel, delta_angvel>(body_entity);
-                lv += dv;
+                auto [v, w, dv, dw] = body_view.get<linvel, angvel, delta_linvel, delta_angvel>(body_entity);
+                v += dv;
+                w += dw;
                 dv = vector3_zero;
-                av += dw;
                 dw = vector3_zero;
             }
         }
@@ -249,7 +293,10 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
 
     std::vector<entt::entity> manifold_entities;
 
-    graph.traverse_connecting_nodes(start_node_index, [&](auto node_index) {
+    graph.traverse(start_node_index, [&](auto node_index) {
+        // Ignore non-procedural entities.
+        if (!graph.is_connecting_node(node_index)) return;
+
         graph.visit_edges(node_index, [&](auto edge_index) {
             auto edge_entity = graph.edge_entity(edge_index);
 
@@ -266,7 +313,7 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
         });
 
         if (!manifold_entities.empty()) {
-            solveManifolds(manifold_entities);
+            solve_manifolds(manifold_entities);
         }
 
         manifold_entities.clear();
@@ -277,9 +324,17 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
 
 void solve_restitution(entt::registry &registry, scalar dt) {
     auto &settings = registry.ctx().at<edyn::settings>();
+    auto island_view = registry.view<island_tag>(entt::exclude_t<sleeping_tag>{});
 
     for (unsigned i = 0; i < settings.num_restitution_iterations; ++i) {
-        if (solve_restitution_iteration(registry, dt, settings.num_individual_restitution_iterations)) {
+        bool all_solved = true;
+
+        for (auto island_entity : island_view) {
+            all_solved &= solve_restitution_iteration(registry, island_entity, dt,
+                                                      settings.num_individual_restitution_iterations);
+        }
+
+        if (all_solved) {
             break;
         }
     }

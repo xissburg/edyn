@@ -1,6 +1,6 @@
 #include "../common/common.hpp"
-#include "edyn/util/registry_operation.hpp"
-#include "edyn/util/registry_operation_builder.hpp"
+#include "edyn/replication/registry_operation.hpp"
+#include "edyn/replication/registry_operation_builder.hpp"
 #include <entt/core/type_info.hpp>
 #include <entt/meta/factory.hpp>
 #include <entt/core/hashed_string.hpp>
@@ -12,8 +12,7 @@ TEST(test_registry_operation, test_create_destroy) {
     auto ent0 = reg0.create();
 
     edyn::registry_operation opc;
-    opc.operation = edyn::registry_op_type::create;
-    opc.entities.push_back(ent0);
+    opc.create_entities.push_back(ent0);
 
     auto emap = edyn::entity_map{};
     // Should create a corresponding entity in reg1 and add it to the emap.
@@ -24,8 +23,7 @@ TEST(test_registry_operation, test_create_destroy) {
     ASSERT_TRUE(reg1.valid(ent1));
 
     edyn::registry_operation opd;
-    opd.operation = edyn::registry_op_type::destroy;
-    opd.entities.push_back(ent0);
+    opd.destroy_entities.push_back(ent0);
     // Should destroy entity in reg1 and remove it from emap.
     opd.execute(reg1, emap);
 
@@ -49,10 +47,10 @@ TEST(test_registry_operation, test_components) {
     auto ent01 = reg0.create();
     reg0.emplace<comp_with_entity>(ent00, ent01);
 
-    auto builder = edyn::registry_operation_builder_impl<comp_with_entity>{};
+    auto builder = edyn::registry_operation_builder_impl<comp_with_entity>(reg0);
     auto ent0_arr = std::array{ent00, ent01};
     builder.create(ent0_arr.begin(), ent0_arr.end());
-    builder.emplace<comp_with_entity>(reg0, ent00);
+    builder.emplace<comp_with_entity>(ent00);
     auto ops = builder.finish();
 
     auto emap = edyn::entity_map{};
@@ -74,7 +72,7 @@ TEST(test_registry_operation, test_components) {
     reg0.get<comp_with_entity>(ent00).entity = ent02;
 
     builder.create(ent02);
-    builder.replace<comp_with_entity>(reg0, ent00);
+    builder.replace<comp_with_entity>(ent00);
     ops = builder.finish();
 
     ops.execute(reg1, emap);
@@ -89,7 +87,7 @@ TEST(test_registry_operation, test_components) {
     // Remove component.
     reg0.remove<comp_with_entity>(ent00);
 
-    builder.remove<comp_with_entity>(reg0, ent00);
+    builder.remove<comp_with_entity>(ent00);
     ops = builder.finish();
 
     ops.execute(reg1, emap);
@@ -115,12 +113,12 @@ TEST(test_registry_operation, test_impl) {
     reg0.emplace<another_comp>(ent01, 1.618);
 
     edyn::registry_operation_builder *builder =
-        new edyn::registry_operation_builder_impl<comp_with_entity, another_comp>;
+        new edyn::registry_operation_builder_impl<comp_with_entity, another_comp>(reg0);
 
     builder->create(ent00);
     builder->create(ent01);
-    builder->emplace_all(reg0, ent00);
-    builder->emplace_all(reg0, ent01);
+    builder->emplace_all(ent00);
+    builder->emplace_all(ent01);
     auto ops = builder->finish();
 
     auto emap = edyn::entity_map{};
@@ -143,7 +141,7 @@ TEST(test_registry_operation, test_impl) {
     // Update component by id.
     reg0.get<another_comp>(ent01).d = 0.7071;
 
-    builder->replace_type_id(reg0, ent01, entt::type_index<another_comp>::value());
+    builder->replace_type_id(ent01, entt::type_index<another_comp>::value());
     ops = builder->finish();
     ops.execute(reg1, emap);
 
@@ -152,7 +150,7 @@ TEST(test_registry_operation, test_impl) {
     // Remove component by id.
     reg0.remove<another_comp>(ent01);
 
-    builder->remove_type_id(reg0, ent01, entt::type_index<another_comp>::value());
+    builder->remove_type_id(ent01, entt::type_index<another_comp>::value());
     ops = builder->finish();
     ops.execute(reg1, emap);
 

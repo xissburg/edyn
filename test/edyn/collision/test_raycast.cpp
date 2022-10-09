@@ -1,13 +1,11 @@
 #include "../common/common.hpp"
-#include "edyn/edyn.hpp"
-#include "edyn/math/vector3.hpp"
-#include "edyn/shapes/box_shape.hpp"
-#include "edyn/util/rigidbody.hpp"
-#include <variant>
 
 TEST(test_raycast, raycast_box) {
     entt::registry registry;
-    edyn::attach(registry);
+    auto config = edyn::init_config{};
+    config.execution_mode = edyn::execution_mode::sequential;
+    config.num_worker_threads = 2;
+    edyn::attach(registry, config);
 
     auto def = edyn::rigidbody_def{};
     def.shape = edyn::box_shape{0.5, 0.5, 0.5};

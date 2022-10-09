@@ -19,146 +19,100 @@
 
 namespace edyn {
 
-template<>
-void prepare_constraints<springdamper_constraint>(entt::registry &registry, row_cache &cache, scalar dt) {
-    auto body_view = registry.view<position, orientation,
-                                   linvel, angvel,
-                                   mass_inv, inertia_world_inv,
-                                   delta_linvel, delta_angvel>();
-    auto con_view = registry.view<springdamper_constraint>();
-    auto origin_view = registry.view<origin>();
+void springdamper_constraint::prepare(
+    const entt::registry &registry, entt::entity entity,
+    constraint_row_prep_cache &cache, scalar dt,
+    const constraint_body &bodyA, const constraint_body &bodyB) {
 
-    con_view.each([&] (entt::entity entity, springdamper_constraint &con) {
-        auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = body_view.get(con.body[0]);
-        auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] = body_view.get(con.body[1]);
+    auto ctrl_armA = to_world_space(m_ctrl_arm_pivotA, bodyA.origin, bodyA.orn);
+    auto ctrl_armB = to_world_space(m_ctrl_arm_pivotB, bodyB.origin, bodyB.orn);
 
-        scalar side = con.m_ctrl_arm_pivotA.x > 0 ? 1 : -1;
+    auto ctrl_arm_dir = ctrl_armB - ctrl_armA;
+    auto ctrl_arm_len = length(ctrl_arm_dir);
+    ctrl_arm_dir /= ctrl_arm_len;
 
-        auto originA = origin_view.contains(con.body[0]) ? origin_view.get<origin>(con.body[0]) : static_cast<vector3>(posA);
-        auto originB = origin_view.contains(con.body[1]) ? origin_view.get<origin>(con.body[1]) : static_cast<vector3>(posB);
+    auto rA = ctrl_armB - bodyA.pos;
+    auto rB = ctrl_armB - bodyB.pos;
 
-        auto ctrl_armA = to_world_space(con.m_ctrl_arm_pivotA, originA, ornA);
-        auto ctrl_armB = to_world_space(con.m_ctrl_arm_pivotB, originB, ornB);
+    scalar side = m_ctrl_arm_pivotA.x > 0 ? 1 : -1;
+    auto chassis_z = rotate(bodyA.orn, vector3_z);
+    auto ctrl_arm_x = ctrl_arm_dir * side;
+    auto ctrl_arm_y = cross(chassis_z, ctrl_arm_x);
+    auto ctrl_arm_basis = matrix3x3_columns(ctrl_arm_x, ctrl_arm_y, chassis_z);
+    auto ctrl_arm_pivot_rel = ctrl_arm_basis * m_ctrl_arm_pivot;
+    auto ctrl_arm_pivot = ctrl_armA + ctrl_arm_pivot_rel;
+    auto coiloverA = to_world_space(m_pivotA, bodyA.origin, bodyA.orn);
+    auto coilover_dir = coiloverA - ctrl_arm_pivot;
+    auto coilover_len = length(coilover_dir);
+    coilover_dir /= coilover_len;
 
-        auto ctrl_arm_dir = ctrl_armB - ctrl_armA;
-        auto ctrl_arm_len = length(ctrl_arm_dir);
-        ctrl_arm_dir /= ctrl_arm_len;
+    // Apply corrective impulse at the wheel pivot along the direction
+    // normal to the control arm.
+    auto d = ctrl_arm_y;
+    auto p = cross(rA, d);
+    auto q = cross(rB, d);
 
-        auto rA = ctrl_armB - posA;
-        auto rB = ctrl_armB - posB;
+    // Account for angle between the coilover and the control arm normal and
+    // the lever created by the length of the control arm. The force is applied
+    // somewhere in the middle of the control arm, which generates a torque
+    // proportional to the distance from the control arm pivot on the chassis
+    // (given by `m_ctrl_arm_pivot.x`) which then creates a force at the
+    // wheel pivot which is inversely proportional to the control arm length.
+    auto cos_theta = dot(d, coilover_dir);
+    auto ctrl_arm_pivot_horizontal_dist = m_ctrl_arm_pivot.x * side;
+    auto ctrl_arm_pivot_ratio = ctrl_arm_pivot_horizontal_dist / ctrl_arm_len;
+    auto ctrl_arm_pivot_ratio_inv = scalar(1) / ctrl_arm_pivot_ratio;
+    auto lever_term = ctrl_arm_pivot_ratio * cos_theta;
 
-        auto chassis_z = rotate(ornA, vector3_z);
-        auto ctrl_arm_x = ctrl_arm_dir * side;
-        auto ctrl_arm_y = cross(chassis_z, ctrl_arm_x);
-        auto ctrl_arm_basis = matrix3x3_columns(ctrl_arm_x, ctrl_arm_y, chassis_z);
-        auto ctrl_arm_pivot_rel = ctrl_arm_basis * con.m_ctrl_arm_pivot;
-        auto ctrl_arm_pivot = ctrl_armA + ctrl_arm_pivot_rel;
-        auto coiloverA = to_world_space(con.m_pivotA, originA, ornA);
-        auto coilover_dir = coiloverA - ctrl_arm_pivot;
-        auto coilover_len = length(coilover_dir);
-        coilover_dir /= coilover_len;
+    // Spring.
+    {
+        auto spring_len = coilover_len - m_spring_offset - m_spring_perch_offset - m_damper_body_offset - m_spring_divider_length;
+        auto rest_len = m_spring_rest_length + m_second_spring_rest_length;
+        auto error = rest_len - spring_len;
+        auto spring_force = m_stiffness_curve.get(error) * lever_term;
+        auto spring_impulse = spring_force * dt;
+        auto &row = cache.add_row();
+        row.J = {d, p, -d, -q};
+        row.lower_limit = 0;
+        row.upper_limit = spring_impulse;
+        row.impulse = impulse[0];
 
-        // Apply corrective impulse at the wheel pivot along the direction
-        // normal to the control arm.
-        auto d = ctrl_arm_y;
-        auto p = cross(rA, d);
-        auto q = cross(rB, d);
+        // Make error inversely proportional to distance from control arm pivot.
+        cache.get_options().error = -error * cos_theta * ctrl_arm_pivot_ratio_inv / dt;
+    }
 
-        // Account for angle between the coilover and the control arm normal and
-        // the lever created by the length of the control arm. The force is applied
-        // somewhere in the middle of the control arm, which generates a torque
-        // proportional to the distance from the control arm pivot on the chassis
-        // (given by `con.m_ctrl_arm_pivot.x`) which then creates a force at the
-        // wheel pivot which is inversely proportional to the control arm length.
-        auto cos_theta = dot(d, coilover_dir);
-        auto ctrl_arm_pivot_horizontal_dist = con.m_ctrl_arm_pivot.x * side;
-        auto ctrl_arm_pivot_ratio = ctrl_arm_pivot_horizontal_dist / ctrl_arm_len;
-        auto ctrl_arm_pivot_ratio_inv = scalar(1) / ctrl_arm_pivot_ratio;
-        auto lever_term = ctrl_arm_pivot_ratio * cos_theta;
+    // Damper.
+    {
+        auto velA = bodyA.linvel + cross(bodyA.angvel, coiloverA - bodyA.pos);
+        auto vel_ctrl_armA = bodyA.linvel + cross(bodyA.angvel, ctrl_armA - bodyA.pos);
+        auto vel_ctrl_armB = bodyB.linvel + cross(bodyB.angvel, rB);
+        auto velB = lerp(vel_ctrl_armA, vel_ctrl_armB, ctrl_arm_pivot_ratio);
+        auto v_rel = velA - velB;
+        auto speed = dot(coilover_dir, v_rel);
+        auto damping_force = get_damping_force(speed) * lever_term;
+        auto damping_impulse = std::abs(damping_force) * dt;
 
-        // Spring.
-        {
-            auto spring_len = coilover_len - con.m_spring_offset - con.m_spring_perch_offset - con.m_damper_body_offset - con.m_spring_divider_length;
-            auto rest_len = con.m_spring_rest_length + con.m_second_spring_rest_length;
-            auto error = rest_len - spring_len;
-            auto spring_force = con.m_stiffness_curve.get(error) * lever_term;
-            auto spring_impulse = spring_force * dt;
-            auto &row = cache.rows.emplace_back();
-            row.J = {d, p, -d, -q};
-            row.lower_limit = 0;
-            row.upper_limit = spring_impulse;
+        auto &row = cache.add_row();
+        row.J = {d, p, -d, -q};
+        row.lower_limit = -damping_impulse;
+        row.upper_limit =  damping_impulse;
+        row.impulse = impulse[1];
+    }
 
-            auto options = constraint_row_options{};
-            // Make error inversely proportional to distance from control arm pivot.
-            options.error = -error * cos_theta * ctrl_arm_pivot_ratio_inv / dt;
+    // Damper piston limit when it fully extends.
+    {
+        auto &row = cache.add_row();
+        row.J = {d, p, -d, -q};
+        row.lower_limit = -large_scalar;
+        row.upper_limit = 0;
+        row.impulse = impulse[2];
 
-            row.inv_mA = inv_mA; row.inv_IA = inv_IA;
-            row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-            row.dvA = &dvA; row.dwA = &dwA;
-            row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = con.impulse[0];
+        auto max_coilover_len = m_piston_rod_length + m_damper_body_length + m_damper_body_offset;
+        auto limit_error = max_coilover_len - coilover_len;
 
-            prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
-            warm_start(row);
-        }
-
-        // Damper.
-        {
-            auto &linvelA = registry.get<linvel>(con.body[0]);
-            auto &angvelA = registry.get<angvel>(con.body[0]);
-            auto &linvelB = registry.get<linvel>(con.body[1]);
-            auto &angvelB = registry.get<angvel>(con.body[1]);
-
-            auto velA = linvelA + cross(angvelA, coiloverA - posA);
-            auto vel_ctrl_armA = linvelA + cross(angvelA, ctrl_armA - posA);
-            auto vel_ctrl_armB = linvelB + cross(angvelB, rB);
-            auto velB = lerp(vel_ctrl_armA, vel_ctrl_armB, ctrl_arm_pivot_ratio);
-            auto v_rel = velA - velB;
-            auto speed = dot(coilover_dir, v_rel);
-            auto damping_force = con.get_damping_force(speed) * lever_term;
-            auto impulse = std::abs(damping_force) * dt;
-
-            auto &row = cache.rows.emplace_back();
-            row.J = {d, p, -d, -q};
-            row.lower_limit = -impulse;
-            row.upper_limit =  impulse;
-
-            row.inv_mA = inv_mA; row.inv_IA = inv_IA;
-            row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-            row.dvA = &dvA; row.dwA = &dwA;
-            row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = con.impulse[1];
-
-            prepare_row(row, {}, linvelA, angvelA, linvelB, angvelB);
-            warm_start(row);
-        }
-
-        // Damper piston limit when it fully extends.
-        {
-            auto &row = cache.rows.emplace_back();
-            row.J = {d, p, -d, -q};
-            row.lower_limit = -large_scalar;
-            row.upper_limit = 0;
-
-            auto max_coilover_len = con.m_piston_rod_length + con.m_damper_body_length + con.m_damper_body_offset;
-            auto limit_error = max_coilover_len - coilover_len;
-            auto options = constraint_row_options{};
-
-            // Coilover has extended beyond limit. Apply reverse impulse.
-            options.error = -limit_error * cos_theta * ctrl_arm_pivot_ratio_inv / dt;
-
-            row.inv_mA = inv_mA; row.inv_IA = inv_IA;
-            row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-            row.dvA = &dvA; row.dwA = &dwA;
-            row.dvB = &dvB; row.dwB = &dwB;
-            row.impulse = con.impulse[2];
-
-            prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
-            warm_start(row);
-        }
-
-        cache.con_num_rows.push_back(3);
-    });
+        // Coilover has extended beyond limit. Apply reverse impulse.
+        cache.get_options().error = -limit_error * cos_theta * ctrl_arm_pivot_ratio_inv / dt;
+    }
 }
 
 void springdamper_constraint::set_constant_spring_stiffness() {

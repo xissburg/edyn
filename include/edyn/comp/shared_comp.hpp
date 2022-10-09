@@ -11,6 +11,8 @@
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/center_of_mass.hpp"
 #include "edyn/comp/origin.hpp"
+#include "edyn/comp/tire_material.hpp"
+#include "edyn/comp/tire_state.hpp"
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/shape_index.hpp"
@@ -18,14 +20,10 @@
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/collision_filter.hpp"
 #include "edyn/comp/collision_exclusion.hpp"
-#include "edyn/comp/continuous.hpp"
-#include "edyn/comp/tire_material.hpp"
-#include "edyn/comp/tire_state.hpp"
-#include "edyn/comp/spin.hpp"
 #include "edyn/comp/roll_direction.hpp"
+#include "edyn/constraints/null_constraint.hpp"
 #include "edyn/networking/comp/discontinuity.hpp"
 #include "edyn/shapes/shapes.hpp"
-#include "edyn/collision/tree_view.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_manifold_events.hpp"
 #include "edyn/collision/contact_point.hpp"
@@ -33,12 +31,12 @@
 namespace edyn {
 
 /**
- * Tuple of components that are exchanged between island coordinator and
- * island workers.
+ * Tuple of components that are exchanged between main thread and
+ * simulation worker.
  */
 using shared_components_t = decltype(std::tuple_cat(std::tuple<
-    island_timestamp,
     AABB,
+    island_AABB,
     collision_filter,
     collision_exclusion,
     inertia,
@@ -59,7 +57,6 @@ using shared_components_t = decltype(std::tuple_cat(std::tuple<
     contact_manifold,
     contact_manifold_with_restitution,
     contact_manifold_events,
-    continuous,
     center_of_mass,
     origin,
     dynamic_tag,
@@ -69,14 +66,15 @@ using shared_components_t = decltype(std::tuple_cat(std::tuple<
     sleeping_tag,
     sleeping_disabled_tag,
     disabled_tag,
-    continuous_contacts_tag,
     external_tag,
     shape_index,
     rigidbody_tag,
+    constraint_tag,
+    island_tag,
     rolling_tag,
     roll_direction,
-    tree_view,
     discontinuity,
+    null_constraint,
     discontinuity_spin
 >{}, constraints_tuple, shapes_tuple)); // Concatenate with all shapes and constraints at the end.
 

@@ -2,6 +2,8 @@
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/rotated_mesh_list.hpp"
+#include "edyn/comp/tag.hpp"
+#include "edyn/util/island_util.hpp"
 #include <entt/entity/registry.hpp>
 #include <variant>
 
@@ -71,7 +73,7 @@ void update_rotated_mesh(entt::registry &registry, entt::entity entity) {
 
 void update_rotated_meshes(entt::registry &registry) {
     auto rotated_view = registry.view<rotated_mesh_list>();
-    auto view = registry.view<orientation, rotated_mesh_list>();
+    auto view = registry.view<orientation, rotated_mesh_list>(exclude_sleeping_disabled);
 
     for (auto entity : view) {
         update_rotated_mesh(entity, rotated_view, view);

@@ -1,25 +1,31 @@
 #ifndef EDYN_DYNAMICS_SOLVER_HPP
 #define EDYN_DYNAMICS_SOLVER_HPP
 
+#include <memory>
 #include <vector>
 #include <entt/entity/fwd.hpp>
+#include <entt/signal/sigh.hpp>
 #include "edyn/math/scalar.hpp"
-#include "edyn/dynamics/row_cache.hpp"
+#include "edyn/parallel/atomic_counter.hpp"
 
 namespace edyn {
 
+struct job;
+struct constraint_row;
+
 scalar solve(constraint_row &row);
 
-class solver {
+class solver final {
+
 public:
     solver(entt::registry &);
-    ~solver();
 
-    void update(scalar dt);
+    void update(bool mt);
 
 private:
     entt::registry *m_registry;
-    row_cache m_row_cache;
+    std::vector<entt::scoped_connection> m_connections;
+    std::unique_ptr<atomic_counter> m_counter;
 };
 
 }

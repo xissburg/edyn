@@ -9,7 +9,7 @@ namespace edyn {
 
 /**
  * @brief A discontinuity introduced by misprediction in the client-side. The
- * offsets are added to the present position and orientation to ammeliorate
+ * offsets are added to the present position and orientation to ameliorate
  * visual disturbances caused by snapping the physics state to the
  * extrapolation result.
  */

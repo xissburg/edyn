@@ -1,4 +1,5 @@
 #include "../common/common.hpp"
+#include "edyn/util/shape_util.hpp"
 
 TEST(triangle_mesh_serialization, test) {
     // Create triangle mesh.
