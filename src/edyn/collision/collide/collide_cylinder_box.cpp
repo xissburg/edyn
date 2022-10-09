@@ -282,7 +282,7 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
             // been added, thus add extra points to create a stable base.
             std::array<vector2, 2> edge_in_A;
 
-            for (int i = 0; i < last_edge.size(); ++i) {
+            for (unsigned i = 0; i < last_edge.size(); ++i) {
                 auto last_edge_local = to_object_space(last_edge[i], posA, ornA);
                 edge_in_A[i] = vector2{last_edge_local[cyl_ax_idx_ortho0], last_edge_local[cyl_ax_idx_ortho1]};
             }

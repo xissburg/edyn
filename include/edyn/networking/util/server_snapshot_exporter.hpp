@@ -10,22 +10,23 @@
 #include <vector>
 #include "edyn/comp/action_list.hpp"
 #include "edyn/comp/angvel.hpp"
+#include "edyn/comp/graph_edge.hpp"
+#include "edyn/comp/graph_node.hpp"
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/position.hpp"
+#include "edyn/comp/tag.hpp"
 #include "edyn/config/config.h"
+#include "edyn/core/entity_graph.hpp"
 #include "edyn/networking/comp/action_history.hpp"
 #include "edyn/networking/comp/entity_owner.hpp"
 #include "edyn/networking/comp/network_input.hpp"
+#include "edyn/networking/comp/remote_client.hpp"
 #include "edyn/networking/packet/registry_snapshot.hpp"
-#include "edyn/networking/util/is_fully_owned_by_client.hpp"
 #include "edyn/util/island_util.hpp"
 #include "edyn/util/tuple_util.hpp"
 
 namespace edyn {
-
-extern bool(*g_is_networked_input_component)(entt::id_type);
-extern bool(*g_is_action_list_component)(entt::id_type);
 
 class server_snapshot_exporter {
 public:
@@ -43,13 +44,6 @@ public:
     // Decays the time remaining in each of the recently modified components.
     // They stop being included in the snapshot once the timer reaches zero.
     virtual void update(double time) = 0;
-
-    void set_observer_enabled(bool enabled) {
-        m_observer_enabled = enabled;
-    }
-
-protected:
-    bool m_observer_enabled {true};
 };
 
 template<typename... Components>
@@ -65,10 +59,6 @@ class server_snapshot_exporter_impl : public server_snapshot_exporter {
 
     template<typename Component>
     void on_update(entt::registry &registry, entt::entity entity) {
-        if (!m_observer_enabled) {
-            return;
-        }
-
         static constexpr auto index = index_of_v<unsigned, Component, Components...>;
 
         if (auto *modified = registry.try_get<modified_components>(entity)) {
@@ -107,9 +97,14 @@ public:
                          const entt::sparse_set &entities_of_interest,
                          entt::entity dest_client_entity) const override {
         auto &registry = *m_registry;
+        auto &graph = registry.ctx().at<entity_graph>();
+        auto node_view = registry.view<graph_node>();
+        auto edge_view = registry.view<graph_edge>();
         auto owner_view = registry.view<entity_owner>();
+        auto body_view = registry.view<position, orientation, linvel, angvel, dynamic_tag>();
         auto modified_view = registry.view<modified_components>();
-        auto body_view = m_registry->view<position, orientation, linvel, angvel>(exclude_sleeping_disabled);
+        auto sleeping_view = registry.view<sleeping_tag>();
+        bool allow_ownership = registry.get<remote_client>(dest_client_entity).allow_full_ownership;
 
         // Do not include input components of entities owned by destination
         // client as to not override client input on the client-side.
@@ -118,24 +113,77 @@ public:
         // since the server allows the client to have full control over entities in
         // the islands where there are no other clients present.
         for (auto entity : entities_of_interest) {
-            auto owned_by_client = !owner_view.contains(entity) ? false :
-                std::get<0>(owner_view.get(entity)).client_entity == dest_client_entity;
+            if (!registry.valid(entity)) {
+                continue;
+            }
+
+            if (sleeping_view.contains(entity)) {
+                continue;
+            }
+
+            // Traverse entity graph using this entity as the starting point and
+            // collect all owners (i.e. clients) that are reachable from this node.
+            // If the only reachable client is the destination client, do not
+            // include this entity in the packet because the client is allowed to
+            // own the island when it's in it by itself.
+            entity_graph::index_type node_index;
+            bool dest_client_reachable = false;
+            bool other_client_reachable = false;
+
+            if (edge_view.contains(entity)) {
+                auto [edge] = edge_view.get(entity);
+                node_index = graph.edge_node_indices(edge.edge_index)[0];
+            } else {
+                auto [node] = node_view.get(entity);
+                node_index = node.node_index;
+            }
+
+            bool temporary_ownership = false;
+
+            if (allow_ownership) {
+                graph.traverse(node_index, [&](auto node_index) {
+                    auto neighbor = graph.node_entity(node_index);
+
+                    if (owner_view.contains(neighbor)) {
+                        auto [owner] = owner_view.get(neighbor);
+
+                        if (owner.client_entity == dest_client_entity) {
+                            dest_client_reachable = true;
+                        } else if (owner.client_entity != entt::null) {
+                            other_client_reachable = true;
+                        }
+                    }
+                });
+
+                // The client temporarily owns the entity if it's the only client
+                // reachable through the graph.
+                temporary_ownership = dest_client_reachable && !other_client_reachable;
+            }
+
+            auto owned_by_destination_client = owner_view.contains(entity) &&
+                                               owner_view.get<entity_owner>(entity).client_entity == dest_client_entity;
 
             if (modified_view.contains(entity)) {
                 auto [modified] = modified_view.get(entity);
 
                 if (!modified.empty()) {
+                    // Components that have been modified recently must be included in the
+                    // packet, except if the client has temporary ownership of it or if it's
+                    // an input component and the entity owner is the same as the destination
+                    // client.
                     unsigned i = 0;
-                    (((modified.time_remaining[i] > 0 && (!owned_by_client || !(std::is_base_of_v<network_input, Components> || std::is_same_v<Components, action_history>)) ?
+                    ((((modified.time_remaining[i] > 0 && !temporary_ownership &&
+                        !(owned_by_destination_client && std::is_base_of_v<network_input, Components>) &&
+                        !std::is_same_v<Components, action_history>) ?
                         internal::get_pool<Components>(snap.pools, i)->insert_single(registry, entity, snap.entities) : void(0)), ++i), ...);
                 }
             }
 
-            if (!is_fully_owned_by_client(registry, dest_client_entity, entity) && body_view.contains(entity)) {
-                internal::snapshot_insert_entity<position   >(*m_registry, entity, snap, index_of_v<unsigned, position, Components...>);
+            if (!temporary_ownership && body_view.contains(entity)) {
+                internal::snapshot_insert_entity<position   >(*m_registry, entity, snap, index_of_v<unsigned, position,    Components...>);
                 internal::snapshot_insert_entity<orientation>(*m_registry, entity, snap, index_of_v<unsigned, orientation, Components...>);
-                internal::snapshot_insert_entity<linvel     >(*m_registry, entity, snap, index_of_v<unsigned, linvel, Components...>);
-                internal::snapshot_insert_entity<angvel     >(*m_registry, entity, snap, index_of_v<unsigned, angvel, Components...>);
+                internal::snapshot_insert_entity<linvel     >(*m_registry, entity, snap, index_of_v<unsigned, linvel,      Components...>);
+                internal::snapshot_insert_entity<angvel     >(*m_registry, entity, snap, index_of_v<unsigned, angvel,      Components...>);
             }
         }
     }

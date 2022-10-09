@@ -4,7 +4,10 @@
 #include <entt/entity/registry.hpp>
 #include <type_traits>
 #include "edyn/comp/action_list.hpp"
+#include "edyn/comp/graph_edge.hpp"
+#include "edyn/comp/graph_node.hpp"
 #include "edyn/comp/merge_component.hpp"
+#include "edyn/core/entity_graph.hpp"
 #include "edyn/networking/comp/action_history.hpp"
 #include "edyn/networking/comp/network_input.hpp"
 #include "edyn/networking/comp/remote_client.hpp"
@@ -15,9 +18,6 @@
 #include "edyn/serialization/memory_archive.hpp"
 
 namespace edyn {
-
-extern bool(*g_is_networked_input_component)(entt::id_type);
-bool is_fully_owned_by_client(const entt::registry &registry, entt::entity client_entity, entt::entity entity);
 
 class server_snapshot_importer {
 public:
@@ -62,20 +62,55 @@ template<typename... Components>
 class server_snapshot_importer_impl : public server_snapshot_importer {
 
     template<typename Component>
-    bool is_owned_by_client(const entt::registry &registry, entt::entity client_entity, entt::entity local_entity) {
+    bool is_owned_by_client(const entt::registry &registry, entt::entity client_entity, entt::entity entity) {
         // If the entity is not fully owned by the client, the update must
         // not be applied, because in this case the server is in control of
         // the procedural state. Input components are one exception because
         // they must always be applied.
         if constexpr(std::is_base_of_v<network_input, Component> ||
                      std::is_same_v<action_history, Component>) {
-            if (auto *owner = registry.try_get<entity_owner>(local_entity);
+            if (auto *owner = registry.try_get<entity_owner>(entity);
                 owner && owner->client_entity == client_entity)
             {
                 return true;
             }
-        } else if (is_fully_owned_by_client(registry, client_entity, local_entity)) {
-            return true;
+        } else {
+            // Traverse the graph starting at the given entity and check if
+            // `client_entity` is the only client reachable from it.
+            auto &graph = registry.ctx().at<entity_graph>();
+            auto node_view = registry.view<graph_node>();
+            auto edge_view = registry.view<graph_edge>();
+            auto owner_view = registry.view<entity_owner>();
+
+            entity_graph::index_type node_index;
+            bool dest_client_reachable = false;
+            bool other_client_reachable = false;
+
+            if (edge_view.contains(entity)) {
+                auto [edge] = edge_view.get(entity);
+                node_index = graph.edge_node_indices(edge.edge_index)[0];
+            } else {
+                auto [node] = node_view.get(entity);
+                node_index = node.node_index;
+            }
+
+            graph.traverse(node_index, [&](auto node_index) {
+                auto neighbor = graph.node_entity(node_index);
+
+                if (owner_view.contains(neighbor)) {
+                    auto [owner] = owner_view.get(neighbor);
+
+                    if (owner.client_entity == client_entity) {
+                        dest_client_reachable = true;
+                    } else if (owner.client_entity != entt::null) {
+                        other_client_reachable = true;
+                    }
+                }
+            });
+
+            // The client temporarily owns the entity if it's the only client
+            // reachable through the graph.
+            return dest_client_reachable && !other_client_reachable;
         }
 
         return false;
@@ -229,7 +264,7 @@ class server_snapshot_importer_impl : public server_snapshot_importer {
         if constexpr(sizeof...(Actions) == 1) {
             (import_action_single<Actions>(registry, entity, data), ...);
         } else {
-            auto actions = std::tuple<Actions...>{};
+            static const auto actions = std::tuple<Actions...>{};
             visit_tuple(actions, action_index, [&](auto &&a) {
                 using ActionType = std::decay_t<decltype(a)>;
                 import_action_single<ActionType>(registry, entity, data);
@@ -267,7 +302,7 @@ public:
             visit_tuple(all_components, pool.component_index, [&](auto &&c) {
                 using CompType = std::decay_t<decltype(c)>;
 
-                if ((*g_is_networked_input_component)(entt::type_index<CompType>::value())) {
+                if constexpr(std::is_base_of_v<network_input, CompType>) {
                     auto *typed_pool = static_cast<pool_snapshot_data_impl<CompType> *>(pool.ptr.get());
                     import_input_components_local(registry, client_entity, snap.entities, *typed_pool);
                 }
@@ -293,7 +328,7 @@ public:
 
     void merge_action_history(entt::registry &registry, packet::registry_snapshot &snap, double time_delta) override {
         auto pool_it = std::find_if(snap.pools.begin(), snap.pools.end(), [](auto &&pool) {
-            constexpr auto action_history_index = index_of_v<unsigned, action_history, Components...>;
+            auto action_history_index = index_of_v<unsigned, action_history, Components...>;
             return pool.component_index == action_history_index;
         });
 

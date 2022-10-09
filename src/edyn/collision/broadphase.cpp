@@ -8,8 +8,8 @@
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_manifold_map.hpp"
 #include "edyn/comp/tag.hpp"
+#include "edyn/config/config.h"
 #include "edyn/parallel/parallel_for.hpp"
-#include "edyn/parallel/parallel_for_async.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/util/entt_util.hpp"
@@ -123,7 +123,7 @@ void broadphase::destroy_separated_manifolds() {
 }
 
 void broadphase::collide_tree(const dynamic_tree &tree, entt::entity entity,
-                                     const AABB &offset_aabb) const {
+                              const AABB &offset_aabb) const {
     auto aabb_view = m_registry->view<AABB>();
     auto &settings = m_registry->ctx().at<edyn::settings>();
     auto &manifold_map = m_registry->ctx().at<contact_manifold_map>();
@@ -160,20 +160,16 @@ void broadphase::collide_tree_async(const dynamic_tree &tree, entt::entity entit
     });
 }
 
-void broadphase::common_update() {
+void broadphase::update(bool mt) {
     init_new_aabb_entities();
     destroy_separated_manifolds();
     move_aabbs();
-}
-
-void broadphase::update_sequential(bool mt) {
-    common_update();
 
     // Search for new AABB intersections and create manifolds.
     auto aabb_proc_view = m_registry->view<AABB, procedural_tag>(exclude_sleeping_disabled);
 
     if (mt && calculate_view_size(aabb_proc_view) > m_max_sequential_size) {
-        collide_parallel(false, {});
+        collide_parallel();
         finish_collide();
     } else {
         for (auto [entity, aabb] : aabb_proc_view.each()) {
@@ -184,12 +180,9 @@ void broadphase::update_sequential(bool mt) {
     }
 }
 
-void broadphase::collide_parallel(bool async, const job &completion_job) {
+void broadphase::collide_parallel() {
     auto aabb_proc_view = m_registry->view<AABB, procedural_tag>(exclude_sleeping_disabled);
-    size_t count = 0;
-    // Have to iterate the view to get the actual size...
-    aabb_proc_view.each([&count](auto &) { ++count; });
-    m_pair_results.resize(count);
+    m_pair_results.resize(calculate_view_size(aabb_proc_view));
     auto &dispatcher = job_dispatcher::global();
 
     auto for_loop_body = [this, aabb_proc_view](entt::entity entity, size_t index) {
@@ -199,11 +192,7 @@ void broadphase::collide_parallel(bool async, const job &completion_job) {
         collide_tree_async(m_np_tree, entity, offset_aabb, index);
     };
 
-    if (async) {
-        parallel_for_each_async(dispatcher, aabb_proc_view.begin(), aabb_proc_view.end(), completion_job, for_loop_body);
-    } else {
-        parallel_for_each(dispatcher, aabb_proc_view.begin(), aabb_proc_view.end(), for_loop_body);
-    }
+    parallel_for_each(dispatcher, aabb_proc_view.begin(), aabb_proc_view.end(), for_loop_body);
 }
 
 void broadphase::finish_collide() {
@@ -219,26 +208,12 @@ void broadphase::finish_collide() {
     }
 }
 
-bool broadphase::update(const job &completion_job) {
-    switch (m_state) {
-    case state::begin:
-        if (calculate_view_size(m_registry->view<AABB, procedural_tag>(exclude_sleeping_disabled)) <= m_max_sequential_size) {
-            update_sequential(false);
-            return true;
-        } else {
-            m_state = state::collide;
-            common_update();
-            collide_parallel(true, completion_job);
-            return false;
-        }
-        break;
-    case state::collide:
-        finish_collide();
-        m_state = state::begin;
-        return true;
-    default:
-        return true;
-    }
+void broadphase::clear() {
+    m_tree.clear();
+    m_np_tree.clear();
+    m_island_tree.clear();
+    m_new_aabb_entities.clear();
+    m_pair_results.clear();
 }
 
 }

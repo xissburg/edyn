@@ -1,4 +1,4 @@
-#include "edyn/networking/extrapolation/extrapolation_job.hpp"
+#include "edyn/networking/extrapolation/extrapolation_worker.hpp"
 #include "edyn/collision/broadphase.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/narrowphase.hpp"
@@ -12,7 +12,9 @@
 #include "edyn/context/settings.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
 #include "edyn/networking/context/client_network_context.hpp"
+#include "edyn/networking/extrapolation/extrapolation_request.hpp"
 #include "edyn/networking/util/input_state_history.hpp"
+#include "edyn/parallel/message.hpp"
 #include "edyn/replication/registry_operation_observer.hpp"
 #include "edyn/serialization/memory_archive.hpp"
 #include "edyn/core/entity_graph.hpp"
@@ -31,52 +33,108 @@
 
 namespace edyn {
 
-extern bool(*g_is_networked_input_component)(entt::id_type);
-extern bool(*g_is_action_list_component)(entt::id_type);
-
-void extrapolation_job_func(job::data_type &data) {
-    auto archive = memory_input_archive(data.data(), data.size());
-    intptr_t job_intptr;
-    archive(job_intptr);
-    auto *job = reinterpret_cast<extrapolation_job *>(job_intptr);
-    job->update();
-}
-
-extrapolation_job::extrapolation_job(extrapolation_input &&input,
-                                     const settings &settings,
-                                     const registry_operation_context &reg_op_ctx,
-                                     const material_mix_table &material_table,
-                                     std::shared_ptr<input_state_history> input_history,
-                                     make_extrapolation_modified_comp_func_t *make_extrapolation_modified_comp)
-    : m_input(std::move(input))
-    , m_state(state::init)
-    , m_current_time(input.start_time)
-    , m_solver(m_registry)
+extrapolation_worker::extrapolation_worker(const settings &settings,
+                                           const registry_operation_context &reg_op_ctx,
+                                           const material_mix_table &material_table,
+                                           std::shared_ptr<input_state_history> input_history,
+                                           make_extrapolation_modified_comp_func_t *make_extrapolation_modified_comp)
+    : m_solver(m_registry)
     , m_input_history(input_history)
     , m_poly_initializer(m_registry)
     , m_island_manager(m_registry)
     , m_make_extrapolation_modified_comp(make_extrapolation_modified_comp)
+    , m_message_queue(message_dispatcher::global().make_queue<
+        extrapolation_request,
+        msg::set_settings,
+        msg::set_registry_operation_context,
+        msg::set_material_table>("extrapolation_worker"))
 {
+    m_registry.ctx().emplace<contact_manifold_map>(m_registry);
     m_registry.ctx().emplace<broadphase>(m_registry);
     m_registry.ctx().emplace<narrowphase>(m_registry);
     m_registry.ctx().emplace<entity_graph>();
     m_registry.ctx().emplace<edyn::settings>(settings);
     m_registry.ctx().emplace<registry_operation_context>(reg_op_ctx);
-    m_registry.ctx().emplace<contact_manifold_map>(m_registry);
     m_registry.ctx().emplace<material_mix_table>(material_table);
 
-    m_this_job.func = &extrapolation_job_func;
-    auto archive = fixed_memory_output_archive(m_this_job.data.data(), m_this_job.data.size());
-    auto ctx_intptr = reinterpret_cast<intptr_t>(this);
-    archive(ctx_intptr);
+    m_message_queue.sink<extrapolation_request>().connect<&extrapolation_worker::on_extrapolation_request>(*this);
+    m_message_queue.sink<msg::set_settings>().connect<&extrapolation_worker::on_set_settings>(*this);
+    m_message_queue.sink<msg::set_registry_operation_context>().connect<&extrapolation_worker::on_set_reg_op_ctx>(*this);
+    m_message_queue.sink<msg::set_material_table>().connect<&extrapolation_worker::on_set_material_table>(*this);
+    m_message_queue.push_sink().connect<&extrapolation_worker::on_push_message>(*this);
 }
 
-void extrapolation_job::load_input() {
-    // The registry is expected to be empty before importing the input.
-    EDYN_ASSERT(m_registry.empty());
+extrapolation_worker::~extrapolation_worker() {
+    stop();
+}
+
+void extrapolation_worker::start() {
+    EDYN_ASSERT(!m_thread);
+    m_running.store(true, std::memory_order_release);
+    m_thread = std::make_unique<std::thread>(&extrapolation_worker::run, this);
+}
+
+void extrapolation_worker::stop() {
+    EDYN_ASSERT(m_thread);
+    m_running.store(false, std::memory_order_release);
+    m_cv.notify_one();
+    m_thread->join();
+    m_thread.reset();
+}
+
+void extrapolation_worker::set_settings(const edyn::settings &settings) {
+    auto &dispatcher = message_dispatcher::global();
+    dispatcher.send<msg::set_settings>(m_message_queue.identifier, {"unknown"}, settings);
+}
+
+void extrapolation_worker::set_material_table(const material_mix_table &material_table) {
+    auto &dispatcher = message_dispatcher::global();
+    dispatcher.send<msg::set_material_table>(m_message_queue.identifier, {"unknown"}, material_table);
+}
+
+void extrapolation_worker::set_registry_operation_context(const registry_operation_context &reg_op_ctx) {
+    auto &dispatcher = message_dispatcher::global();
+    dispatcher.send<msg::set_registry_operation_context>(m_message_queue.identifier, {"unknown"}, reg_op_ctx);
+}
+
+void extrapolation_worker::on_extrapolation_request(message<extrapolation_request> &msg) {
+    m_destination_queue = msg.sender;
+    m_request = std::move(msg.content);
+    m_has_work = true;
+}
+
+void extrapolation_worker::on_set_settings(message<msg::set_settings> &msg) {
+    m_registry.ctx().at<settings>() = msg.content.settings;
+}
+
+void extrapolation_worker::on_set_reg_op_ctx(message<msg::set_registry_operation_context> &msg) {
+    m_registry.ctx().at<registry_operation_context>() = msg.content.ctx;
+}
+
+void extrapolation_worker::on_set_material_table(message<msg::set_material_table> &msg) {
+    m_registry.ctx().at<material_mix_table>() = msg.content.table;
+}
+
+void extrapolation_worker::on_push_message() {
+    m_has_messages.store(true, std::memory_order_release);
+    m_cv.notify_one();
+}
+
+void extrapolation_worker::apply_history() {
+    auto &settings = m_registry.ctx().at<edyn::settings>();
+    auto start_time = m_current_time - settings.fixed_dt;
+    m_input_history->import_each(start_time, settings.fixed_dt, m_registry, m_entity_map);
+}
+
+void extrapolation_worker::init_extrapolation() {
+    m_start_time = performance_time();
+    m_current_time = m_start_time;
+    m_step_count = 0;
+    m_island_manager.set_last_time(m_start_time);
+    m_terminated_early = false;
 
     // Import entities and components.
-    m_input.ops.execute(m_registry, m_entity_map);
+    m_request.ops.execute(m_registry, m_entity_map);
 
     auto &graph = m_registry.ctx().at<entity_graph>();
     auto node_view = m_registry.view<graph_node>();
@@ -114,8 +172,8 @@ void extrapolation_job::load_input() {
     m_poly_initializer.init_new_shapes();
 
     // Replace client component state by server state.
-    for (auto &pool : m_input.snapshot.pools) {
-        pool.ptr->replace_into_registry(m_registry, m_input.snapshot.entities, m_entity_map);
+    for (auto &pool : m_request.snapshot.pools) {
+        pool.ptr->replace_into_registry(m_registry, m_request.snapshot.entities, m_entity_map);
     }
 
     // Apply all inputs before the current time to start the simulation
@@ -131,12 +189,12 @@ void extrapolation_job::load_input() {
     auto relevant_entities = entt::sparse_set{};
     auto owned_entities = entt::sparse_set{};
 
-    for (auto remote_entity : m_input.entities) {
+    for (auto remote_entity : m_request.entities) {
         auto local_entity = m_entity_map.at(remote_entity);
         relevant_entities.emplace(local_entity);
     }
 
-    for (auto remote_entity : m_input.owned_entities) {
+    for (auto remote_entity : m_request.owned_entities) {
         auto local_entity = m_entity_map.at(remote_entity);
         owned_entities.emplace(local_entity);
     }
@@ -144,24 +202,7 @@ void extrapolation_job::load_input() {
     m_modified_comp = (*m_make_extrapolation_modified_comp)(m_registry, relevant_entities, owned_entities);
 }
 
-void extrapolation_job::init() {
-    m_start_time = performance_time();
-    m_island_manager.set_last_time(m_start_time);
-
-    // Import entities and components to be extrapolated.
-    load_input();
-
-    m_state = state::step;
-}
-
-void extrapolation_job::apply_history() {
-    auto &settings = m_registry.ctx().at<edyn::settings>();
-    auto start_time = m_current_time - settings.fixed_dt;
-    m_input_history->import_each(start_time, settings.fixed_dt, m_registry, m_entity_map);
-}
-
-void extrapolation_job::sync_and_finish() {
-
+void extrapolation_worker::finish_extrapolation() {
     // Insert modified components into a registry operation to be sent back to
     // the main thread which will assign the extrapolated state to its entities.
     auto &reg_op_ctx = m_registry.ctx().at<registry_operation_context>();
@@ -169,7 +210,7 @@ void extrapolation_job::sync_and_finish() {
 
     // Local entity mapping must not be included if the result is going to be
     // remapped into remote space.
-    if (!m_input.should_remap) {
+    if (!m_request.should_remap) {
         m_entity_map.each([&](auto remote_entity, auto local_entity) {
             builder->add_entity_mapping(local_entity, remote_entity);
         });
@@ -183,93 +224,37 @@ void extrapolation_job::sync_and_finish() {
     builder->replace<linvel>(body_view.begin(), body_view.end());
     builder->replace<angvel>(body_view.begin(), body_view.end());
 
-    m_result.ops = std::move(builder->finish());
-    EDYN_ASSERT(!m_result.ops.empty());
+    auto result = extrapolation_result{};
+    result.ops = std::move(builder->finish());
+    EDYN_ASSERT(!result.ops.empty());
 
     // Insert all manifolds into it.
     auto manifold_view = m_registry.view<contact_manifold>();
     manifold_view.each([&](contact_manifold &manifold) {
-        m_result.manifolds.push_back(manifold);
+        result.manifolds.push_back(manifold);
     });
 
     // Assign timestamp of the last step.
-    m_result.timestamp = m_current_time;
+    result.timestamp = m_current_time;
 
-    if (m_input.should_remap) {
+    if (m_request.should_remap) {
         m_entity_map.swap();
-        m_result.remap(m_entity_map);
+        result.remap(m_entity_map);
     }
 
-    m_finished.store(true, std::memory_order_release);
+    auto &dispatcher = message_dispatcher::global();
+    dispatcher.send<extrapolation_result>(m_destination_queue, m_message_queue.identifier, std::move(result));
+
+    m_registry.clear();
+    m_entity_map.clear();
 }
 
-void extrapolation_job::run_state_machine() {
-    switch (m_state) {
-    case state::init:
-        init();
-        m_state = state::step;
-        run_state_machine();
-        break;
-    case state::step:
-        if (should_step()) {
-            m_state = state::begin_step;
-        } else {
-            m_state = state::done;
-        }
-        run_state_machine();
-        break;
-    case state::begin_step:
-        begin_step();
-        m_state = state::broadphase;
-        run_state_machine();
-        break;
-    case state::broadphase:
-        if (m_registry.ctx().at<broadphase>().update(m_this_job)) {
-            // Broadphase creates and destroys manifolds, which are edges in
-            // the entity graph. Thus, it is necessary to initialize new edges
-            // and split islands right after.
-            m_state = state::update_islands;
-            run_state_machine();
-        }
-        break;
-    case state::update_islands:
-        m_island_manager.update(m_current_time);
-        m_state = state::narrowphase;
-        run_state_machine();
-        break;
-    case state::narrowphase:
-        if (m_registry.ctx().at<narrowphase>().update(m_this_job)) {
-            m_state = state::solve;
-            run_state_machine();
-        }
-        break;
-    case state::solve:
-        if (m_solver.update(m_this_job)) {
-            m_state = state::finish_step;
-            run_state_machine();
-        }
-        break;
-    case state::finish_step:
-        finish_step();
-        m_state = state::step;
-        reschedule();
-        break;
-    case state::done:
-        sync_and_finish();
-        break;
-    }
-}
-
-void extrapolation_job::update() {
-    run_state_machine();
-}
-
-bool extrapolation_job::should_step() {
+bool extrapolation_worker::should_step() {
     auto time = performance_time();
 
-    if (time - m_start_time > m_input.execution_time_limit) {
+    if (time - m_start_time > m_request.execution_time_limit) {
         // Timeout.
-        m_result.terminated_early = true;
+        m_terminated_early = true;
         return false;
     }
 
@@ -283,22 +268,16 @@ bool extrapolation_job::should_step() {
     return true;
 }
 
-void extrapolation_job::begin_step() {
-    EDYN_ASSERT(m_state == state::begin_step);
-
+void extrapolation_worker::begin_step() {
     apply_history();
 
     auto &settings = m_registry.ctx().at<edyn::settings>();
     if (settings.pre_step_callback) {
         (*settings.pre_step_callback)(m_registry);
     }
-
-    m_state = state::broadphase;
 }
 
-void extrapolation_job::finish_step() {
-    EDYN_ASSERT(m_state == state::finish_step);
-
+void extrapolation_worker::finish_step() {
     auto &settings = m_registry.ctx().at<edyn::settings>();
     m_current_time += settings.fixed_dt;
 
@@ -312,11 +291,40 @@ void extrapolation_job::finish_step() {
     }
 
     ++m_step_count;
-    m_state = state::step;
 }
 
-void extrapolation_job::reschedule() {
-    job_dispatcher::global().async(m_this_job);
+void extrapolation_worker::extrapolate() {
+    init_extrapolation();
+
+    while (should_step()) {
+        begin_step();
+        m_registry.ctx().at<broadphase>().update(true);
+        m_island_manager.update(m_current_time);
+        m_registry.ctx().at<narrowphase>().update(true);
+        m_solver.update(true);
+        finish_step();
+    }
+
+    finish_extrapolation();
+}
+
+void extrapolation_worker::run() {
+    while (m_running.load(std::memory_order_relaxed)) {
+        {
+            std::unique_lock<std::mutex> lock(m_mutex);
+            m_cv.wait(lock, [&]() {
+                return m_has_messages.exchange(false, std::memory_order_relaxed) ||
+                    !m_running.load(std::memory_order_relaxed);
+            });
+        }
+
+        m_message_queue.update();
+
+        if (m_has_work) {
+            extrapolate();
+            m_has_work = false;
+        }
+    }
 }
 
 }

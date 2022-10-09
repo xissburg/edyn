@@ -18,6 +18,7 @@ struct settings {
     bool paused {false};
     vector3 gravity {gravity_earth};
 
+    unsigned max_steps_per_update {8};
     unsigned num_solver_velocity_iterations {8};
     unsigned num_solver_position_iterations {3};
     unsigned num_restitution_iterations {8};

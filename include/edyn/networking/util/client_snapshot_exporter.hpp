@@ -4,6 +4,9 @@
 #include <entt/entity/fwd.hpp>
 #include <type_traits>
 #include "edyn/comp/action_list.hpp"
+#include "edyn/comp/graph_edge.hpp"
+#include "edyn/comp/graph_node.hpp"
+#include "edyn/core/entity_graph.hpp"
 #include "edyn/networking/comp/action_history.hpp"
 #include "edyn/networking/comp/network_input.hpp"
 #include "edyn/networking/comp/networked_comp.hpp"
@@ -133,27 +136,60 @@ public:
                          const entt::sparse_set &owned_entities, bool allow_full_ownership) const override {
         auto &registry = *m_registry;
         auto modified_view = registry.view<modified_components>();
+        auto sleeping_view = registry.view<sleeping_tag>();
 
         if (allow_full_ownership) {
             // Include all networked entities in the islands that contain an entity
             // owned by this client, excluding entities that are owned by other clients.
-            auto island_entities = collect_islands_from_residents(registry, owned_entities.begin(), owned_entities.end());
             auto owner_view = registry.view<entity_owner>();
-            auto island_view = registry.view<island>();
-            auto body_view = m_registry->view<position, orientation, linvel, angvel>(exclude_sleeping_disabled);
+            auto node_view = registry.view<graph_node>();
+            auto edge_view = registry.view<graph_edge>();
+            auto body_view = registry.view<position, orientation, linvel, angvel>();
+            auto &graph = registry.ctx().at<entity_graph>();
 
-            for (auto island_entity : island_entities) {
-                auto [island] = island_view.get(island_entity);
+            auto to_visit = entt::sparse_set{};
 
-                for (auto entity : island.nodes) {
-                    auto is_owned_by_another_client =
-                        owner_view.contains(entity) &&
-                        std::get<0>(owner_view.get(entity)).client_entity != client_entity;
+            for (auto entity : owned_entities) {
+                if (sleeping_view.contains(entity)) {
+                    continue;
+                }
 
-                    if (is_owned_by_another_client) {
-                        continue;
+                if (edge_view.contains(entity)) {
+                    auto [edge] = edge_view.get(entity);
+                    auto edge_node_entity = graph.edge_node_entities(edge.edge_index).first;
+
+                    if (!to_visit.contains(edge_node_entity)) {
+                        to_visit.emplace(edge_node_entity);
                     }
+                } else if (!to_visit.contains(entity)) {
+                    EDYN_ASSERT(node_view.contains(entity));
+                    to_visit.emplace(entity);
+                }
+            }
 
+            while (!to_visit.empty()) {
+                auto entity = *to_visit.begin();
+                auto [node] = node_view.get(entity);
+                bool client_reachable = false;
+
+                graph.traverse(node.node_index, [&](auto node_index) {
+                    auto node_entity = graph.node_entity(node_index);
+                    to_visit.remove(node_entity);
+
+                    if (owner_view.contains(node_entity)) {
+                        auto [owner] = owner_view.get(node_entity);
+
+                        if (owner.client_entity == client_entity) {
+                            client_reachable = true;
+                        }
+                    }
+                });
+
+                auto is_owned_by_another_client =
+                    owner_view.contains(entity) &&
+                    std::get<0>(owner_view.get(entity)).client_entity != client_entity;
+
+                if (client_reachable && !is_owned_by_another_client) {
                     if (modified_view.contains(entity)) {
                         auto [modified] = modified_view.get(entity);
                         unsigned i = 0;
@@ -162,10 +198,10 @@ public:
                     }
 
                     if (body_view.contains(entity)) {
-                        internal::snapshot_insert_entity<position>(*m_registry, entity, snap, index_of_v<unsigned, position, Components...>);
-                        internal::snapshot_insert_entity<orientation>(*m_registry, entity, snap, index_of_v<unsigned, orientation, Components...>);
-                        internal::snapshot_insert_entity<linvel>(*m_registry, entity, snap, index_of_v<unsigned, linvel, Components...>);
-                        internal::snapshot_insert_entity<angvel>(*m_registry, entity, snap, index_of_v<unsigned, angvel, Components...>);
+                        internal::snapshot_insert_entity<position   >(registry, entity, snap, index_of_v<unsigned, position,    Components...>);
+                        internal::snapshot_insert_entity<orientation>(registry, entity, snap, index_of_v<unsigned, orientation, Components...>);
+                        internal::snapshot_insert_entity<linvel     >(registry, entity, snap, index_of_v<unsigned, linvel,      Components...>);
+                        internal::snapshot_insert_entity<angvel     >(registry, entity, snap, index_of_v<unsigned, angvel,      Components...>);
                     }
                 }
             }
@@ -173,6 +209,10 @@ public:
             // Otherwise, only entities owned by this client which contain an
             // input component are included.
             for (auto entity : owned_entities) {
+                if (sleeping_view.contains(entity)) {
+                    continue;
+                }
+
                 auto [modified] = modified_view.get(entity);
                 unsigned i = 0;
                 (((std::is_base_of_v<network_input, Components> && registry.all_of<Components>(entity) && modified.time_remaining[i] > 0 ?

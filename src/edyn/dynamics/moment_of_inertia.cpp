@@ -1,4 +1,5 @@
 #include "edyn/dynamics/moment_of_inertia.hpp"
+#include "edyn/config/config.h"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/math/coordinate_axis.hpp"
@@ -41,6 +42,8 @@ vector3 moment_of_inertia_solid_capsule(scalar mass, scalar len, scalar radius,
     case coordinate_axis::z:
         return {yy_zz, yy_zz, xx};
     }
+
+    EDYN_ASSERT(false);
 }
 
 scalar moment_of_inertia_solid_sphere(scalar mass, scalar radius) {
@@ -66,6 +69,8 @@ vector3 moment_of_inertia_solid_cylinder(scalar mass, scalar len, scalar radius,
     case coordinate_axis::z:
         return {yy_zz, yy_zz, xx};
     }
+
+    EDYN_ASSERT(false);
 }
 
 vector3 moment_of_inertia_hollow_cylinder(scalar mass, scalar len,
@@ -83,6 +88,8 @@ vector3 moment_of_inertia_hollow_cylinder(scalar mass, scalar len,
     case coordinate_axis::z:
         return {yy_zz, yy_zz, xx};
     }
+
+    EDYN_ASSERT(false);
 }
 
 matrix3x3 moment_of_inertia_polyhedron(scalar mass,

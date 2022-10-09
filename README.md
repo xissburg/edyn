@@ -82,23 +82,23 @@ registry.emplace<edyn::gravity>(entity, edyn::gravity_earth);
 There's no explicit mention of a rigid body in the code, but during the physics update all entities that have a combination of the components assigned above will be treated as a rigid body and their state will be updated over time as expected. Then, the rigid body motion may be updated as follows:
 
 ```cpp
-// Apply gravity acceleration, increasing linear velocity.
+// Apply gravity acceleration, increasing linear velocity
 auto view = registry.view<edyn::linvel, edyn::gravity, edyn::dynamic_tag>();
-view.each([dt](edyn::linvel &vel, edyn::gravity &g) {
+for (auto [entity, vel, g] : view.each()) {
   vel += g * dt;
-});
+}
 // ...
-// Move entity with its linear velocity.
+// Move entity with its linear velocity
 auto view = registry.view<edyn::position, edyn::linvel, edyn::dynamic_tag>();
-view.each([dt](edyn::position &pos, edyn::linvel &vel) {
+for (auto [entity, pos, vel] : view.each()) {
   pos += vel * dt;
-});
+}
 // ...
-// Rotate entity with its angular velocity.
+// Rotate entity with its angular velocity
 auto view = registry.view<edyn::orientation, edyn::angvel, edyn::dynamic_tag>();
-view.each([dt](edyn::orientation &orn, edyn::angvel &vel) {
+for (auto [entity, orn, vel] : view.each()) {
   orn = edyn::integrate(orn, vel, dt);
-});
+}
 ```
 
 Assigning each component to every rigid body entity individually quickly becomes a daunting task which is prone to errors, thus utility functions are provided for common tasks such as creating rigid bodies:
@@ -113,7 +113,6 @@ def.linvel = edyn::vector3_zero;
 def.angvel = {0, 0.314, 0};
 def.mass = 50;
 def.shape = edyn::box_shape{0.5, 0.2, 0.4}; // Shape is optional.
-def.update_inertia();
 def.material->restitution = 0.2; // Material is also optional.
 def.material->friction = 0.9;
 def.gravity = edyn::gravity_earth;

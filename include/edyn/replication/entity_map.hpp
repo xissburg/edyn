@@ -117,6 +117,11 @@ public:
         std::swap(map, map_local);
     }
 
+    void clear() {
+        map.clear();
+        map_local.clear();
+    }
+
 private:
     std::map<entt::entity, entt::entity> map;
     std::map<entt::entity, entt::entity> map_local;

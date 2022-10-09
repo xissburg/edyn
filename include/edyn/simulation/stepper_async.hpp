@@ -4,11 +4,12 @@
 #include <vector>
 #include <memory>
 #include <entt/entity/fwd.hpp>
+#include <entt/signal/sigh.hpp>
 #include "edyn/collision/query_aabb.hpp"
 #include "edyn/collision/raycast.hpp"
 #include "edyn/comp/aabb.hpp"
 #include "edyn/config/config.h"
-#include "edyn/simulation/simulation_worker_context.hpp"
+#include "edyn/simulation/simulation_worker.hpp"
 #include "edyn/parallel/message.hpp"
 #include "edyn/replication/registry_operation_builder.hpp"
 #include "edyn/replication/registry_operation_observer.hpp"
@@ -16,12 +17,11 @@
 namespace edyn {
 
 /**
- * Manages all simulation islands. Creates and destroys island workers as necessary
- * and synchronizes the workers and the main registry.
+ * Steps the simulation asynchronously. It runs as a background job which does
+ * the actual simulation and synchronizes it with the main registry.
  */
 class stepper_async final {
 
-    void create_worker();
     void insert_to_worker(const std::vector<entt::entity> &nodes,
                           const std::vector<entt::entity> &edges);
 
@@ -41,7 +41,6 @@ public:
     stepper_async(stepper_async const&) = delete;
     stepper_async operator=(stepper_async const&) = delete;
     stepper_async(entt::registry &);
-    ~stepper_async();
 
     void on_construct_graph_node(entt::registry &, entt::entity);
     void on_construct_graph_edge(entt::registry &, entt::entity);
@@ -49,9 +48,9 @@ public:
     void on_destroy_graph_node(entt::registry &, entt::entity);
     void on_destroy_graph_edge(entt::registry &, entt::entity);
 
-    void on_step_update(const message<msg::step_update> &);
-    void on_raycast_response(const message<msg::raycast_response> &);
-    void on_query_aabb_response(const message<msg::query_aabb_response> &);
+    void on_step_update(message<msg::step_update> &);
+    void on_raycast_response(message<msg::raycast_response> &);
+    void on_query_aabb_response(message<msg::query_aabb_response> &);
 
     void update();
 
@@ -72,7 +71,9 @@ public:
 
     template<typename Message, typename... Args>
     void send_message_to_worker(Args &&... args) {
-        m_worker_ctx->send<Message>(m_message_queue_handle.identifier, std::forward<Args>(args)...);
+        message_dispatcher::global().send<Message>({"worker"},
+                                                   m_message_queue_handle.identifier,
+                                                   std::forward<Args>(args)...);
     }
 
     raycast_id_type raycast(vector3 p0, vector3 p1,
@@ -88,7 +89,10 @@ public:
 
 private:
     entt::registry *m_registry;
-    std::unique_ptr<simulation_worker_context> m_worker_ctx;
+
+    simulation_worker m_worker;
+    entity_map m_entity_map;
+
     std::unique_ptr<registry_operation_builder> m_op_builder;
     std::unique_ptr<registry_operation_observer> m_op_observer;
     message_queue_handle<
@@ -98,12 +102,15 @@ private:
     > m_message_queue_handle;
 
     bool m_importing {false};
+    double m_timestamp {};
 
     raycast_id_type m_next_raycast_id {};
     std::map<raycast_id_type, worker_raycast_context> m_raycast_ctx;
 
     query_aabb_id_type m_next_query_aabb_id {};
     std::map<query_aabb_id_type, worker_query_aabb_context> m_query_aabb_ctx;
+
+    std::vector<entt::scoped_connection> m_connections;
 };
 
 }

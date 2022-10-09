@@ -1,8 +1,12 @@
 #include "edyn/dynamics/restitution_solver.hpp"
+#include "edyn/comp/island.hpp"
+#include "edyn/comp/tag.hpp"
 #include "edyn/constraints/constraint_row_friction.hpp"
 #include "edyn/constraints/constraint_row_options.hpp"
 #include "edyn/constraints/constraint_row_with_spin.hpp"
 #include "edyn/constraints/contact_constraint.hpp"
+#include "edyn/constraints/constraint_row.hpp"
+#include "edyn/constraints/constraint_row_options.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/util/constraint_util.hpp"
@@ -23,6 +27,7 @@
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/context/settings.hpp"
 #include <entt/entity/registry.hpp>
+#include <entt/entity/utility.hpp>
 
 namespace edyn {
 
@@ -60,7 +65,8 @@ scalar get_manifold_min_relvel(const contact_manifold &manifold, const BodyView 
     return min_relvel;
 }
 
-bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned individual_iterations) {
+bool solve_restitution_iteration(entt::registry &registry, entt::entity island_entity,
+                                 scalar dt, unsigned individual_iterations) {
     auto body_view = registry.view<position, orientation, linvel, angvel,
                                    mass_inv, inertia_world_inv,
                                    delta_linvel, delta_angvel>();
@@ -81,8 +87,13 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
     // Find manifold with highest penetration velocity.
     auto min_relvel = EDYN_SCALAR_MAX;
     auto fastest_manifold_entity = entt::entity{entt::null};
+    auto &island = registry.get<edyn::island>(island_entity);
 
-    for (auto entity : restitution_view) {
+    for (auto entity : island.edges) {
+        if (!restitution_view.contains(entity)) {
+            continue;
+        }
+
         auto &manifold = manifold_view.get<contact_manifold>(entity);
         auto local_min_relvel = get_manifold_min_relvel(manifold, body_view, origin_view);
 
@@ -110,14 +121,14 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
 
     // Reuse collections of rows to prevent a high number of allocations.
     auto normal_rows = std::vector<constraint_row_with_spin>{};
-    auto friction_row_pairs = std::vector<constraint_row_friction>{};
+    auto friction_rows = std::vector<constraint_row_friction>{};
 
     normal_rows.reserve(10);
-    friction_row_pairs.reserve(10);
+    friction_rows.reserve(10);
 
     auto solve_manifolds = [&](const std::vector<entt::entity> &manifold_entities) {
         normal_rows.clear();
-        friction_row_pairs.clear();
+        friction_rows.clear();
 
         for (auto manifold_entity : manifold_entities) {
             auto &manifold = manifold_view.get<contact_manifold>(manifold_entity);
@@ -159,6 +170,7 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
                 auto rA = pivotA - posA;
                 auto rB = pivotB - posB;
 
+                auto normal_row_index = normal_rows.size();
                 auto &normal_row = normal_rows.emplace_back();
                 normal_row.J = {normal, cross(rA, normal), -normal, -cross(rB, normal)};
                 normal_row.inv_mA = inv_mA; normal_row.inv_IA = inv_IA;
@@ -180,19 +192,18 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
 
                 prepare_row(normal_row, normal_options, linvelA, angvelA, spinA, linvelB, angvelB, spinB);
 
-                auto &friction_row_pair = friction_row_pairs.emplace_back();
-                friction_row_pair.friction_coefficient = cp.friction;
-                friction_row_pair.normal_row_index = normal_rows.size() - 1;
+                auto &friction_row = friction_rows.emplace_back();
+                friction_row.friction_coefficient = cp.friction;
+                friction_row.normal_row_index = normal_row_index;
 
                 vector3 tangents[2];
                 plane_space(normal, tangents[0], tangents[1]);
 
                 for (auto i = 0; i < 2; ++i) {
-                    auto &friction_row = friction_row_pair.row[i];
-                    friction_row.J = {tangents[i], cross(rA, tangents[i]), -tangents[i], -cross(rB, tangents[i])};
-                    friction_row.eff_mass = get_effective_mass(friction_row.J, inv_mA, inv_IA, inv_mB, inv_IB);
-                    friction_row.rhs = -get_relative_speed(friction_row.J, linvelA, angvelA, linvelB, angvelB);
-                    friction_row.impulse = 0;
+                    auto &individual_row = friction_row.row[i];
+                    individual_row.J = {tangents[i], cross(rA, tangents[i]), -tangents[i], -cross(rB, tangents[i])};
+                    individual_row.eff_mass = get_effective_mass(individual_row.J, inv_mA, inv_IA, inv_mB, inv_IB);
+                    individual_row.rhs = -get_relative_speed(individual_row.J, linvelA, angvelA, linvelB, angvelB);
                 }
             }
         }
@@ -204,7 +215,7 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
                 auto delta_impulse = solve(normal_row);
                 apply_row_impulse(delta_impulse, normal_row);
 
-                auto &friction_row_pair = friction_row_pairs[row_idx];
+                auto &friction_row_pair = friction_rows[row_idx];
                 solve_friction(friction_row_pair, normal_rows);
             }
         }
@@ -223,7 +234,7 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
                 auto &normal_row = normal_rows[row_idx];
                 cp.normal_restitution_impulse = normal_row.impulse;
 
-                auto &friction_row_pair = friction_row_pairs[row_idx];
+                auto &friction_row_pair = friction_rows[row_idx];
 
                 for (auto i = 0; i < 2; ++i) {
                     cp.friction_restitution_impulse[i] = friction_row_pair.row[i].impulse;
@@ -313,9 +324,17 @@ bool solve_restitution_iteration(entt::registry &registry, scalar dt, unsigned i
 
 void solve_restitution(entt::registry &registry, scalar dt) {
     auto &settings = registry.ctx().at<edyn::settings>();
+    auto island_view = registry.view<island_tag>(entt::exclude_t<sleeping_tag>{});
 
     for (unsigned i = 0; i < settings.num_restitution_iterations; ++i) {
-        if (solve_restitution_iteration(registry, dt, settings.num_individual_restitution_iterations)) {
+        bool all_solved = true;
+
+        for (auto island_entity : island_view) {
+            all_solved &= solve_restitution_iteration(registry, island_entity, dt,
+                                                      settings.num_individual_restitution_iterations);
+        }
+
+        if (all_solved) {
             break;
         }
     }

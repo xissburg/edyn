@@ -56,7 +56,7 @@ auto make_constraint(entt::registry &registry,
  * iterate over all constraints assigned to a rigid body, including contacts.
  * @tparam Func Visitor function type.
  * @param entity Node entity.
- * @param func Vistor function with signature `void(entt::entity)`.
+ * @param func Visitor function with signature `void(entt::entity)`.
  */
 template<typename Func>
 void visit_edges(entt::registry &registry, entt::entity entity, Func func) {
@@ -89,8 +89,10 @@ scalar get_effective_mass(const std::array<vector3, 6> &J,
                           scalar inv_mC, const matrix3x3 &inv_IC);
 
 scalar get_relative_speed(const std::array<vector3, 4> &J,
-                          const vector3 &linvelA, const vector3 &angvelA,
-                          const vector3 &linvelB, const vector3 &angvelB);
+                          const vector3 &linvelA,
+                          const vector3 &angvelA,
+                          const vector3 &linvelB,
+                          const vector3 &angvelB);
 
 }
 

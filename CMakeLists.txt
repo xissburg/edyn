@@ -88,6 +88,7 @@ add_library(Edyn
     src/edyn/constraints/cvjoint_constraint.cpp
     src/edyn/constraints/cone_constraint.cpp
     src/edyn/constraints/gravity_constraint.cpp
+    src/edyn/constraints/constraint_row.cpp
     src/edyn/constraints/constraint_row_friction.cpp
     src/edyn/constraints/constraint_row_spin_friction.cpp
     src/edyn/constraints/constraint_row.cpp
@@ -119,6 +120,7 @@ add_library(Edyn
     src/edyn/util/gravity_util.cpp
     src/edyn/util/contact_manifold_util.cpp
     src/edyn/util/insert_material_mixing.cpp
+    src/edyn/util/island_util.cpp
     src/edyn/shapes/box_shape.cpp
     src/edyn/shapes/cylinder_shape.cpp
     src/edyn/shapes/polyhedron_shape.cpp
@@ -127,11 +129,9 @@ add_library(Edyn
     src/edyn/core/entity_graph.cpp
     src/edyn/parallel/job_queue.cpp
     src/edyn/parallel/job_dispatcher.cpp
-    src/edyn/parallel/job_scheduler.cpp
     src/edyn/parallel/job_queue_scheduler.cpp
     src/edyn/simulation/simulation_worker.cpp
     src/edyn/simulation/stepper_async.cpp
-    src/edyn/simulation/simulation_worker_context.cpp
     src/edyn/simulation/stepper_sequential.cpp
     src/edyn/replication/make_reg_op_builder.cpp
     src/edyn/replication/map_child_entity.cpp
@@ -145,15 +145,13 @@ add_library(Edyn
     src/edyn/networking/sys/client_side.cpp
     src/edyn/networking/networking.cpp
     src/edyn/networking/sys/update_aabbs_of_interest.cpp
-    src/edyn/networking/extrapolation/extrapolation_job.cpp
+    src/edyn/networking/extrapolation/extrapolation_worker.cpp
     src/edyn/networking/util/pool_snapshot.cpp
     src/edyn/networking/util/clock_sync.cpp
     src/edyn/networking/util/process_update_entity_map_packet.cpp
-    src/edyn/networking/util/is_fully_owned_by_client.cpp
     src/edyn/networking/util/import_contact_manifolds.cpp
     src/edyn/networking/util/process_extrapolation_result.cpp
     src/edyn/networking/util/snap_to_pool_snapshot.cpp
-    src/edyn/networking/networking_external.cpp
     src/edyn/context/registry_operation_context.cpp
     src/edyn/context/step_callback.cpp
     src/edyn/edyn.cpp

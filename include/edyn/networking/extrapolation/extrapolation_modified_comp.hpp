@@ -5,7 +5,7 @@
 #include <type_traits>
 #include <entt/entity/fwd.hpp>
 #include <utility>
-#include "edyn/comp/action_list.hpp"
+#include "edyn/networking/comp/action_history.hpp"
 #include "edyn/networking/comp/network_input.hpp"
 #include "edyn/replication/registry_operation_builder.hpp"
 #include "edyn/util/tuple_util.hpp"
@@ -13,7 +13,7 @@
 namespace edyn {
 
 /**
- * Keeps track of which components were modified during an extrapolation an
+ * Keeps track of which components were modified during an extrapolation and
  * then inserts these into a registry operation so their new state can be
  * replicated in the main registry via the `extrapolation_result`.
  */
@@ -53,18 +53,11 @@ class extrapolation_modified_comp_impl : public extrapolation_modified_comp {
         }
     }
 
-    template<typename Component, typename... Actions>
-    constexpr bool is_action_list() {
-        return std::disjunction_v<std::is_same<action_list<Actions>, Component>...>;
-    }
-
 public:
-    template<typename... Actions>
     extrapolation_modified_comp_impl(entt::registry &registry,
                                      entt::sparse_set &relevant_entities,
                                      entt::sparse_set &owned_entities,
-                                     [[maybe_unused]] std::tuple<Components...>,
-                                     [[maybe_unused]] std::tuple<Actions...>)
+                                     [[maybe_unused]] std::tuple<Components...>)
         : extrapolation_modified_comp(registry, relevant_entities, owned_entities)
     {
         for (auto entity : m_relevant_entities) {
@@ -74,23 +67,19 @@ public:
         (m_connections.push_back(registry.on_update<Components>().template connect<&extrapolation_modified_comp_impl<Components...>::template on_update<Components>>(*this)), ...);
 
         unsigned i = 0;
-        ((m_is_network_input[i++] = std::is_base_of_v<network_input, Components>), ...);
-
-        i = 0;
-        ((m_is_action_list[i++] = is_action_list<Components, Actions...>()), ...);
+        ((m_is_network_input[i++] = std::disjunction_v<std::is_base_of<network_input, Components>, std::is_same<action_history, Components>>), ...);
     }
 
     void export_to_builder(registry_operation_builder &builder) override {
         for (auto [entity, modified] : m_registry->view<modified_components>().each()) {
             unsigned i = 0;
             // Do not include input components that belong to an owned entity.
-            (((modified.bits[i] && (!m_owned_entities.contains(entity) || !(m_is_network_input[i] || m_is_action_list[i])) ? builder.replace<Components>(entity) : void(0)), ++i), ...);
+            (((modified.bits[i] && (!m_owned_entities.contains(entity) || !m_is_network_input[i]) ? builder.replace<Components>(entity) : void(0)), ++i), ...);
         }
     }
 
 private:
     std::array<bool, sizeof...(Components)> m_is_network_input;
-    std::array<bool, sizeof...(Components)> m_is_action_list;
 };
 
 using make_extrapolation_modified_comp_func_t =

@@ -63,9 +63,9 @@ class message_queue_handle {
     template<typename T>
     void maybe_consume_message(any_message &msg) {
         if (entt::type_id<T>() == msg.content.type()) {
-            using signal_type = entt::sigh<void(const message<T> &)>;
+            using signal_type = entt::sigh<void(message<T> &)>;
             auto m = message<T>{msg.sender, std::move(*entt::any_cast<T>(&msg.content))};
-            std::get<signal_type>(m_signals).publish(std::move(m));
+            std::get<signal_type>(m_signals).publish(m);
         }
     }
 
@@ -79,7 +79,7 @@ public:
 
     template<typename MessageType>
     auto sink() {
-        using signal_type = entt::sigh<void(const message<MessageType> &)>;
+        using signal_type = entt::sigh<void(message<MessageType> &)>;
         return entt::sink{std::get<signal_type>(m_signals)};
     }
 
@@ -94,7 +94,7 @@ public:
     }
 
 private:
-    std::tuple<entt::sigh<void(const message<MessageTypes> &)> ...> m_signals;
+    std::tuple<entt::sigh<void(message<MessageTypes> &)> ...> m_signals;
     message_queue *m_queue;
 };
 

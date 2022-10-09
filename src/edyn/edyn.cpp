@@ -5,12 +5,14 @@
 #include "edyn/collision/contact_manifold_map.hpp"
 #include "edyn/collision/narrowphase.hpp"
 #include "edyn/comp/collision_exclusion.hpp"
+#include "edyn/comp/island.hpp"
 #include "edyn/config/execution_mode.hpp"
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/constraints/null_constraint.hpp"
 #include "edyn/context/registry_operation_context.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/networking/comp/entity_owner.hpp"
+#include "edyn/networking/context/client_network_context.hpp"
 #include "edyn/simulation/stepper_async.hpp"
 #include "edyn/simulation/stepper_sequential.hpp"
 #include "edyn/sys/update_presentation.hpp"
@@ -46,15 +48,30 @@ void attach(entt::registry &registry, const init_config &config) {
     init_meta();
 
     auto &dispatcher = job_dispatcher::global();
-    auto num_workers = config.execution_mode == execution_mode::sequential ? 1 : config.num_worker_threads;
 
     if (!dispatcher.running()) {
-        if (num_workers == 0) {
-            dispatcher.start();
-        } else {
-            dispatcher.start(num_workers);
+        auto num_workers = size_t{};
+
+        switch (config.execution_mode) {
+        case execution_mode::sequential:
+            num_workers = 1; // One worker is needed for background tasks.
+            break;
+        case execution_mode::sequential_multithreaded:
+            num_workers = config.num_worker_threads > 0 ?
+                          config.num_worker_threads :
+                          std::max(std::thread::hardware_concurrency(), 2u) - 1;
+                          // Subtract one for the main thread.
+            break;
+        case execution_mode::asynchronous:
+            num_workers = config.num_worker_threads > 0 ?
+                          config.num_worker_threads :
+                          std::max(std::thread::hardware_concurrency(), 3u) - 2;
+                          // Subtract one for the main thread and another for the
+                          // dedicated simulation worker thread.
+            break;
         }
 
+        dispatcher.start(num_workers);
         dispatcher.assure_current_queue();
     }
 
@@ -98,10 +115,28 @@ scalar get_fixed_dt(const entt::registry &registry) {
 }
 
 void set_fixed_dt(entt::registry &registry, scalar dt) {
-    registry.ctx().at<settings>().fixed_dt = dt;
+    auto &settings = registry.ctx().at<edyn::settings>();
+    settings.fixed_dt = dt;
 
     if (auto *stepper = registry.ctx().find<stepper_async>()) {
         stepper->settings_changed();
+    }
+
+    if (auto *ctx = registry.ctx().find<client_network_context>()) {
+        ctx->extrapolator->set_settings(settings);
+    }
+}
+
+void set_max_steps_per_update(entt::registry &registry, unsigned max_steps) {
+    auto &settings = registry.ctx().at<edyn::settings>();
+    settings.max_steps_per_update = max_steps;
+
+    if (auto *stepper = registry.ctx().find<stepper_async>()) {
+        stepper->settings_changed();
+    }
+
+    if (auto *ctx = registry.ctx().find<client_network_context>()) {
+        ctx->extrapolator->set_settings(settings);
     }
 }
 

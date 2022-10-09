@@ -261,6 +261,10 @@ template<typename... Components>
 class registry_operation_builder_impl : public registry_operation_builder {
 public:
     registry_operation_builder_impl() = default;
+
+    registry_operation_builder_impl(entt::registry &registry)
+        : registry_operation_builder(registry) {}
+
     registry_operation_builder_impl(entt::registry &registry, [[maybe_unused]] std::tuple<Components...>)
         : registry_operation_builder(registry) {}
 

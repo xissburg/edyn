@@ -12,18 +12,12 @@
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/collision/collision_result.hpp"
-#include "edyn/parallel/job.hpp"
 #include "edyn/util/collision_util.hpp"
 #include "edyn/context/settings.hpp"
 
 namespace edyn {
 
 class narrowphase {
-    enum class state {
-        begin,
-        detect_collision
-    };
-
     struct contact_point_construction_info {
         std::array<collision_result::collision_point, max_contacts> point;
         size_t count {0};
@@ -34,15 +28,14 @@ class narrowphase {
         size_t count {0};
     };
 
-    void detect_collision_parallel(bool async, const job &completion_job = {});
+    void detect_collision_parallel();
     void finish_detect_collision();
     void clear_contact_manifold_events();
 
 public:
     narrowphase(entt::registry &);
 
-    void update_sequential(bool mt);
-    bool update(const job &completion_job);
+    void update(bool mt);
 
     /**
      * @brief Detects and processes collisions for the given manifolds.
@@ -55,7 +48,6 @@ private:
     std::vector<contact_point_construction_info> m_cp_construction_infos;
     std::vector<contact_point_destruction_info> m_cp_destruction_infos;
     size_t m_max_sequential_size {4};
-    state m_state {state::begin};
 };
 
 template<typename Iterator>

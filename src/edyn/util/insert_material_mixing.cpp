@@ -1,5 +1,6 @@
 #include "edyn/util/insert_material_mixing.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
+#include "edyn/networking/context/client_network_context.hpp"
 #include "edyn/simulation/stepper_async.hpp"
 #include <entt/entity/registry.hpp>
 
@@ -12,6 +13,10 @@ void insert_material_mixing(entt::registry &registry, material::id_type material
 
     if (auto *stepper = registry.ctx().find<stepper_async>()) {
         stepper->material_table_changed();
+    }
+
+    if (auto *ctx = registry.ctx().find<client_network_context>()) {
+        ctx->extrapolator->set_material_table(material_table);
     }
 }
 

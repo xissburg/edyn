@@ -1,7 +1,9 @@
 #include "edyn/dynamics/island_solver.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/comp/angvel.hpp"
+#include "edyn/comp/center_of_mass.hpp"
 #include "edyn/comp/inertia.hpp"
+#include "edyn/comp/island.hpp"
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/mass.hpp"
 #include "edyn/comp/origin.hpp"
@@ -126,7 +128,7 @@ static void warm_start(row_cache &cache) {
     }
 
     for (auto &row : cache.spinning) {
-        warm_start(row, cache.rows);
+        warm_start(row, cache.rows_with_spin);
     }
 }
 
@@ -155,7 +157,7 @@ static void solve(row_cache &cache) {
     }
 
     for (auto &row : cache.spinning) {
-        solve_spin_friction(row, cache.rows);
+        solve_spin_friction(row, cache.rows_with_spin);
     }
 }
 
@@ -403,10 +405,16 @@ scalar solve_position_constraints_each(entt::registry &registry, const std::vect
 
             if (origin_view.contains(con.body[0])) {
                 solver.originA = &origin_view.template get<origin>(con.body[0]);
+                solver.comA = origin_view.template get<center_of_mass>(con.body[0]);
+            } else {
+                solver.originA = nullptr;
             }
 
             if (origin_view.contains(con.body[1])) {
                 solver.originB = &origin_view.template get<origin>(con.body[1]);
+                solver.comB = origin_view.template get<center_of_mass>(con.body[1]);
+            } else {
+                solver.originB = nullptr;
             }
 
             if constexpr(std::is_same_v<std::decay_t<C>, contact_constraint>) {
@@ -433,7 +441,7 @@ scalar solve_position_constraints_indexed(entt::registry &registry, const island
                                          [[maybe_unused]] std::tuple<C...>, std::index_sequence<Ints...>) {
     auto body_view = registry.view<position, orientation,
                                    mass_inv, inertia_world_inv>();
-    auto origin_view = registry.view<origin>();
+    auto origin_view = registry.view<origin, center_of_mass>();
     return max_variadic(solve_position_constraints_each<C>(registry, constraint_entities.entities[Ints], body_view, origin_view)...);
 }
 
@@ -583,25 +591,11 @@ static void island_solver_update(island_solver_context &ctx) {
     }
 }
 
-template<typename AtomicCounterType>
-void run_island_solver(entt::registry &registry, entt::entity island_entity,
-                       unsigned num_iterations, unsigned num_position_iterations,
-                       scalar dt, AtomicCounterType *counter) {
-    EDYN_ASSERT(counter != nullptr);
-    auto ctx = island_solver_context(registry, island_entity, num_iterations, num_position_iterations, dt, counter);
-    dispatch_solver(ctx);
-}
-
-void run_island_solver_async(entt::registry &registry, entt::entity island_entity,
-                             unsigned num_iterations, unsigned num_position_iterations,
-                             scalar dt, atomic_counter *counter) {
-    run_island_solver(registry, island_entity, num_iterations, num_position_iterations, dt, counter);
-}
-
 void run_island_solver_seq_mt(entt::registry &registry, entt::entity island_entity,
                              unsigned num_iterations, unsigned num_position_iterations,
                              scalar dt, atomic_counter_sync *counter) {
-    run_island_solver(registry, island_entity, num_iterations, num_position_iterations, dt, counter);
+    auto ctx = island_solver_context(registry, island_entity, num_iterations, num_position_iterations, dt, counter);
+    dispatch_solver(ctx);
 }
 
 void run_island_solver_seq(entt::registry &registry, entt::entity island_entity,

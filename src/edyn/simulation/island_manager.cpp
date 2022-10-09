@@ -6,6 +6,8 @@
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/spin.hpp"
 #include "edyn/comp/tag.hpp"
+#include "edyn/config/execution_mode.hpp"
+#include "edyn/context/settings.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/util/island_util.hpp"
 #include "edyn/util/vector_util.hpp"
@@ -281,7 +283,7 @@ void island_manager::insert_to_island(entt::entity island_entity,
 
     island.edges.insert(edges.begin(), edges.end());
 
-    wake_up_island(island_entity);
+    wake_up_island(*m_registry, island_entity);
 }
 
 void island_manager::merge_islands(const std::vector<entt::entity> &island_entities,
@@ -352,80 +354,86 @@ void island_manager::split_islands() {
     auto aabb_view = m_registry->view<AABB>();
     auto procedural_view = m_registry->view<procedural_tag>();
     auto &graph = m_registry->ctx().at<entity_graph>();
-    auto connected_nodes = std::vector<entt::entity>{};
-    auto connected_edges = std::vector<entt::entity>{};
 
-    for (auto island_entity : m_islands_to_split) {
-        auto &island = island_view.get<edyn::island>(island_entity);
+    for (auto source_island_entity : m_islands_to_split) {
+        auto &source_island = island_view.get<edyn::island>(source_island_entity);
 
         // Island could now be empty or contain only non-procedural entities.
-        if (island.nodes.empty() ||
-            std::find_if(island.nodes.begin(), island.nodes.end(),
-                         [&](auto entity){return procedural_view.contains(entity);}) == island.nodes.end()) {
-            EDYN_ASSERT(island.edges.empty());
-            m_registry->destroy(island_entity);
+        if (source_island.nodes.empty() ||
+            std::find_if(source_island.nodes.begin(), source_island.nodes.end(),
+                         [&](auto entity){return procedural_view.contains(entity);}) == source_island.nodes.end()) {
+            EDYN_ASSERT(source_island.edges.empty());
+            m_registry->destroy(source_island_entity);
 
             // Remove destroyed island from non-procedural entities.
-            for (auto entity : island.nodes) {
+            for (auto entity : source_island.nodes) {
                 // All nodes are non-procedural at this point so there's no
                 // need to check.
                 auto [resident] = multi_resident_view.get(entity);
-                resident.island_entities.erase(island_entity);
+                resident.island_entities.erase(source_island_entity);
             }
 
             continue;
         }
 
-        // Traverse graph starting at any of the island's procedural nodes and
-        // check if the collected nodes of the connected components match the
-        // island's nodes.
-        connected_nodes.clear();
-        connected_edges.clear();
+        auto all_nodes = entt::sparse_set{};
+        all_nodes.insert(source_island.nodes.begin(), source_island.nodes.end());
+        std::vector<edyn::island> islands;
 
-        auto start_node_index = entity_graph::null_index;
+        while (!all_nodes.empty()) {
+            auto start_node_entity = *all_nodes.begin();
 
-        for (auto entity : island.nodes) {
-            if (procedural_view.contains(entity)) {
-                start_node_index = node_view.get<graph_node>(entity).node_index;
-                break;
+            if (!procedural_view.contains(start_node_entity)) {
+                all_nodes.erase(start_node_entity);
+                continue;
             }
+
+            auto start_node_index = node_view.get<graph_node>(start_node_entity).node_index;
+            auto &curr_island = islands.emplace_back();
+
+            graph.traverse(start_node_index,
+                [&](auto node_index) {
+                    // Add node to island and assign island to resident.
+                    auto node_entity = graph.node_entity(node_index);
+                    curr_island.nodes.emplace(node_entity);
+
+                    // Remove visited entity from list of entities to be visited.
+                    all_nodes.remove(node_entity);
+                }, [&](auto edge_index) {
+                    auto edge_entity = graph.edge_entity(edge_index);
+                    curr_island.edges.emplace(edge_entity);
+                });
         }
 
-        EDYN_ASSERT(start_node_index != entity_graph::null_index);
+        EDYN_ASSERT(!islands.empty());
 
-        graph.traverse(start_node_index, [&](auto node_index) {
-            auto node_entity = graph.node_entity(node_index);
-            connected_nodes.push_back(node_entity);
-        }, [&](auto edge_index) {
-            auto edge_entity = graph.edge_entity(edge_index);
-            connected_edges.push_back(edge_entity);
-        });
-
-        wake_up_island(island_entity);
-
-        if (island.nodes.size() == connected_nodes.size()) {
+        if (islands.size() == 1) {
             // Island is a single connected component in the entity graph.
             continue;
         }
 
-        // TODO: calculate all connected components and keep the bigger one in
-        // the original island. Create new islands for the smaller connected
-        // components.
+        // Find biggest island among all and move that into the original as to
+        // minimize the amount of changes.
+        unsigned biggest_size = 0;
+        unsigned biggest_idx = 0;
 
-        // Keep these connected nodes into the existing island and
-        // traverse graph starting at the remaining nodes to find the other
-        // connected components and create new islands for them.
-        auto all_nodes = std::move(island.nodes);
-        island.nodes.insert(connected_nodes.begin(), connected_nodes.end());
+        for (unsigned i = 0; i < islands.size(); ++i) {
+            auto &island = islands[i];
 
-        island.edges.clear();
-        island.edges.insert(connected_edges.begin(), connected_edges.end());
+            if (island.nodes.size() > biggest_size) {
+                biggest_size = island.nodes.size();
+                biggest_idx = i;
+            }
+        }
+
+        source_island = std::move(islands[biggest_idx]);
+        remove_sleeping_tag_from_island(*m_registry, source_island_entity, source_island);
 
         /* Update island AABB. */ {
             auto is_first_node = true;
-            auto &island_aabb = island_view.get<island_AABB>(island_entity);
+            auto &island_aabb = island_view.get<island_AABB>(source_island_entity);
 
-            for (auto entity : island.nodes) {
+            for (auto entity : source_island.nodes) {
                 if (procedural_view.contains(entity) && aabb_view.contains(entity)) {
                     auto [node_aabb] = aabb_view.get(entity);
 
@@ -439,87 +447,66 @@ void island_manager::split_islands() {
             }
         }
 
-        // Prepare remaining nodes to be visited. Erase nodes that were kept in
-        // the original island.
-        for (auto entity : connected_nodes) {
-            all_nodes.erase(entity);
-        }
+        // swap with last and pop.
+        islands[biggest_idx] = std::move(islands.back());
+        islands.pop_back();
 
-        // Erase non-procedural nodes since they must not be used as a starting
-        // point for graph traversal. Also, remove the island that was split from
-        // non-procedural entities that are not part of it anymore.
-        for (auto entity : all_nodes) {
-            if (!procedural_view.contains(entity)) {
-                all_nodes.erase(entity);
-
-                auto [resident] = multi_resident_view.get(entity);
-                resident.island_entities.remove(island_entity);
-            }
-        }
-
-        while (!all_nodes.empty()) {
+        for (auto &other_island : islands) {
             auto island_entity_new = m_registry->create();
-            auto &island_new = m_registry->emplace<edyn::island>(island_entity_new);
+            auto &island_new = m_registry->emplace<edyn::island>(island_entity_new, std::move(other_island));
             auto &aabb = m_registry->emplace<island_AABB>(island_entity_new);
-
-            auto [start_node] = node_view.get(*all_nodes.begin());
             auto is_first_node = true;
 
-            graph.traverse(start_node.node_index,
-                [&](auto node_index) {
-                    // Add node to island and assign island to resident.
-                    auto node_entity = graph.node_entity(node_index);
-                    island_new.nodes.emplace(node_entity);
-                    bool is_procedural = resident_view.contains(node_entity);
+            for (auto node_entity : island_new.nodes) {
+                bool is_procedural = resident_view.contains(node_entity);
 
-                    if (is_procedural) {
-                        auto [resident] = resident_view.get(node_entity);
-                        resident.island_entity = island_entity_new;
-                    } else {
-                        auto [resident] = multi_resident_view.get(node_entity);
-                        resident.island_entities.emplace(island_entity_new);
-                    }
-
-                    // Update island AABB by uniting all AABBs of all
-                    // procedural entities.
-                    if (is_procedural && aabb_view.contains(node_entity)) {
-                        auto [node_aabb] = aabb_view.get(node_entity);
-
-                        if (is_first_node) {
-                            aabb = {node_aabb};
-                            is_first_node = false;
-                        } else {
-                            aabb = {enclosing_aabb(aabb, node_aabb)};
-                        }
-                    }
-
-                    // Remove visited entity from list of entities to be visited.
-                    all_nodes.remove(node_entity);
-                }, [&](auto edge_index) {
-                    auto edge_entity = graph.edge_entity(edge_index);
-                    island_new.edges.emplace(edge_entity);
-
-                    auto [resident] = resident_view.get(edge_entity);
+                if (is_procedural) {
+                    auto [resident] = resident_view.get(node_entity);
                     resident.island_entity = island_entity_new;
-                });
+                } else {
+                    auto [resident] = multi_resident_view.get(node_entity);
+                    resident.island_entities.emplace(island_entity_new);
+
+                    // Remove the original island if this non-procedural entity
+                    // is not contained in it anymore.
+                    auto &original_island = m_registry->get<edyn::island>(source_island_entity);
+                    if (!original_island.nodes.contains(node_entity)) {
+                        resident.island_entities.remove(source_island_entity);
+                    }
+                }
+
+                // Update island AABB by uniting all AABBs of all
+                // procedural entities.
+                if (is_procedural && aabb_view.contains(node_entity)) {
+                    auto [node_aabb] = aabb_view.get(node_entity);
+
+                    if (is_first_node) {
+                        aabb = {node_aabb};
+                        is_first_node = false;
+                    } else {
+                        aabb = {enclosing_aabb(aabb, node_aabb)};
+                    }
+                }
+            }
+
+            for (auto edge_entity : island_new.edges) {
+                auto [resident] = resident_view.get(edge_entity);
+                resident.island_entity = island_entity_new;
+            }
+
+            remove_sleeping_tag_from_island(*m_registry, island_entity_new, island_new);
 
             m_registry->emplace<island_tag>(island_entity_new);
         }
     }
 
     m_islands_to_split.clear();
-
-    for (auto [entity, resident] : multi_resident_view.each()) {
-        for (auto island_entity : resident.island_entities) {
-            EDYN_ASSERT(m_registry->valid(island_entity));
-        }
-    }
 }
 
 void island_manager::wake_up_islands() {
     for (auto island_entity : m_islands_to_wake_up) {
         if (m_registry->valid(island_entity)) {
-            wake_up_island(island_entity);
+            wake_up_island(*m_registry, island_entity);
         }
     }
     m_islands_to_wake_up.clear();
@@ -531,17 +518,6 @@ void island_manager::update(double timestamp) {
     split_islands();
     put_islands_to_sleep();
     m_last_time = timestamp;
-}
-
-void island_manager::wake_up_island(entt::entity island_entity) {
-    if (!m_registry->all_of<sleeping_tag>(island_entity)) {
-        return;
-    }
-
-    auto &island = m_registry->get<edyn::island>(island_entity);
-    m_registry->remove<sleeping_tag>(island_entity);
-    m_registry->remove<sleeping_tag>(island.nodes.begin(), island.nodes.end());
-    m_registry->remove<sleeping_tag>(island.edges.begin(), island.edges.end());
 }
 
 void island_manager::put_to_sleep(entt::entity island_entity) {

@@ -1,9 +1,11 @@
 #include "../common/common.hpp"
+#include "edyn/collision/should_collide.hpp"
 
 TEST(test_broadphase, collision_filtering) {
     entt::registry registry;
-    edyn::init({2});
-    edyn::attach(registry);
+    auto config = edyn::init_config{};
+    config.num_worker_threads = 2;
+    edyn::attach(registry, config);
 
     auto def = edyn::rigidbody_def{};
     def.shape = edyn::box_shape{0.5, 0.5, 0.5};
@@ -29,5 +31,4 @@ TEST(test_broadphase, collision_filtering) {
     ASSERT_TRUE(edyn::should_collide_default(registry, second, third));
 
     edyn::detach(registry);
-    edyn::deinit();
 }

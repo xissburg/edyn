@@ -211,9 +211,9 @@ TEST(test_collision, collide_cylinder_cylinder_cap_edges) {
     ASSERT_EQ(result.num_points, 1);
 
     auto pivotA = edyn::vector3{0.200000003, -0.127483726, 0.154103532};
-    auto pivotB = edyn::vector3{0.200000048, -0.0991190373, -0.173710704};
+    auto pivotB = edyn::vector3{0.200000048, -0.099118978, -0.173710704};
     auto normal = edyn::vector3{0.458552599, 0.379342318, -0.803634762};
-    auto distance = edyn::scalar{-0.0848965346};
+    auto distance = edyn::scalar{-0.084896624};
     auto &pt = result.point[0];
 
     ASSERT_VECTOR3_EQ(pt.pivotA, pivotA);

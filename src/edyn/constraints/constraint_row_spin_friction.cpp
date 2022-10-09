@@ -1,8 +1,9 @@
 #include "edyn/constraints/constraint_row_spin_friction.hpp"
+#include "edyn/constraints/constraint_row_with_spin.hpp"
 
 namespace edyn {
 
-void solve_spin_friction(constraint_row_spin_friction &row, const std::vector<constraint_row> &row_cache) {
+void solve_spin_friction(constraint_row_spin_friction &row, const std::vector<constraint_row_with_spin> &row_cache) {
     auto &normal_row = row_cache[row.normal_row_index];
     auto max_impulse_len = row.friction_coefficient * normal_row.impulse;
 
@@ -27,7 +28,7 @@ void solve_spin_friction(constraint_row_spin_friction &row, const std::vector<co
     *normal_row.dwB += normal_row.inv_IB * row.J[1] * delta_impulse;
 }
 
-void warm_start(constraint_row_spin_friction &row, const std::vector<constraint_row> &row_cache) {
+void warm_start(constraint_row_spin_friction &row, const std::vector<constraint_row_with_spin> &row_cache) {
     auto &normal_row = row_cache[row.normal_row_index];
     // Apply angular impulse.
     *normal_row.dwA += normal_row.inv_IA * row.J[0] * row.impulse;

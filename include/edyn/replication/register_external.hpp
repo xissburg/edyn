@@ -6,6 +6,7 @@
 #include "edyn/comp/shared_comp.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/context/registry_operation_context.hpp"
+#include "edyn/networking/context/client_network_context.hpp"
 #include "edyn/replication/registry_operation_builder.hpp"
 #include "edyn/replication/registry_operation_observer.hpp"
 #include "edyn/simulation/stepper_async.hpp"
@@ -51,6 +52,12 @@ void register_external_components(entt::registry &registry, std::tuple<Actions..
     if (auto *stepper = registry.ctx().find<stepper_async>()) {
         stepper->settings_changed();
         stepper->reg_op_ctx_changed();
+    }
+
+    if (auto *ctx = registry.ctx().find<client_network_context>()) {
+        auto &settings = registry.ctx().at<edyn::settings>();
+        ctx->extrapolator->set_settings(settings);
+        ctx->extrapolator->set_registry_operation_context(reg_op_ctx);
     }
 }
 

@@ -11,30 +11,9 @@
 #include "edyn/networking/comp/networked_comp.hpp"
 #include "edyn/networking/context/client_network_context.hpp"
 #include "edyn/networking/context/server_network_context.hpp"
-#include "edyn/networking/extrapolation/extrapolation_input.hpp"
 #include "edyn/replication/registry_operation.hpp"
 
 namespace edyn {
-
-namespace internal {
-    template<typename... Components>
-    auto make_is_network_input_component_func([[maybe_unused]] std::tuple<Components...>) {
-        return [](entt::id_type id) {
-            return ((id == entt::type_index<Components>::value() &&
-                     std::is_base_of_v<network_input, Components>) || ...);
-        };
-    }
-
-    template<typename... Actions>
-    auto make_is_action_list_component_func([[maybe_unused]] std::tuple<Actions...>) {
-        return [](entt::id_type id) {
-            return ((id == entt::type_index<action_list<Actions>>::value()) || ...);
-        };
-    }
-}
-
-extern bool(*g_is_networked_input_component)(entt::id_type);
-extern bool(*g_is_action_list_component)(entt::id_type);
 
 /**
  * @brief Register external networked components.
@@ -65,9 +44,8 @@ void register_networked_components(entt::registry &registry, std::tuple<Actions.
                                                    entt::sparse_set &owned_entities) {
             auto external = std::tuple<Components...>{};
             auto all = std::tuple_cat(networked_components, external);
-            auto actions = std::tuple<Actions...>{};
             return std::unique_ptr<extrapolation_modified_comp>(
-                    new extrapolation_modified_comp_impl(registry, relevant_entities, owned_entities, all, actions));
+                new extrapolation_modified_comp_impl(registry, relevant_entities, owned_entities, all));
         };
     }
 
@@ -77,8 +55,6 @@ void register_networked_components(entt::registry &registry, std::tuple<Actions.
     }
 
     g_make_pool_snapshot_data = create_make_pool_snapshot_data_function(all);
-    g_is_networked_input_component = internal::make_is_network_input_component_func(all);
-    g_is_action_list_component = internal::make_is_action_list_component_func(actions);
 }
 
 /**
@@ -98,8 +74,6 @@ inline void unregister_networked_components(entt::registry &registry) {
     }
 
     g_make_pool_snapshot_data = create_make_pool_snapshot_data_function(networked_components);
-    g_is_networked_input_component = internal::make_is_network_input_component_func(networked_components);
-    g_is_action_list_component = [](entt::id_type) { return false; }; // There are no native actions.
 }
 
 }

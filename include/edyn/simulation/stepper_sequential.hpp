@@ -2,13 +2,16 @@
 #define EDYN_SIMULATION_STEPPER_SEQUENTIAL_HPP
 
 #include <entt/entity/fwd.hpp>
-#include "edyn/collision/raycast_service.hpp"
 #include "edyn/dynamics/solver.hpp"
 #include "edyn/simulation/island_manager.hpp"
 #include "edyn/util/polyhedron_shape_initializer.hpp"
 
 namespace edyn {
 
+/**
+ * Steps the simulation sequentially in the main thread into the given
+ * registry. It can optionally parallelize many steps of the simulation.
+ */
 class stepper_sequential {
 public:
     stepper_sequential(entt::registry &registry, bool multithreaded);
@@ -25,10 +28,13 @@ public:
         return m_last_time;
     }
 
+    auto & get_island_manager() {
+        return m_island_manager;
+    }
+
 private:
     entt::registry *m_registry;
     island_manager m_island_manager;
-    raycast_service m_raycast_service;
     polyhedron_shape_initializer m_poly_initializer;
     solver m_solver;
 

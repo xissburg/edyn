@@ -153,10 +153,6 @@ void contact_constraint::solve_position(position_solver &solver, contact_manifol
     // Solve position constraints by applying linear and angular corrections
     // iteratively. Based on Box2D's solver:
     // https://github.com/erincatto/box2d/blob/cd2c28dba83e4f359d08aeb7b70afd9e35e39eda/src/dynamics/b2_contact_solver.cpp#L676
-    auto originA = solver.get_originA(), originB = solver.get_originB();
-    auto &posA = *solver.posA, &posB = *solver.posB;
-    auto &ornA = *solver.ornA, &ornB = *solver.ornB;
-
     for (unsigned pt_idx = 0; pt_idx < manifold.num_points; ++pt_idx) {
         auto &cp = manifold.get_point(pt_idx);
 
@@ -165,6 +161,8 @@ void contact_constraint::solve_position(position_solver &solver, contact_manifol
             continue;
         }
 
+        auto originA = solver.get_originA(), originB = solver.get_originB();
+        auto &ornA = *solver.ornA, &ornB = *solver.ornB;
         auto pivotA = to_world_space(cp.pivotA, originA, ornA);
         auto pivotB = to_world_space(cp.pivotB, originB, ornB);
 
@@ -182,6 +180,7 @@ void contact_constraint::solve_position(position_solver &solver, contact_manifol
         auto normal = cp.normal;
         cp.distance = dot(pivotA - pivotB, normal);
 
+        auto &posA = *solver.posA, &posB = *solver.posB;
         auto rA = pivotA - posA;
         auto rB = pivotB - posB;
 

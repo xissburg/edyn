@@ -25,7 +25,6 @@ int main(int argc, char** argv) {
     def.position = {0, 3, 0};
     def.orientation = edyn::quaternion_axis_angle({0, 0, 1}, edyn::pi * 0.7);
     def.shape = edyn::cylinder_shape{0.2, 0.5};
-    def.update_inertia();
     edyn::make_rigidbody(registry, def);
 
     for (;;) {
