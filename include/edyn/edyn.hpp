@@ -27,6 +27,7 @@
 #include "comp/present_orientation.hpp"
 #include "constraints/constraint.hpp"
 #include "serialization/s11n.hpp"
+#include "replication/register_external.hpp"
 
 namespace edyn {
 
