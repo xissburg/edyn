@@ -49,10 +49,14 @@ TEST(networking_test, input_state_history) {
     registry.get<input>(ent0).value = -98;
     registry.get<input>(ent2).value = 77;
 
+    std::vector<entt::entity> input_entities;
+    input_entities.push_back(ent0);
+    input_entities.push_back(ent2);
+
     auto snapshot = edyn::packet::registry_snapshot{};
     snapshot.entities.insert(snapshot.entities.end(), entities.begin(), entities.end());
     auto pool_data = std::make_shared<edyn::pool_snapshot_data_impl<input>>();
-    pool_data->insert_all(registry, snapshot.entities);
+    pool_data->insert(registry, input_entities.begin(), input_entities.end(), snapshot.entities);
     auto input_pool = edyn::pool_snapshot{};
     input_pool.ptr = pool_data;
     snapshot.pools.push_back(std::move(input_pool));

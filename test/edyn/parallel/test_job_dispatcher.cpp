@@ -1,4 +1,7 @@
 #include "../common/common.hpp"
+#include "edyn/parallel/job_dispatcher.hpp"
+#include "edyn/parallel/parallel_for.hpp"
+#include "edyn/parallel/parallel_for_async.hpp"
 
 #include <array>
 #include <atomic>
@@ -6,7 +9,7 @@
 class job_dispatcher_test: public ::testing::Test {
 protected:
     void SetUp() override {
-        dispatcher.start();
+        dispatcher.start(4);
     }
 
     void TearDown() override {
@@ -39,16 +42,16 @@ TEST_F(job_dispatcher_test, parallel_for_each) {
     constexpr size_t num_samples = 3591832;
     std::vector<int> values(num_samples);
 
-    edyn::parallel_for_each(dispatcher, values.begin(), values.end(), [&](auto it) {
-        *it = 77;
+    edyn::parallel_for_each(dispatcher, values.begin(), values.end(), [&](int &value) {
+        value = 77;
     });
 
-    edyn::parallel_for_each(dispatcher, values.begin(), values.end(), [&](auto it) {
-        *it += 14;
+    edyn::parallel_for_each(dispatcher, values.begin(), values.end(), [&](int &value) {
+        value += 14;
     });
 
-    edyn::parallel_for_each(dispatcher, values.begin(), values.end(), [&](auto it) {
-        ASSERT_EQ(*it, 91);
+    edyn::parallel_for_each(dispatcher, values.begin(), values.end(), [&](int &value) {
+        ASSERT_EQ(value, 91);
     });
 }
 

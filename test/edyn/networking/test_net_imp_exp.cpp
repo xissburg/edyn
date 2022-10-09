@@ -40,9 +40,13 @@ TEST(networking_test, client_export_import) {
     snap.entities.push_back(ent1);
     snap.entities.push_back(ent2);
 
+    std::vector<entt::entity> networked_entities;
+    networked_entities.push_back(ent0);
+    networked_entities.push_back(ent1);
+
     auto components_tuple = std::tuple_cat(edyn::networked_components, std::tuple<comp>{});
-    auto exporter = edyn::client_snapshot_exporter_impl(components_tuple, {});
-    exporter.export_all(reg0, snap);
+    auto exporter = edyn::client_snapshot_exporter_impl(reg0, components_tuple, {});
+    exporter.export_all(snap, networked_entities);
 
     auto reg1 = entt::registry{};
     auto emap = edyn::entity_map{};

@@ -16,7 +16,6 @@ class broadphase {
     // Separation threshold for new manifolds.
     constexpr static auto m_separation_threshold = contact_breaking_threshold * scalar(1.3);
 
-    void init_new_aabb_entities();
     void move_aabbs();
     void destroy_separated_manifolds();
 
@@ -27,6 +26,7 @@ class broadphase {
 
 public:
     broadphase(entt::registry &);
+    void init_new_aabb_entities();
     void update(bool mt);
 
     template<typename Func>

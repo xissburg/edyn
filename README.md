@@ -113,7 +113,6 @@ def.linvel = edyn::vector3_zero;
 def.angvel = {0, 0.314, 0};
 def.mass = 50;
 def.shape = edyn::box_shape{0.5, 0.2, 0.4}; // Shape is optional.
-def.update_inertia();
 def.material->restitution = 0.2; // Material is also optional.
 def.material->friction = 0.9;
 def.gravity = edyn::gravity_earth;
