@@ -35,7 +35,7 @@ void collide(const compound_shape &shA, const compound_shape &shB,
             // Assign the part index for the second compound. The part index
             // for featureA was already assigned in the call to `collide` above.
             if (!child_point.featureB) {
-                child_point.featureB = {};
+                child_point.featureB = collision_feature{};
             }
 
             child_point.featureB->part = node_idx;

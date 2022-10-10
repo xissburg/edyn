@@ -30,7 +30,7 @@ void collide(const compound_shape &shA, const plane_shape &shB,
             child_point.pivotA = to_world_space(child_point.pivotA, node.position, node.orientation);
 
             if (!child_point.featureA) {
-                child_point.featureA = {};
+                child_point.featureA = collision_feature{};
             }
 
             child_point.featureA->part = node_idx;
