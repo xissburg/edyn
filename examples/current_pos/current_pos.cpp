@@ -1,3 +1,4 @@
+#include "edyn/math/matrix3x3.hpp"
 #include <edyn/edyn.hpp>
 #include <edyn/time/time.hpp>
 #include <entt/entt.hpp>
@@ -32,6 +33,7 @@ int main(int argc, char** argv) {
     auto def = edyn::rigidbody_def();
     def.presentation = true;
     def.mass = 10;
+    def.inertia = edyn::matrix3x3_identity;
     def.linvel = {0, 1/0.041, 0};
     def.gravity = edyn::vector3_zero;
     edyn::make_rigidbody(registry, def);
