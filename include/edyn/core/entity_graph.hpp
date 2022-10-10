@@ -1,6 +1,7 @@
 #ifndef EDYN_CORE_ENTITY_GRAPH_HPP
 #define EDYN_CORE_ENTITY_GRAPH_HPP
 
+#include <array>
 #include <vector>
 #include <cstdint>
 #include <limits>

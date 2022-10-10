@@ -92,7 +92,7 @@ class client_snapshot_exporter_impl : public client_snapshot_exporter {
             return;
         }
 
-        static constexpr auto index = index_of_v<unsigned, Component, Components...>;
+        static const auto index = index_of_v<unsigned, Component, Components...>;
 
         if (auto *modified = registry.try_get<modified_components>(entity)) {
             modified->time_remaining[index] = 400;
@@ -222,7 +222,7 @@ public:
 
         // Always include actions.
         auto history_view = registry.view<action_history>();
-        static constexpr auto action_history_index = index_of_v<unsigned, action_history, Components...>;
+        static const auto action_history_index = index_of_v<unsigned, action_history, Components...>;
 
         for (auto entity : owned_entities) {
             if (history_view.contains(entity) && !std::get<0>(history_view.get(entity)).entries.empty()) {

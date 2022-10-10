@@ -46,7 +46,7 @@ class extrapolation_modified_comp_impl : public extrapolation_modified_comp {
 
     template<typename Component>
     void on_update(entt::registry &registry, entt::entity entity) {
-        static constexpr auto index = index_of_v<unsigned, Component, Components...>;
+        static const auto index = index_of_v<unsigned, Component, Components...>;
 
         if (auto *modified = registry.try_get<modified_components>(entity)) {
             modified->bits[index] = true;
