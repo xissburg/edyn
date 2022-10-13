@@ -1,4 +1,4 @@
-#include "edyn/util/moment_of_inertia.hpp"
+#include "edyn/dynamics/moment_of_inertia.hpp"
 #include "edyn/math/math.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/vector3.hpp"
