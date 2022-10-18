@@ -11,3 +11,5 @@
 [Dvir Azulay](https://github.com/dvir)
 
 [Quintin](https://github.com/qhdwight)
+
+[RazielZ](https://github.com/RazielZ)
