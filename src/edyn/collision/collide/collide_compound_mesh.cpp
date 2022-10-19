@@ -34,7 +34,7 @@ void collide(const compound_shape &compound, const triangle_mesh &mesh,
 
             // Assign part index for the closest feature in the compound shape.
             if (!child_point.featureA) {
-                child_point.featureA = {};
+                child_point.featureA = collision_feature{};
             }
 
             child_point.featureA->part = node_idx;

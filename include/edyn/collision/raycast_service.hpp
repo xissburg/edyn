@@ -4,6 +4,7 @@
 #include "edyn/collision/raycast.hpp"
 #include "edyn/math/vector3.hpp"
 #include <entt/entity/fwd.hpp>
+#include <unordered_map>
 
 namespace edyn {
 
