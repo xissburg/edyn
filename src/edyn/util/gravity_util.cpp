@@ -15,7 +15,7 @@ void set_gravity(entt::registry &registry, vector3 gravity) {
     auto view = registry.view<edyn::gravity>();
 
     for (auto entity : view) {
-        registry.replace<edyn::gravity>(entity) = gravity;
+        registry.replace<edyn::gravity>(entity, gravity);
     }
 }
 
