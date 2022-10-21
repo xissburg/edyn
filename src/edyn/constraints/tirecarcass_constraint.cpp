@@ -33,7 +33,7 @@ void tirecarcass_constraint::prepare(
     // Lateral movement.
     {
         auto error = dot(bodyA.pos - bodyB.pos, axisB_x);
-        auto spring_force = -error * m_lateral_stiffness;
+        auto spring_force = error * m_lateral_stiffness;
         auto spring_impulse = std::abs(spring_force * dt);
 
         auto &row = cache.add_row();
@@ -100,7 +100,7 @@ void tirecarcass_constraint::prepare(
     // Longitudinal twist.
     {
         auto error = (bodyA.spin_angle - bodyB.spin_angle) + (bodyA.spin_count - bodyB.spin_count) * pi2;
-        auto spring_torque = -error * m_longitudinal_stiffness;
+        auto spring_torque = error * m_longitudinal_stiffness;
         auto spring_impulse = std::abs(spring_torque * dt);
 
         auto &row = cache.add_row_with_spin();
@@ -125,7 +125,7 @@ void tirecarcass_constraint::prepare(
         auto &row = cache.add_row_with_spin();
         row.J = {vector3_zero, axisA_x, vector3_zero, -axisB_x};
         row.lower_limit = -damping_impulse;
-        row.upper_limit =  damping_impulse;
+        row.upper_limit = damping_impulse;
         row.impulse = impulse[row_idx++];
         row.use_spin[0] = true;
         row.use_spin[1] = true;

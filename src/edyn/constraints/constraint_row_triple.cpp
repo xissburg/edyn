@@ -49,7 +49,7 @@ void apply_angular_impulse(scalar impulse,
 
     auto delta = inv_I * row.J[idx_J] * impulse;
 
-    if (ds) {
+    if (row.use_spin[ent_idx] && ds) {
         // Split delta in a spin component and an angular component.
         auto spin = dot(row.spin_axis[ent_idx], delta);
         *ds += spin;

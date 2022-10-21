@@ -438,7 +438,7 @@ constexpr auto max_variadic(Args &&...args) {
 
 template<typename... C, size_t... Ints>
 scalar solve_position_constraints_indexed(entt::registry &registry, const island_constraint_entities &constraint_entities,
-                                         [[maybe_unused]] std::tuple<C...>, std::index_sequence<Ints...>) {
+                                          [[maybe_unused]] std::tuple<C...>, std::index_sequence<Ints...>) {
     auto body_view = registry.view<position, orientation,
                                    mass_inv, inertia_world_inv>();
     auto origin_view = registry.view<origin, center_of_mass>();
@@ -460,8 +460,8 @@ static bool solve_position_constraints(entt::registry &registry, const island_co
 bool apply_solution(entt::registry &registry, scalar dt, const entt::sparse_set &entities,
                     execution_mode mode, std::optional<job> completion_job = {}) {
     auto vel_view = registry.view<position, orientation,
-                                  linvel, angvel, delta_linvel, delta_angvel>();
-    auto spin_view = registry.view<spin_angle, spin, delta_spin>();
+                                  linvel, angvel, delta_linvel, delta_angvel, dynamic_tag>();
+    auto spin_view = registry.view<spin_angle, spin, delta_spin, dynamic_tag>();
 
     auto for_loop_body = [vel_view, spin_view, dt](entt::entity entity) {
         if (vel_view.contains(entity)) {

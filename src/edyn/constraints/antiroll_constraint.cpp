@@ -96,7 +96,7 @@ void antiroll_constraint::prepare(
     auto ctrl_arm_pivot_ratio = ctrl_arm_pivot_horizontal_dist / ctrl_arm_len;
     auto ctrl_arm_pivot_ratio_inv = scalar(1) / ctrl_arm_pivot_ratio;
     auto lever_term = ctrl_arm_pivot_ratio * cos_theta;
-    auto impulse = std::abs(force * lever_term) * dt;
+    auto antiroll_impulse = std::abs(force * lever_term) * dt;
 
     auto d = ctrl_arm_y;
     auto p = cross(rA, d);
@@ -104,8 +104,8 @@ void antiroll_constraint::prepare(
 
     auto &row = cache.add_row();
     row.J = {d, p, -d, -q};
-    row.lower_limit = -impulse;
-    row.upper_limit = impulse;
+    row.lower_limit = -antiroll_impulse;
+    row.upper_limit = antiroll_impulse;
     row.impulse = impulse;
 
     auto &options = cache.get_options();

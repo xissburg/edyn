@@ -20,24 +20,12 @@ void spin_constraint::prepare(const entt::registry &registry, entt::entity entit
                               const constraint_body &bodyA, const constraint_body &bodyB) {
     auto axisA = rotate(bodyA.orn, vector3_x);
     auto axisB = rotate(bodyB.orn, vector3_x);
-
-    auto spinvelA = vector3_zero;
-    auto spinvelB = vector3_zero;
-
-    if (m_use_spinA) {
-        spinvelA = axisA * bodyA.spin;
-    }
-
-    if (m_use_spinB) {
-        spinvelB = axisB * bodyB.spin;
-    }
-
-    auto impulse = m_max_torque * dt;
+    auto torque_impulse = m_max_torque * dt;
 
     auto &row = cache.add_row_with_spin();
     row.J = {vector3_zero, axisA, vector3_zero, -axisB};
-    row.lower_limit = -impulse;
-    row.upper_limit = impulse;
+    row.lower_limit = -torque_impulse;
+    row.upper_limit = torque_impulse;
     row.impulse = impulse;
     row.use_spin[0] = m_use_spinA;
     row.use_spin[1] = m_use_spinB;

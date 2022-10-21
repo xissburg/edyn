@@ -149,26 +149,23 @@ void invoke_prepare_constraint(entt::registry &registry, entt::entity entity, C 
             row.dvA = &dvA; row.dwA = &dwA;
             row.dvB = &dvB; row.dwB = &dwB;
 
-            auto spinA = scalar{};
-            auto spinB = scalar{};
-
-            if (spin_view.contains(con.body[0])) {
-                spinA = spin_view.template get<spin>(con.body[0]);
+            if (row.use_spin[0] && spin_view.contains(con.body[0])) {
                 auto &delta = spin_view.template get<delta_spin>(con.body[0]);
                 row.dsA = &delta;
             } else {
                 row.dsA = nullptr;
             }
 
-            if (spin_view.contains(con.body[1])) {
-                spinB = spin_view.template get<spin>(con.body[1]);
+            if (row.use_spin[1] && spin_view.contains(con.body[1])) {
                 auto &delta = spin_view.template get<delta_spin>(con.body[1]);
                 row.dsB = &delta;
             } else {
                 row.dsB = nullptr;
             }
 
-            prepare_row(row, options, linvelA, angvelA, spinA, linvelB, angvelB, spinB);
+            prepare_row(row, options,
+                        linvelA, angvelA, row.dsA ? spinA : scalar(0),
+                        linvelB, angvelB, row.dsB ? spinB : scalar(0));
         } else if (flags & constraint_row_flag_triple) {
             EDYN_ASSERT(third_entity != entt::null);
 
@@ -187,21 +184,21 @@ void invoke_prepare_constraint(entt::registry &registry, entt::entity entity, C 
             row.dvB = &dvB; row.dwB = &dwB;
             row.dvC = &dvC; row.dwC = &dwC;
 
-            if (spin_view.contains(con.body[0])) {
+            if (row.use_spin[0] && spin_view.contains(con.body[0])) {
                 auto &delta = spin_view.template get<delta_spin>(con.body[0]);
                 row.dsA = &delta;
             } else {
                 row.dsA = nullptr;
             }
 
-            if (spin_view.contains(con.body[1])) {
+            if (row.use_spin[1] && spin_view.contains(con.body[1])) {
                 auto &delta = spin_view.template get<delta_spin>(con.body[1]);
                 row.dsB = &delta;
             } else {
                 row.dsB = nullptr;
             }
 
-            if (spin_view.contains(third_entity)) {
+            if (row.use_spin[2] && spin_view.contains(third_entity)) {
                 auto &delta = spin_view.template get<delta_spin>(third_entity);
                 row.dsC = &delta;
             } else {
@@ -209,9 +206,9 @@ void invoke_prepare_constraint(entt::registry &registry, entt::entity entity, C 
             }
 
             prepare_row(row, options,
-                        linvelA, angvelA, spinA,
-                        linvelB, angvelB, spinB,
-                        linvelC, angvelC, spinC);
+                        linvelA, angvelA, row.dsA ? spinA : scalar(0),
+                        linvelB, angvelB, row.dsB ? spinB : scalar(0),
+                        linvelC, angvelC, row.dsC ? spinC : scalar(0));
         } else {
             auto &row = cache.rows[i].row;
             row.inv_mA = inv_mA; row.inv_IA = inv_IA;

@@ -25,7 +25,6 @@ static
 void apply_angular_impulse(scalar impulse,
                            constraint_row_with_spin &row,
                            size_t ent_idx) {
-    auto idx_J = ent_idx * 2 + 1;
     matrix3x3 inv_I;
     delta_angvel *dw;
     delta_spin *ds;
@@ -40,9 +39,10 @@ void apply_angular_impulse(scalar impulse,
         ds = row.dsB;
     }
 
+    auto idx_J = ent_idx * 2 + 1;
     auto delta = inv_I * row.J[idx_J] * impulse;
 
-    if (ds) {
+    if (row.use_spin[ent_idx] && ds) {
         // Split delta in a spin component and an angular component.
         auto spin = dot(row.spin_axis[ent_idx], delta);
         *ds += spin;
