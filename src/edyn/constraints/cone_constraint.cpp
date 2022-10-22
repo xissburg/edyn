@@ -66,15 +66,17 @@ void cone_constraint::prepare(
         {normal_world,  cross(rA, normal_world),
         -normal_world, -cross(rB, normal_world)};
 
-    auto &row = cache.add_row();
-    row.J = J;
-    row.lower_limit = 0;
-    row.upper_limit = large_scalar;
-    row.impulse = impulse[0];
+    /* Main row for the cone limits. */ {
+        auto &row = cache.add_row();
+        row.J = J;
+        row.lower_limit = 0;
+        row.upper_limit = large_scalar;
+        row.impulse = impulse[0];
 
-    auto &options = cache.get_options();
-    options.error = -error / dt;
-    options.restitution = restitution;
+        auto &options = cache.get_options();
+        options.error = -error / dt;
+        options.restitution = restitution;
+    }
 
     if (bump_stop_stiffness > 0 && bump_stop_length > 0) {
         auto &row = cache.add_row();

@@ -91,28 +91,29 @@ void hinge_constraint::prepare(
     }
 
     if (has_limit) {
-        // One row for angular limits.
-        auto &row = cache.add_row();
-        row.J = {vector3_zero, hinge_axis, vector3_zero, -hinge_axis};
-        row.impulse = impulse[row_idx++];
+        /* One row for angular limits. */ {
+            auto &row = cache.add_row();
+            row.J = {vector3_zero, hinge_axis, vector3_zero, -hinge_axis};
+            row.impulse = impulse[row_idx++];
 
-        auto limit_error = scalar{0};
-        auto halfway_limit = (angle_min + angle_max) / scalar(2);
+            auto limit_error = scalar{0};
+            auto halfway_limit = (angle_min + angle_max) / scalar(2);
 
-        // Set constraint limits according to which is the closer angular limit.
-        if (angle < halfway_limit) {
-            limit_error = angle_min - angle;
-            row.lower_limit = -large_scalar;
-            row.upper_limit = 0;
-        } else {
-            limit_error = angle_max - angle;
-            row.lower_limit = 0;
-            row.upper_limit = large_scalar;
+            // Set constraint limits according to which is the closer angular limit.
+            if (angle < halfway_limit) {
+                limit_error = angle_min - angle;
+                row.lower_limit = -large_scalar;
+                row.upper_limit = 0;
+            } else {
+                limit_error = angle_max - angle;
+                row.lower_limit = 0;
+                row.upper_limit = large_scalar;
+            }
+
+            auto &options = cache.get_options();
+            options.error = limit_error / dt;
+            options.restitution = limit_restitution;
         }
-
-        auto &options = cache.get_options();
-        options.error = limit_error / dt;
-        options.restitution = limit_restitution;
 
         // Another row for bump stop spring.
         if (bump_stop_stiffness > 0 && bump_stop_angle > 0) {

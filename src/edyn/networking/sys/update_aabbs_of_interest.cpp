@@ -87,10 +87,10 @@ struct aabb_of_interest_async_context {
 void process_aabb_of_interest_result(entt::registry &registry, query_aabb_id_type id,
                                      const query_aabb_result &result) {
     auto &ctx = registry.ctx().at<aabb_of_interest_async_context>();
-    auto entity = ctx.id_entity_map.at(id);
+    auto query_entity = ctx.id_entity_map.at(id);
     ctx.id_entity_map.erase(id);
 
-    if (!registry.valid(entity)) {
+    if (!registry.valid(query_entity)) {
         return;
     }
 
@@ -142,7 +142,7 @@ void process_aabb_of_interest_result(entt::registry &registry, query_aabb_id_typ
         }
     }
 
-    auto &aabboi = registry.get<aabb_of_interest>(entity);
+    auto &aabboi = registry.get<aabb_of_interest>(query_entity);
 
     // Calculate which entities have entered and exited the AABB of interest.
     for (auto entity : aabboi.entities) {

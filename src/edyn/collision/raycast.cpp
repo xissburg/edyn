@@ -109,9 +109,10 @@ shape_raycast_result shape_raycast(const box_shape &box, const raycast_context &
 }
 
 shape_raycast_result shape_raycast(const cylinder_shape &cylinder, const raycast_context &ctx) {
-    scalar u;
+    scalar intersection_fraction;
     auto intersect_result = intersect_ray_cylinder(ctx.p0, ctx.p1, ctx.pos, ctx.orn,
-                                                   cylinder.radius, cylinder.half_length, cylinder.axis, u);
+                                                   cylinder.radius, cylinder.half_length,
+                                                   cylinder.axis, intersection_fraction);
 
     if (intersect_result.kind == intersect_ray_cylinder_result::kind::distance_greater_than_radius) {
         return {};
@@ -129,15 +130,15 @@ shape_raycast_result shape_raycast(const cylinder_shape &cylinder, const raycast
     if (intersect_result.kind == intersect_ray_cylinder_result::kind::parallel_directions) {
         // Cylinder and segment are parallel. Check if segment intersects a
         // cap face.
-        vector3 closest; scalar u;
-        auto dist_sqr = closest_point_line(ctx.p0, ray_dir, cyl_vertices[face_idx], u, closest);
+        vector3 closest; scalar fraction;
+        auto dist_sqr = closest_point_line(ctx.p0, ray_dir, cyl_vertices[face_idx], fraction, closest);
 
         if (dist_sqr > radius_sqr) {
             return {};
         }
 
         auto result = shape_raycast_result{};
-        result.fraction = u;
+        result.fraction = fraction;
         result.normal = face_normal;
         result.info_var = cylinder_raycast_info{cylinder_feature::face, face_idx};
 
@@ -145,7 +146,7 @@ shape_raycast_result shape_raycast(const cylinder_shape &cylinder, const raycast
     }
 
     // Line intersects infinite cylinder. Check if it's within finite cylinder.
-    auto intersection = lerp(ctx.p0, ctx.p1, u);
+    auto intersection = lerp(ctx.p0, ctx.p1, intersection_fraction);
     scalar projections[] = {
         dot(intersection - cyl_vertices[0], cyl_dir_norm),
         dot(intersection - cyl_vertices[1], cyl_dir_norm)
@@ -154,7 +155,7 @@ shape_raycast_result shape_raycast(const cylinder_shape &cylinder, const raycast
     if (projections[0] > 0 && projections[1] < 0) {
         // Intersection lies on the side of cylinder.
         auto result = shape_raycast_result{};
-        result.fraction = u;
+        result.fraction = intersection_fraction;
         result.normal = intersect_result.normal / std::sqrt(intersect_result.dist_sqr);
         result.info_var = cylinder_raycast_info{cylinder_feature::side_edge};
         return result;

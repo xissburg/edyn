@@ -193,8 +193,8 @@ void pack_rows(entt::registry &registry, row_cache &cache, const entt::sparse_se
                island_constraint_entities &constraint_entities) {
     cache.clear();
 
-    for (auto &entities : constraint_entities.entities) {
-        entities.clear();
+    for (auto &ents : constraint_entities.entities) {
+        ents.clear();
     }
 
     std::apply([&](auto ... c) {
