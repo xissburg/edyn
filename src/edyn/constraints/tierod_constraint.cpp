@@ -129,7 +129,7 @@ void tierod_constraint::prepare(
     row.J = {vector3_zero, q, vector3_zero, -q};
     row.lower_limit = -large_scalar;
     row.upper_limit = large_scalar;
-    row.impulse = impulse;
+    row.impulse = applied_impulse;
 
     cache.get_options().error = dot(n, wheel_x) / dt;
 }
@@ -146,6 +146,10 @@ void tierod_constraint::update_steering_arm() {
     steering_arm_length = length(steering_arm);
     auto n = steering_arm / steering_arm_length;
     steering_arm_angle = std::acos(dot(n, -vector3_z));
+}
+
+void tierod_constraint::store_applied_impulses(const std::vector<scalar> &impulses) {
+    applied_impulse = impulses[0];
 }
 
 }

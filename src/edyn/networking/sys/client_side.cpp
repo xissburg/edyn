@@ -648,13 +648,10 @@ static void process_packet(entt::registry &registry, const packet::server_settin
 
     auto &ctx = registry.ctx().at<client_network_context>();
     ctx.allow_full_ownership = server.allow_full_ownership;
+    ctx.extrapolator->set_settings(settings);
 
     if (auto *stepper = registry.ctx().find<stepper_async>()) {
         stepper->settings_changed();
-    }
-
-    if (auto *ctx = registry.ctx().find<client_network_context>()) {
-        ctx->extrapolator->set_settings(settings);
     }
 }
 

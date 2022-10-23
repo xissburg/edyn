@@ -32,13 +32,17 @@ void differential_constraint::prepare(
     row.lower_limit = -large_scalar;
     row.upper_limit = large_scalar;
 
-    row.impulse = impulse;
+    row.impulse = applied_impulse;
     row.use_spin[0] = true;
     row.use_spin[1] = true;
     row.use_spin[2] = true;
     row.spin_axis[0] = axis0;
     row.spin_axis[1] = axis1;
     row.spin_axis[2] = vector3_x;
+}
+
+void differential_constraint::store_applied_impulses(const std::vector<scalar> &impulses) {
+    applied_impulse = impulses[0];
 }
 
 }

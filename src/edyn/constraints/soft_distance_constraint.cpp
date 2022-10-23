@@ -38,7 +38,7 @@ void soft_distance_constraint::prepare(
         row.J = {dn, p, -dn, -q};
         row.lower_limit = std::min(spring_impulse, scalar(0));
         row.upper_limit = std::max(scalar(0), spring_impulse);
-        row.impulse = impulse[0];
+        row.impulse = applied_spring_impulse;
 
         auto &options = cache.get_options();
         options.error = spring_impulse > 0 ? -large_scalar : large_scalar;
@@ -58,8 +58,13 @@ void soft_distance_constraint::prepare(
         auto damping_impulse = damping_force * dt;
         row.lower_limit = -std::abs(damping_impulse);
         row.upper_limit =  std::abs(damping_impulse);
-        row.impulse = impulse[1];
+        row.impulse = applied_damping_impulse;
     }
+}
+
+void soft_distance_constraint::store_applied_impulses(const std::vector<scalar> &impulses) {
+    applied_spring_impulse = impulses[0];
+    applied_damping_impulse = impulses[1];
 }
 
 }

@@ -36,7 +36,7 @@ void spin_angle_constraint::prepare(
         row.J = {vector3_zero, axisA, vector3_zero, -axisB * m_ratio};
         row.lower_limit = -impulse;
         row.upper_limit = impulse;
-        row.impulse = this->impulse[0];
+        row.impulse = applied_impulse.spring;
         row.use_spin[0] = true;
         row.use_spin[1] = true;
         row.spin_axis[0] = axisA;
@@ -54,7 +54,7 @@ void spin_angle_constraint::prepare(
         row.J = {vector3_zero, axisA, vector3_zero, -axisB * m_ratio};
         row.lower_limit = -impulse;
         row.upper_limit = impulse;
-        row.impulse = this->impulse[1];
+        row.impulse = applied_impulse.damping;
         row.use_spin[0] = true;
         row.use_spin[1] = true;
         row.spin_axis[0] = axisA;
@@ -71,6 +71,11 @@ scalar spin_angle_constraint::calculate_offset(const entt::registry &registry) c
     auto &sA = registry.get<spin_angle>(body[0]);
     auto &sB = registry.get<spin_angle>(body[1]);
     return (sA.count - sB.count * m_ratio) * pi2 + (sA.s - sB.s * m_ratio);
+}
+
+void spin_angle_constraint::store_applied_impulses(const std::vector<scalar> &impulses) {
+    applied_impulse.spring = impulses[0];
+    applied_impulse.damping = impulses[1];
 }
 
 }

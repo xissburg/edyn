@@ -3,6 +3,7 @@
 
 #include <array>
 #include <entt/entity/fwd.hpp>
+#include <vector>
 #include "edyn/math/vector3.hpp"
 #include "edyn/constraints/constraint_base.hpp"
 #include "edyn/constraints/constraint_body.hpp"
@@ -16,12 +17,14 @@ struct constraint_row_prep_cache;
 struct distance_constraint : public constraint_base {
     std::array<vector3, 2> pivot;
     scalar distance {0};
-    scalar impulse {0};
+    scalar applied_impulse {0};
 
     void prepare(
         const entt::registry &, entt::entity,
         constraint_row_prep_cache &cache, scalar dt,
         const constraint_body &bodyA, const constraint_body &bodyB);
+
+    void store_applied_impulses(const std::vector<scalar> &impulses);
 };
 
 template<typename Archive>
@@ -29,7 +32,7 @@ void serialize(Archive &archive, distance_constraint &c) {
     archive(c.body);
     archive(c.pivot);
     archive(c.distance);
-    archive(c.impulse);
+    archive(c.applied_impulse);
 }
 
 }

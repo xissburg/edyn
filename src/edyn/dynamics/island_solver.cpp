@@ -221,8 +221,8 @@ void pack_rows(entt::registry &registry, row_cache &cache, const entt::sparse_se
                island_constraint_entities &constraint_entities) {
     cache.clear();
 
-    for (auto &entities : constraint_entities.entities) {
-        entities.clear();
+    for (auto &ents : constraint_entities.entities) {
+        ents.clear();
     }
 
     std::apply([&](auto ... c) {
@@ -237,94 +237,68 @@ void update_impulse(entt::registry &registry, const std::vector<entt::entity> &e
                     row_cache &cache, size_t &con_idx, size_t &flag_idx,
                     size_t &row_idx, size_t &row_with_spin_idx, size_t &row_triple_idx,
                     size_t &friction_row_idx, size_t &rolling_row_idx, size_t &spinning_row_idx) {
-
-    constexpr auto friction_start_index = max_contacts;
-    constexpr auto rolling_start_index = max_contacts + max_contacts * 2;
-    constexpr auto spinning_start_index = rolling_start_index + max_contacts * 2;
     auto con_view = registry.view<C>();
     auto manifold_view = registry.view<contact_manifold>();
+    std::vector<scalar> applied_impulses;
 
     for (auto entity : entities) {
         auto [con] = con_view.get(entity);
         auto num_rows = cache.con_num_rows[con_idx];
 
-        // Check if the constraint `impulse` member is a scalar, otherwise
-        // an array is expected.
-        if constexpr(std::is_same_v<decltype(con.impulse), scalar>) {
-            EDYN_ASSERT(num_rows == 1);
-            auto flags = cache.flags[flag_idx];
+        if constexpr(std::is_same_v<C, contact_constraint>) {
+            auto [manifold] = manifold_view.get(entity);
 
-            if (flags & constraint_row_flag_with_spin) {
-                con.impulse = cache.rows_with_spin[row_with_spin_idx++].impulse;
-            } else if (flags & constraint_row_flag_triple) {
-                con.impulse = cache.rows_triple[row_triple_idx++].impulse;
-            } else {
-                con.impulse = cache.rows[row_idx++].impulse;
-            }
-        } else {
-            EDYN_ASSERT(con.impulse.size() >= num_rows);
             for (size_t i = 0; i < num_rows; ++i) {
-                auto flags = cache.flags[flag_idx + i];
+                auto flags = cache.flags[flag_idx++];
 
                 if (flags & constraint_row_flag_with_spin) {
-                    con.impulse[i] = cache.rows_with_spin[row_with_spin_idx++].impulse;
-                } else if (flags & constraint_row_flag_triple) {
-                    con.impulse[i] = cache.rows_triple[row_triple_idx++].impulse;
+                    con.store_applied_impulse(cache.rows_with_spin[row_with_spin_idx++].impulse, i, manifold);
                 } else {
-                    con.impulse[i] = cache.rows[row_idx++].impulse;
+                    con.store_applied_impulse(cache.rows[row_idx++].impulse, i, manifold);
                 }
 
                 if (flags & constraint_row_flag_friction) {
                     auto &friction_row = cache.friction[friction_row_idx++];
-                    for (unsigned j = 0; j < 2; ++j) {
-                        con.impulse[friction_start_index + i * 2 + j] = friction_row.row[j].impulse;
-                    }
+                    con.store_friction_impulse(friction_row.row[0].impulse, friction_row.row[1].impulse, i, manifold);
                 }
 
                 if (flags & constraint_row_flag_rolling_friction) {
                     auto &roll_row = cache.rolling[rolling_row_idx++];
-                    for (unsigned j = 0; j < 2; ++j) {
-                        con.impulse[rolling_start_index + i * 2 + j] = roll_row.row[j].impulse;
-                    }
+                    con.store_rolling_impulse(roll_row.row[0].impulse, roll_row.row[1].impulse, i, manifold);
                 }
 
                 if (flags & constraint_row_flag_spinning_friction) {
                     auto &spin_row = cache.spinning[spinning_row_idx++];
-                    con.impulse[spinning_start_index + i] = spin_row.impulse;
+                    con.store_spinning_impulse(spin_row.impulse, i, manifold);
                 }
+            }
+        } else {
+            applied_impulses.reserve(num_rows);
+
+            for (size_t i = 0; i < num_rows; ++i) {
+                auto flags = cache.flags[flag_idx++];
+                scalar impulse;
+
+                if (flags & constraint_row_flag_with_spin) {
+                    impulse = cache.rows_with_spin[row_with_spin_idx++].impulse;
+                } else if (flags & constraint_row_flag_triple) {
+                    impulse = cache.rows_triple[row_triple_idx++].impulse;
+                } else {
+                    impulse = cache.rows[row_idx++].impulse;
+                }
+
+                applied_impulses.push_back(impulse);
+            }
+
+            if constexpr(std::is_same_v<C, contact_patch_constraint>) {
+                auto [manifold] = manifold_view.get(entity);
+                con.store_applied_impulses(applied_impulses, manifold);
+            } else {
+                con.store_applied_impulses(applied_impulses);
             }
         }
 
-        if constexpr(std::is_same_v<C, contact_constraint>) {
-            // Assign applied impulses to contact points.
-            auto [manifold] = manifold_view.get(entity);
-            EDYN_ASSERT(manifold.num_points == num_rows);
-
-            for (unsigned i = 0; i < num_rows; ++i) {
-                auto &pt = manifold.get_point(i);
-                pt.normal_impulse = con.impulse[i];
-
-                auto flags = cache.flags[flag_idx + i];
-
-                if (flags & constraint_row_flag_friction) {
-                    for (int j = 0; j < 2; ++j) {
-                        pt.friction_impulse[j] = con.impulse[friction_start_index + i * 2 + j];
-                    }
-                }
-
-                if (flags & constraint_row_flag_rolling_friction) {
-                    for (int j = 0; j < 2; ++j) {
-                        pt.rolling_friction_impulse[j] = con.impulse[rolling_start_index + i * 2 + j];
-                    }
-                }
-
-                if (flags & constraint_row_flag_spinning_friction) {
-                    pt.spin_friction_impulse = con.impulse[spinning_start_index + i];
-                }
-            }
-        }
-
-        flag_idx += num_rows;
+        applied_impulses.clear();
         ++con_idx;
     }
 }

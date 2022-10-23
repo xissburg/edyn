@@ -5,7 +5,7 @@
 #include "edyn/constraints/constraint_body.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/vector3.hpp"
-#include "edyn/util/array_util.hpp"
+#include <vector>
 
 namespace edyn {
 
@@ -41,13 +41,15 @@ struct cone_constraint : public constraint_base {
     // to be effective.
     scalar bump_stop_length{};
 
-    static constexpr auto num_rows = 2;
-    std::array<scalar, num_rows> impulse {make_array<num_rows>(scalar{})};
+    scalar limit_impulse{};
+    scalar bump_stop_impulse{};
 
     void prepare(
         const entt::registry &, entt::entity,
         constraint_row_prep_cache &cache, scalar dt,
         const constraint_body &bodyA, const constraint_body &bodyB);
+
+    void store_applied_impulses(const std::vector<scalar> &impulses);
 };
 
 template<typename Archive>
@@ -55,7 +57,8 @@ void serialize(Archive &archive, cone_constraint &c) {
     archive(c.body, c.pivot, c.frame);
     archive(c.span_tan, c.restitution);
     archive(c.bump_stop_stiffness, c.bump_stop_length);
-    archive(c.impulse);
+    archive(c.limit_impulse);
+    archive(c.bump_stop_impulse);
 };
 
 }

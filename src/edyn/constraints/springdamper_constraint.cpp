@@ -75,7 +75,7 @@ void springdamper_constraint::prepare(
         row.J = {d, p, -d, -q};
         row.lower_limit = 0;
         row.upper_limit = spring_impulse;
-        row.impulse = impulse[0];
+        row.impulse = applied_impulse.spring;
 
         // Make error inversely proportional to distance from control arm pivot.
         cache.get_options().error = -error * cos_theta * ctrl_arm_pivot_ratio_inv / dt;
@@ -96,7 +96,7 @@ void springdamper_constraint::prepare(
         row.J = {d, p, -d, -q};
         row.lower_limit = -damping_impulse;
         row.upper_limit =  damping_impulse;
-        row.impulse = impulse[1];
+        row.impulse = applied_impulse.damper;
     }
 
     // Damper piston limit when it fully extends.
@@ -105,7 +105,7 @@ void springdamper_constraint::prepare(
         row.J = {d, p, -d, -q};
         row.lower_limit = -large_scalar;
         row.upper_limit = 0;
-        row.impulse = impulse[2];
+        row.impulse = applied_impulse.damper_limit;
 
         auto max_coilover_len = m_piston_rod_length + m_damper_body_length + m_damper_body_offset;
         auto limit_error = max_coilover_len - coilover_len;
@@ -225,6 +225,13 @@ scalar springdamper_constraint::get_damping_force(scalar speed) const {
             return m_slow_rebound_damping * speed;
         }
     }
+}
+
+void springdamper_constraint::store_applied_impulses(const std::vector<scalar> &impulses) {
+    unsigned row_idx = 0;
+    applied_impulse.spring = impulses[row_idx++];
+    applied_impulse.damper = impulses[row_idx++];
+    applied_impulse.damper_limit = impulses[row_idx++];
 }
 
 }

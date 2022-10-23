@@ -106,11 +106,15 @@ void antiroll_constraint::prepare(
     row.J = {d, p, -d, -q};
     row.lower_limit = -antiroll_impulse;
     row.upper_limit = antiroll_impulse;
-    row.impulse = impulse;
+    row.impulse = applied_impulse;
 
     auto &options = cache.get_options();
     // Make error inversely proportional to distance from control arm pivot.
     options.error = angle * cos_theta * ctrl_arm_pivot_ratio_inv / dt;
+}
+
+void antiroll_constraint::store_applied_impulses(const std::vector<scalar> &impulses) {
+    applied_impulse = impulses[0];
 }
 
 }

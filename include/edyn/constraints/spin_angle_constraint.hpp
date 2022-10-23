@@ -1,7 +1,7 @@
 #ifndef EDYN_CONSTRAINTS_SPIN_ANGLE_CONSTRAINT_HPP
 #define EDYN_CONSTRAINTS_SPIN_ANGLE_CONSTRAINT_HPP
 
-#include <array>
+#include <vector>
 #include "edyn/constraints/constraint_body.hpp"
 #include "edyn/constraints/constraint_base.hpp"
 #include "edyn/math/scalar.hpp"
@@ -22,7 +22,10 @@ struct spin_angle_constraint : public constraint_base {
     scalar m_damping {1e2};
     scalar m_offset_origin {0};
 
-    std::array<scalar, 2> impulse {0, 0};
+    struct {
+        scalar spring {};
+        scalar damping {};
+    } applied_impulse {};
 
     void set_ratio(scalar, const entt::registry &);
     scalar calculate_offset(const entt::registry &) const;
@@ -31,6 +34,8 @@ struct spin_angle_constraint : public constraint_base {
         const entt::registry &, entt::entity,
         constraint_row_prep_cache &cache, scalar dt,
         const constraint_body &bodyA, const constraint_body &bodyB);
+
+    void store_applied_impulses(const std::vector<scalar> &impulses);
 };
 
 template<typename Archive>
@@ -40,7 +45,6 @@ void serialize(Archive &archive, spin_angle_constraint &con) {
     archive(con.m_stiffness);
     archive(con.m_damping);
     archive(con.m_offset_origin);
-    archive(con.impulse);
 }
 
 }

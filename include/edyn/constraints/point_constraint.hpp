@@ -3,7 +3,6 @@
 
 #include <array>
 #include <entt/entity/fwd.hpp>
-#include "edyn/util/array_util.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/constraints/constraint_base.hpp"
 #include "edyn/constraints/constraint_body.hpp"
@@ -24,12 +23,15 @@ struct point_constraint : public constraint_base {
 
     scalar friction_torque{};
 
-    std::array<scalar, 4> impulse {make_array<4>(scalar{})};
+    std::array<scalar, 3> applied_impulse {};
+    scalar applied_friction_impulse {};
 
     void prepare(
         const entt::registry &, entt::entity,
         constraint_row_prep_cache &cache, scalar dt,
         const constraint_body &bodyA, const constraint_body &bodyB);
+
+    void store_applied_impulses(const std::vector<scalar> &impulses);
 };
 
 template<typename Archive>
@@ -37,7 +39,8 @@ void serialize(Archive &archive, point_constraint &c) {
     archive(c.body);
     archive(c.pivot);
     archive(c.friction_torque);
-    archive(c.impulse);
+    archive(c.applied_impulse);
+    archive(c.applied_friction_impulse);
 }
 
 }

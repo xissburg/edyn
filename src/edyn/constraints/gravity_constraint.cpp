@@ -22,10 +22,14 @@ void gravity_constraint::prepare(
     row.J = {dn, vector3_zero, -dn, -vector3_zero};
     row.lower_limit = -P;
     row.upper_limit = P;
-    row.impulse = impulse;
+    row.impulse = applied_impulse;
 
     auto &options = cache.get_options();
     options.error = large_scalar;
+}
+
+void gravity_constraint::store_applied_impulses(const std::vector<scalar> &impulses) {
+    applied_impulse = impulses[0];
 }
 
 }

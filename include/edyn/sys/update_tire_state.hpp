@@ -26,7 +26,7 @@ void update_tire_state(entt::registry &registry, scalar dt) {
     auto con_view = registry.view<contact_patch_constraint>();
     auto &graph = registry.ctx().at<entity_graph>();
 
-    ts_view.each([&] (auto entity, graph_node &node, tire_state &ts) {
+    for (auto [entity, node, ts] : ts_view.each()) {
         ts.other_entity = entt::null;
 
         auto &posA = tr_view.get<position>(entity);
@@ -92,12 +92,10 @@ void update_tire_state(entt::registry &registry, scalar dt) {
                 tire_cs.pivot = patch.pivot;
                 tire_cs.position = patch.center;
                 tire_cs.lin_vel = linvel_rel;
-
-                // Add spring and damper impulses.
-                tire_cs.Fz = con.impulse[i * 4 + 0] / dt; // Normal spring and damper.
-                tire_cs.Fx = con.impulse[i * 4 + 1] / dt; // Longitudinal spring.
-                tire_cs.Fy = con.impulse[i * 4 + 2] / dt; // Lateral spring.
-                tire_cs.Mz = con.impulse[i * 4 + 3] / dt; // Self-aligning spring.
+                tire_cs.Fz = patch.applied_impulse.normal / dt;
+                tire_cs.Fx = patch.applied_impulse.longitudinal / dt;
+                tire_cs.Fy = patch.applied_impulse.lateral / dt;
+                tire_cs.Mz = patch.applied_impulse.aligning / dt;
 
                 for (size_t i = 0; i < patch.tread_rows.size(); ++i) {
                     auto &tread_row = patch.tread_rows[i];
@@ -114,7 +112,7 @@ void update_tire_state(entt::registry &registry, scalar dt) {
                 }
             }
         });
-    });
+    }
 }
 
 }

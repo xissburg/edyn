@@ -92,10 +92,6 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
     auto spin_ornA = bodyA.orn * quaternion_axis_angle(vector3_x, bodyA.spin_angle);
     auto spin_angvelA = bodyA.angvel + spinvelA;
 
-    // Store initial size of the constraint row cache so the number of rows
-    // for this contact constraint can be calculated at the end.
-    unsigned imp_idx = 0;
-
     // Create non-penetration constraint rows for each contact point.
     // Ignore spin for normal constraint since it only affects tangential
     // directions and for cylinders the normal always points towards the
@@ -112,7 +108,7 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
 
         auto &row = cache.add_row_with_spin();
         row.J = {normal, cross(rA, normal), -normal, -cross(rB, normal)};
-        row.impulse = impulse[imp_idx++];
+        row.impulse = cp.normal_impulse;
         row.use_spin[0] = true;
         row.use_spin[1] = true;
         row.spin_axis[0] = spin_axisA;
@@ -201,11 +197,7 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
         info.pivot = to_world_space(cp.pivotB, bodyB.origin, bodyB.orn);
         info.friction = cp.friction;
         info.lifetime = cp.lifetime;
-        // Need to verify whether this really contains the applied normal impulse.
-        // Doesn't seem so since there isn't a correspondence between contact
-        // points and contact patches. There can be one patch for more than one point
-        // if the lie about the same line longitudinally.
-        info.impulse = impulse[pt_idx * 4];
+        info.impulse = cp.normal_impulse;
     }
 
     if (num_points == 0) {
@@ -376,6 +368,7 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
         patch.deflection = dot(normal, patch_lat_pos0 - point_on_edge);
 
         auto normal_force = patch.normal_impulse / dt;
+        patch.applied_impulse.normal = patch.normal_impulse;
 
         // Calculate contact patch width.
         auto normalized_contact_width = std::max(scalar(0.08),
@@ -760,7 +753,7 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
             row.J = {lon_dir, p, -lon_dir, -q};
             row.lower_limit = std::min(spring_impulse, scalar(0));
             row.upper_limit = std::max(scalar(0), spring_impulse);
-            row.impulse = impulse[imp_idx++];
+            row.impulse = patch.applied_impulse.longitudinal;
             row.use_spin[0] = true;
             row.use_spin[1] = true;
             row.spin_axis[0] = spin_axisA;
@@ -780,7 +773,7 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
             row.J = {lat_dir, p, -lat_dir, -q};
             row.lower_limit = std::min(spring_impulse, scalar(0));
             row.upper_limit = std::max(scalar(0), spring_impulse);
-            row.impulse = impulse[imp_idx++];
+            row.impulse = patch.applied_impulse.lateral;
 
             auto &options = cache.get_options();
             options.error = spring_impulse > 0 ? -large_scalar : large_scalar;
@@ -796,7 +789,7 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
             row.J = {vector3_zero, normal, vector3_zero, -normal};
             row.lower_limit = std::min(spring_impulse, scalar(0));
             row.upper_limit = std::max(scalar(0), spring_impulse);
-            row.impulse = impulse[imp_idx++];
+            row.impulse = patch.applied_impulse.aligning;
 
             auto &options = cache.get_options();
             options.error = spring_impulse > 0 ? -large_scalar : large_scalar;
@@ -808,6 +801,21 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
         patch.lat_dir = lat_dir;
         patch.lon_dir = lon_dir;
         patch.spin_count = bodyA.spin_count;
+    }
+}
+
+void contact_patch_constraint::store_applied_impulses(const std::vector<scalar> &impulses, contact_manifold &manifold) {
+    int row_idx = 0;
+
+    manifold.each_point([&](contact_point &cp) {
+        cp.normal_impulse = impulses[row_idx++];
+    });
+
+    for (unsigned i = 0; i < num_patches; ++i) {
+        auto &patch = patches[i];
+        patch.applied_impulse.longitudinal = impulses[row_idx++];
+        patch.applied_impulse.lateral = impulses[row_idx++];
+        patch.applied_impulse.aligning = impulses[row_idx++];
     }
 }
 

@@ -1,6 +1,7 @@
 #ifndef EDYN_CONSTRAINTS_SPIN_CONSTRAINT_HPP
 #define EDYN_CONSTRAINTS_SPIN_CONSTRAINT_HPP
 
+#include <vector>
 #include "edyn/constraints/constraint_base.hpp"
 #include "edyn/constraints/constraint_body.hpp"
 #include "edyn/math/scalar.hpp"
@@ -21,12 +22,14 @@ struct spin_constraint : public constraint_base {
     bool m_use_spinA {true};
     bool m_use_spinB {true};
 
-    scalar impulse {};
+    scalar applied_impulse {};
 
     void prepare(
         const entt::registry &, entt::entity,
         constraint_row_prep_cache &cache, scalar dt,
         const constraint_body &bodyA, const constraint_body &bodyB);
+
+    void store_applied_impulses(const std::vector<scalar> &impulses);
 };
 
 template<typename Archive>
@@ -35,7 +38,7 @@ void serialize(Archive &archive, spin_constraint &con) {
     archive(con.m_max_torque);
     archive(con.m_use_spinA);
     archive(con.m_use_spinB);
-    archive(con.impulse);
+    archive(con.applied_impulse);
 }
 
 }

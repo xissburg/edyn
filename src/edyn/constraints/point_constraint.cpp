@@ -19,14 +19,13 @@ void point_constraint::prepare(
     auto rA_skew = skew_matrix(rA);
     auto rB_skew = skew_matrix(rB);
     constexpr auto I = matrix3x3_identity;
-    auto num_rows = size_t{3};
 
-    for (size_t i = 0; i < num_rows; ++i) {
+    for (int i = 0; i < 3; ++i) {
         auto &row = cache.add_row();
         row.J = {I.row[i], -rA_skew.row[i], -I.row[i], rB_skew.row[i]};
         row.lower_limit = -EDYN_SCALAR_MAX;
         row.upper_limit = EDYN_SCALAR_MAX;
-        row.impulse = impulse[i];
+        row.impulse = applied_impulse[i];
 
         auto &options = cache.get_options();
         options.error = (pivotA[i] - pivotB[i]) / dt;
@@ -38,12 +37,24 @@ void point_constraint::prepare(
         if (try_normalize(spin_axis)) {
             auto &row = cache.add_row();
             row.J = {vector3_zero, spin_axis, vector3_zero, -spin_axis};
-            row.impulse = impulse[++num_rows];
+            row.impulse = applied_friction_impulse;
 
             auto friction_impulse = friction_torque * dt;
             row.lower_limit = -friction_impulse;
             row.upper_limit = friction_impulse;
         }
+    }
+}
+
+void point_constraint::store_applied_impulses(const std::vector<scalar> &impulses) {
+    unsigned row_idx = 0;
+
+    for (int i = 0; i < 3; ++i) {
+        applied_impulse[i] = impulses[row_idx++];
+    }
+
+    if (friction_torque > 0) {
+        applied_friction_impulse = impulses[row_idx++];
     }
 }
 

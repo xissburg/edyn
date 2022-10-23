@@ -1,6 +1,7 @@
 #ifndef EDYN_CONSTRAINTS_TIEROD_CONSTRAINT_HPP
 #define EDYN_CONSTRAINTS_TIEROD_CONSTRAINT_HPP
 
+#include <vector>
 #include <entt/fwd.hpp>
 #include "edyn/constraints/constraint_base.hpp"
 #include "edyn/constraints/constraint_body.hpp"
@@ -37,7 +38,7 @@ struct tierod_constraint : public constraint_base {
     scalar steering_arm_length;
     scalar steering_arm_angle;
 
-    scalar impulse;
+    scalar applied_impulse;
 
     void update_steering_axis();
     void update_steering_arm();
@@ -46,6 +47,8 @@ struct tierod_constraint : public constraint_base {
         const entt::registry &, entt::entity,
         constraint_row_prep_cache &cache, scalar dt,
         const constraint_body &bodyA, const constraint_body &bodyB);
+
+    void store_applied_impulses(const std::vector<scalar> &impulses);
 };
 
 template<typename Archive>
@@ -65,7 +68,7 @@ void serialize(Archive &archive, tierod_constraint &con) {
     archive(con.steering_arm);
     archive(con.steering_arm_length);
     archive(con.steering_arm_angle);
-    archive(con.impulse);
+    archive(con.applied_impulse);
 }
 
 }

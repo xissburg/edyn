@@ -4,6 +4,7 @@
 #include <map>
 #include <array>
 #include <utility>
+#include <vector>
 #include "edyn/config/constants.hpp"
 #include "edyn/constraints/constraint_body.hpp"
 #include "edyn/math/vector3.hpp"
@@ -63,6 +64,13 @@ struct contact_patch_constraint : public constraint_base {
         scalar sliding_ratio; // Percentage of bristles which are sliding.
         scalar width; // Width of contact patch.
         scalar length; // Average lengh of contact patch.
+
+        struct {
+            scalar normal {};
+            scalar longitudinal {};
+            scalar lateral {};
+            scalar aligning {};
+        } applied_impulse {};
     };
 
     uint8_t num_patches {0};
@@ -77,12 +85,11 @@ struct contact_patch_constraint : public constraint_base {
     scalar m_lat_tread_stiffness{1800000};
     scalar m_sidewall_height{0.13};
 
-    static const auto num_rows = 4 * max_contacts;
-    std::array<scalar, num_rows> impulse = make_array<num_rows>(scalar{});
-
     void prepare(const entt::registry &, entt::entity, const contact_manifold &,
                  constraint_row_prep_cache &cache, scalar dt,
                  const constraint_body &bodyA, const constraint_body &bodyB);
+
+    void store_applied_impulses(const std::vector<scalar> &impulses, contact_manifold &manifold);
 };
 
 }

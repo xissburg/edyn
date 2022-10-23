@@ -1,6 +1,7 @@
 #ifndef EDYN_CONSTRAINTS_ANTIROLL_CONSTRAINT_HPP
 #define EDYN_CONSTRAINTS_ANTIROLL_CONSTRAINT_HPP
 
+#include <vector>
 #include <entt/fwd.hpp>
 #include "edyn/constraints/constraint_body.hpp"
 #include "edyn/math/vector3.hpp"
@@ -35,12 +36,14 @@ struct antiroll_constraint : public constraint_base {
     vector3 m_other_ctrl_arm_pivotC;
     vector3 m_other_ctrl_arm_pivot;
 
-    scalar impulse;
+    scalar applied_impulse;
 
     void prepare(
         const entt::registry &, entt::entity,
         constraint_row_prep_cache &cache, scalar dt,
         const constraint_body &bodyA, const constraint_body &bodyB, const constraint_body &bodyC);
+
+    void store_applied_impulses(const std::vector<scalar> &impulses);
 };
 
 template<typename Archive>
@@ -55,7 +58,7 @@ void serialize(Archive &archive, antiroll_constraint &con) {
     archive(con.m_other_ctrl_arm_pivotA);
     archive(con.m_other_ctrl_arm_pivotC);
     archive(con.m_other_ctrl_arm_pivot);
-    archive(con.impulse);
+    archive(con.applied_impulse);
 }
 
 }

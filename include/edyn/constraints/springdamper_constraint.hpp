@@ -2,11 +2,11 @@
 #define EDYN_CONSTRAINTS_SPRINGDAMPER_CONSTRAINT_HPP
 
 #include <array>
+#include <vector>
 #include "edyn/math/vector3.hpp"
 #include "edyn/math/pwl_curve.hpp"
 #include "edyn/constraints/constraint_body.hpp"
 #include "edyn/constraints/constraint_base.hpp"
-#include "edyn/util/array_util.hpp"
 
 namespace edyn {
 
@@ -65,13 +65,18 @@ struct springdamper_constraint : public constraint_base {
     vector3 get_world_ctrl_arm_pivot(entt::registry &) const;
     scalar get_damping_force(scalar speed) const;
 
-    static const auto num_rows = 3;
-    std::array<scalar, num_rows> impulse = make_array<num_rows>(scalar{});
+    struct {
+        scalar spring {};
+        scalar damper {};
+        scalar damper_limit {};
+    } applied_impulse {};
 
     void prepare(
         const entt::registry &, entt::entity,
         constraint_row_prep_cache &cache, scalar dt,
         const constraint_body &bodyA, const constraint_body &bodyB);
+
+    void store_applied_impulses(const std::vector<scalar> &impulses);
 };
 
 template<typename Archive>
@@ -106,7 +111,6 @@ void serialize(Archive &archive, springdamper_constraint &con) {
     archive(con.m_damping_ratio);
     archive(con.m_spring_damper_dir);
     archive(con.m_inclination_factor);
-    archive(con.impulse);
 }
 
 }

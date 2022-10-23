@@ -28,8 +28,6 @@ void tirecarcass_constraint::prepare(
     const auto axisB_y = quaternion_y(bodyB.orn);
     const auto axisB_z = quaternion_z(bodyB.orn);
 
-    auto row_idx = size_t(0);
-
     // Lateral movement.
     {
         auto error = dot(bodyA.pos - bodyB.pos, axisB_x);
@@ -40,7 +38,7 @@ void tirecarcass_constraint::prepare(
         row.J = {axisB_x, vector3_zero, -axisB_x, vector3_zero};
         row.lower_limit = -spring_impulse;
         row.upper_limit = spring_impulse;
-        row.impulse = impulse[row_idx++];
+        row.impulse = applied_impulse.lateral_spring;
 
         cache.get_options().error = error / dt;
     }
@@ -55,7 +53,7 @@ void tirecarcass_constraint::prepare(
         row.J = {axisB_x, vector3_zero, -axisB_x, vector3_zero};
         row.lower_limit = -damping_impulse;
         row.upper_limit = damping_impulse;
-        row.impulse = impulse[row_idx++];
+        row.impulse = applied_impulse.lateral_damping;
     }
 
     // Prevent vertical movement.
@@ -64,7 +62,7 @@ void tirecarcass_constraint::prepare(
         row.J = {axisB_y, vector3_zero, -axisB_y, vector3_zero};
         row.lower_limit = -large_scalar;
         row.upper_limit = large_scalar;
-        row.impulse = impulse[row_idx++];
+        row.impulse = applied_impulse.vertical;
 
         cache.get_options().error = dot(bodyA.pos - bodyB.pos, axisB_y) / dt;
     }
@@ -75,7 +73,7 @@ void tirecarcass_constraint::prepare(
         row.J = {axisB_z, vector3_zero, -axisB_z, vector3_zero};
         row.lower_limit = -large_scalar;
         row.upper_limit = large_scalar;
-        row.impulse = impulse[row_idx++];
+        row.impulse = applied_impulse.longitudinal;
 
         cache.get_options().error = dot(bodyA.pos - bodyB.pos, axisB_z) / dt;
     }
@@ -92,7 +90,7 @@ void tirecarcass_constraint::prepare(
         row.J = {vector3_zero, axis, vector3_zero, -axis};
         row.lower_limit = -large_scalar;
         row.upper_limit = large_scalar;
-        row.impulse = impulse[row_idx++];
+        row.impulse = applied_impulse.rotational[i];
 
         cache.get_options().error = error / dt;
     }
@@ -107,7 +105,7 @@ void tirecarcass_constraint::prepare(
         row.J = {vector3_zero, axisA_x, vector3_zero, -axisB_x};
         row.lower_limit = -spring_impulse;
         row.upper_limit = spring_impulse;
-        row.impulse = impulse[row_idx++];
+        row.impulse = applied_impulse.longitudinal_twist_spring;
         row.use_spin[0] = true;
         row.use_spin[1] = true;
         row.spin_axis[0] = axisA_x;
@@ -126,12 +124,27 @@ void tirecarcass_constraint::prepare(
         row.J = {vector3_zero, axisA_x, vector3_zero, -axisB_x};
         row.lower_limit = -damping_impulse;
         row.upper_limit = damping_impulse;
-        row.impulse = impulse[row_idx++];
+        row.impulse = applied_impulse.longitudinal_twist_damping;
         row.use_spin[0] = true;
         row.use_spin[1] = true;
         row.spin_axis[0] = axisA_x;
         row.spin_axis[1] = axisB_x;
     }
+}
+
+void tirecarcass_constraint::store_applied_impulses(const std::vector<scalar> &impulses) {
+    unsigned row_idx = 0;
+    applied_impulse.lateral_spring = impulses[row_idx++];
+    applied_impulse.lateral_damping = impulses[row_idx++];
+    applied_impulse.vertical = impulses[row_idx++];
+    applied_impulse.longitudinal = impulses[row_idx++];
+
+    for (size_t i = 0; i < 3; ++i) {
+        applied_impulse.rotational[i] = impulses[row_idx++];
+    }
+
+    applied_impulse.longitudinal_twist_spring = impulses[row_idx++];
+    applied_impulse.longitudinal_twist_damping = impulses[row_idx++];
 }
 
 }

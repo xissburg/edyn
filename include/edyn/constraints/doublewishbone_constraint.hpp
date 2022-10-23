@@ -1,11 +1,11 @@
 #ifndef EDYN_CONSTRAINTS_DOUBLEWISHBONE_CONSTRAINT
 #define EDYN_CONSTRAINTS_DOUBLEWISHBONE_CONSTRAINT
 
+#include <vector>
 #include <entt/fwd.hpp>
 #include "edyn/constraints/constraint_body.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/constraints/constraint_base.hpp"
-#include "edyn/util/array_util.hpp"
 
 namespace edyn {
 
@@ -21,13 +21,21 @@ struct doublewishbone_constraint : public constraint_base {
     scalar lower_length;
     bool steerable;
 
-    static const auto num_rows = 6;
-    std::array<scalar, num_rows> impulse = make_array<num_rows>(scalar{});
+    struct {
+        scalar upper_ctrl_arm_distance {};
+        scalar lower_ctrl_arm_distance {};
+        scalar upper_ctrl_arm_plane {};
+        scalar lower_ctrl_arm_plane {};
+        scalar keep_outside {};
+        scalar anti_steering {};
+    } applied_impulse {};
 
     void prepare(
         const entt::registry &, entt::entity,
         constraint_row_prep_cache &cache, scalar dt,
         const constraint_body &bodyA, const constraint_body &bodyB);
+
+    void store_applied_impulses(const std::vector<scalar> &impulses);
 };
 
 template<typename Archive>
@@ -40,7 +48,6 @@ void serialize(Archive &archive, doublewishbone_constraint &con) {
     archive(con.lower_pivotB);
     archive(con.lower_length);
     archive(con.steerable);
-    archive(con.impulse);
 }
 
 }

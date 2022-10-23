@@ -52,15 +52,13 @@ void doublewishbone_constraint::prepare(
     scalar side = lower_pivotA.x > 0 ? 1 : -1;
     auto wheel_x = rotate(bodyB.orn, vector3_x * side);
 
-    auto row_idx = size_t(0);
-
     // Upper control arm distance constraint.
     {
         auto &row = cache.add_row();
         row.J = {ud, cross(urA, ud), -ud, -cross(urB, ud)};
         row.lower_limit = -large_scalar;
         row.upper_limit = large_scalar;
-        row.impulse = impulse[row_idx++];
+        row.impulse = applied_impulse.upper_ctrl_arm_distance;
 
         cache.get_options().error = 0.5 * (ul2 - upper_length * upper_length) / dt;
     }
@@ -71,7 +69,7 @@ void doublewishbone_constraint::prepare(
         row.J = {ld, cross(lrA, ld), -ld, -cross(lrB, ld)};
         row.lower_limit = -large_scalar;
         row.upper_limit = large_scalar;
-        row.impulse = impulse[row_idx++];
+        row.impulse = applied_impulse.lower_ctrl_arm_distance;
 
         cache.get_options().error = 0.5 * (ll2 - lower_length * lower_length) / dt;
     }
@@ -86,7 +84,7 @@ void doublewishbone_constraint::prepare(
         row.J = {chassis_z, p, -chassis_z, -q};
         row.lower_limit = -large_scalar;
         row.upper_limit = large_scalar;
-        row.impulse = impulse[row_idx++];
+        row.impulse = applied_impulse.upper_ctrl_arm_plane;
 
         cache.get_options().error = dot(ud, chassis_z) / dt;
     }
@@ -101,7 +99,7 @@ void doublewishbone_constraint::prepare(
         row.J = {chassis_z, p, -chassis_z, -q};
         row.lower_limit = -large_scalar;
         row.upper_limit = large_scalar;
-        row.impulse = impulse[row_idx++];
+        row.impulse = applied_impulse.lower_ctrl_arm_plane;
 
         cache.get_options().error = dot(ld, chassis_z) / dt;
     }
@@ -124,7 +122,7 @@ void doublewishbone_constraint::prepare(
         row.J = {chassis_x, p, -chassis_x, -q};
         row.lower_limit = -large_scalar;
         row.upper_limit = 0;
-        row.impulse = impulse[row_idx++];
+        row.impulse = applied_impulse.keep_outside;
 
         cache.get_options().error = 0.2 * (dot(md, chassis_x) + 0.2) / dt; // be gentle
     }
@@ -138,9 +136,22 @@ void doublewishbone_constraint::prepare(
         row.J = {vector3_zero, q, vector3_zero, -q};
         row.lower_limit = -large_scalar;
         row.upper_limit = large_scalar;
-        row.impulse = impulse[row_idx++];
+        row.impulse = applied_impulse.anti_steering;
 
         cache.get_options().error = dot(chassis_z, wheel_x) / dt;
+    }
+}
+
+void doublewishbone_constraint::store_applied_impulses(const std::vector<scalar> &impulses) {
+    int row_idx = 0;
+    applied_impulse.upper_ctrl_arm_distance = impulses[row_idx++];
+    applied_impulse.lower_ctrl_arm_distance = impulses[row_idx++];
+    applied_impulse.upper_ctrl_arm_plane = impulses[row_idx++];
+    applied_impulse.lower_ctrl_arm_plane = impulses[row_idx++];
+    applied_impulse.keep_outside = impulses[row_idx++];
+
+    if (!steerable) {
+        applied_impulse.anti_steering = impulses[row_idx++];
     }
 }
 
