@@ -3,7 +3,6 @@
 
 #include <array>
 #include <entt/entity/fwd.hpp>
-#include "edyn/util/array_util.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/constraints/constraint_base.hpp"
 #include "edyn/constraints/constraint_body.hpp"
@@ -21,12 +20,15 @@ struct soft_distance_constraint : public constraint_base {
     scalar stiffness {1e10};
     scalar damping {1e10};
 
-    std::array<scalar, 2> impulse {make_array<2, scalar>(0)};
+    scalar applied_spring_impulse {};
+    scalar applied_damping_impulse {};
 
     void prepare(
         const entt::registry &, entt::entity,
         constraint_row_prep_cache &cache, scalar dt,
         const constraint_body &bodyA, const constraint_body &bodyB);
+
+    void store_applied_impulses(const std::vector<scalar> &impulses);
 };
 
 template<typename Archive>
@@ -36,7 +38,8 @@ void serialize(Archive &archive, soft_distance_constraint &c) {
     archive(c.distance);
     archive(c.stiffness);
     archive(c.damping);
-    archive(c.impulse);
+    archive(c.applied_spring_impulse);
+    archive(c.applied_damping_impulse);
 }
 
 }

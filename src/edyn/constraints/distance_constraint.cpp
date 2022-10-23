@@ -26,10 +26,14 @@ void distance_constraint::prepare(
     row.J = {d, cross(rA, d), -d, -cross(rB, d)};
     row.lower_limit = -large_scalar;
     row.upper_limit =  large_scalar;
-    row.impulse = impulse;
+    row.impulse = applied_impulse;
 
     auto &options = cache.get_options();
     options.error = scalar(0.5) * (dist_sqr - distance * distance) / dt;
+}
+
+void distance_constraint::store_applied_impulses(const std::vector<scalar> &impulses) {
+    applied_impulse = impulses[0];
 }
 
 }

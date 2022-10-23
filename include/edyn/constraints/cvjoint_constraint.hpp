@@ -7,7 +7,6 @@
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/constraints/constraint_base.hpp"
 #include "edyn/constraints/constraint_body.hpp"
-#include "edyn/util/array_util.hpp"
 
 namespace edyn {
 
@@ -82,8 +81,15 @@ struct cvjoint_constraint : public constraint_base {
     // the relative angular velocity.
     scalar bend_damping{};
 
-    static constexpr auto num_rows = 9;
-    std::array<scalar, num_rows> impulse {make_array<num_rows>(scalar{})};
+    struct {
+        std::array<scalar, 3> linear {};
+        scalar twist_limit {};
+        scalar twist_bump_stop {};
+        scalar twist_spring {};
+        scalar twist_friction_damping {};
+        scalar bend_friction_damping {};
+        scalar bend_spring {};
+    } applied_impulse {};
 
     /**
      * @brief Recalculates the current angle. Should be called after changing
@@ -104,6 +110,8 @@ struct cvjoint_constraint : public constraint_base {
         const constraint_body &bodyA, const constraint_body &bodyB);
 
     void solve_position(position_solver &solver);
+
+    void store_applied_impulses(const std::vector<scalar> &impulses);
 };
 
 template<typename Archive>
@@ -122,7 +130,13 @@ void serialize(Archive &archive, cvjoint_constraint &c) {
     archive(c.bend_stiffness);
     archive(c.bend_friction_torque);
     archive(c.bend_damping);
-    archive(c.impulse);
+    archive(c.applied_impulse.linear);
+    archive(c.applied_impulse.twist_limit);
+    archive(c.applied_impulse.twist_bump_stop);
+    archive(c.applied_impulse.twist_spring);
+    archive(c.applied_impulse.twist_friction_damping);
+    archive(c.applied_impulse.bend_friction_damping);
+    archive(c.applied_impulse.bend_spring);
 };
 
 }

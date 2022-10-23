@@ -71,7 +71,7 @@ void cone_constraint::prepare(
         row.J = J;
         row.lower_limit = 0;
         row.upper_limit = large_scalar;
-        row.impulse = impulse[0];
+        row.impulse = limit_impulse;
 
         auto &options = cache.get_options();
         options.error = -error / dt;
@@ -81,7 +81,7 @@ void cone_constraint::prepare(
     if (bump_stop_stiffness > 0 && bump_stop_length > 0) {
         auto &row = cache.add_row();
         row.J = J;
-        row.impulse = impulse[1];
+        row.impulse = bump_stop_impulse;
 
         auto bump_stop_deflection = bump_stop_length + error;
         auto spring_force = bump_stop_stiffness * bump_stop_deflection;
@@ -91,6 +91,14 @@ void cone_constraint::prepare(
 
         auto &options = cache.get_options();
         options.error = -bump_stop_deflection / dt;
+    }
+}
+
+void cone_constraint::store_applied_impulses(const std::vector<scalar> &impulses) {
+    limit_impulse = impulses[0];
+
+    if (bump_stop_stiffness > 0 && bump_stop_length > 0) {
+        bump_stop_impulse = impulses[1];
     }
 }
 

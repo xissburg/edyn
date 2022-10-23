@@ -32,7 +32,7 @@ void contact_constraint::prepare(
         // Create normal row, i.e. non-penetration constraint.
         auto &normal_row = cache.add_row();
         normal_row.J = {normal, cross(rA, normal), -normal, -cross(rB, normal)};
-        normal_row.impulse = impulse[pt_idx];
+        normal_row.impulse = cp.normal_impulse;
         normal_row.lower_limit = 0;
 
         auto &normal_options = cache.get_options();
@@ -75,7 +75,7 @@ void contact_constraint::prepare(
         for (auto i = 0; i < 2; ++i) {
             auto &row_i = friction_row.row[i];
             row_i.J = {tangents[i], cross(rA, tangents[i]), -tangents[i], -cross(rB, tangents[i])};
-            row_i.impulse = impulse[max_contacts + pt_idx * 2 + i];
+            row_i.impulse = cp.friction_impulse[i];
             row_i.eff_mass = get_effective_mass(row_i.J, bodyA.inv_m, bodyA.inv_I, bodyB.inv_m, bodyB.inv_I);
             row_i.rhs = -get_relative_speed(row_i.J, bodyA.linvel, bodyA.angvel, bodyB.linvel, bodyB.angvel);
         }
@@ -101,7 +101,7 @@ void contact_constraint::prepare(
 
                 auto &row_i = roll_row.row[i];
                 row_i.J = {vector3_zero, axis, vector3_zero, -axis};
-                row_i.impulse = impulse[max_contacts + max_contacts * 2 + pt_idx * 2 + i];
+                row_i.impulse = cp.rolling_friction_impulse[i];
                 auto J_invM_JT = dot(bodyA.inv_I * row_i.J[1], row_i.J[1]) +
                                  dot(bodyB.inv_I * row_i.J[3], row_i.J[3]);
                 row_i.eff_mass = J_invM_JT > EDYN_EPSILON ? scalar(1) / J_invM_JT : 0;
@@ -166,6 +166,32 @@ void contact_constraint::solve_position(position_solver &solver, contact_manifol
         auto error = -cp.distance;
         solver.solve({normal, cross(rA, normal), -normal, -cross(rB, normal)}, error);
     }
+}
+
+void contact_constraint::store_applied_impulse(scalar impulse, unsigned row_index, contact_manifold &manifold) {
+    EDYN_ASSERT(row_index < manifold.num_points);
+    auto &cp = manifold.get_point(row_index);
+    cp.normal_impulse = impulse;
+}
+
+void contact_constraint::store_friction_impulse(scalar impulse0, scalar impulse1, unsigned row_index, contact_manifold &manifold) {
+    EDYN_ASSERT(row_index < manifold.num_points);
+    auto &cp = manifold.get_point(row_index);
+    cp.friction_impulse[0] = impulse0;
+    cp.friction_impulse[1] = impulse1;
+}
+
+void contact_constraint::store_rolling_impulse(scalar impulse0, scalar impulse1, unsigned row_index, contact_manifold &manifold) {
+    EDYN_ASSERT(row_index < manifold.num_points);
+    auto &cp = manifold.get_point(row_index);
+    cp.rolling_friction_impulse[0] = impulse0;
+    cp.rolling_friction_impulse[1] = impulse1;
+}
+
+void contact_constraint::store_spinning_impulse(scalar impulse, unsigned row_index, contact_manifold &manifold) {
+    EDYN_ASSERT(row_index < manifold.num_points);
+    auto &cp = manifold.get_point(row_index);
+    cp.spin_friction_impulse = impulse;
 }
 
 }

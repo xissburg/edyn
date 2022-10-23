@@ -18,18 +18,20 @@ struct constraint_row_prep_cache;
  * @brief Applies gravitational attraction forces between two entities.
  */
 struct gravity_constraint : public constraint_base {
-    scalar impulse {scalar(0)};
+    scalar applied_impulse {scalar(0)};
 
     void prepare(
         const entt::registry &, entt::entity,
         constraint_row_prep_cache &cache, scalar dt,
         const constraint_body &bodyA, const constraint_body &bodyB);
+
+    void store_applied_impulses(const std::vector<scalar> &impulses);
 };
 
 template<typename Archive>
 void serialize(Archive &archive, gravity_constraint &con) {
     archive(con.body);
-    archive(con.impulse);
+    archive(con.applied_impulse);
 }
 
 

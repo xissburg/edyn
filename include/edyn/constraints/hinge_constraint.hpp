@@ -7,7 +7,6 @@
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/constraints/constraint_base.hpp"
 #include "edyn/constraints/constraint_body.hpp"
-#include "edyn/util/array_util.hpp"
 
 namespace edyn {
 
@@ -59,16 +58,14 @@ struct hinge_constraint : public constraint_base {
     // Do not modify.
     scalar angle{};
 
-    // Applied impulses.
-    // 0 - 2: linear point-to-point impulses.
-    // 3: First hinge impulse.
-    // 4: Second hinge impulse.
-    // 5: Limit impulse.
-    // 6: Bump stop impulse.
-    // 7: Spring impulse.
-    // 8: Friction and damping.
-    static constexpr auto num_rows = 9;
-    std::array<scalar, num_rows> impulse {make_array<num_rows>(scalar{})};
+    struct {
+        std::array<scalar, 3> linear {};
+        std::array<scalar, 2> hinge {};
+        scalar limit {};
+        scalar bump_stop {};
+        scalar spring {};
+        scalar friction_damping {};
+    } applied_impulse {};
 
     /**
      * @brief Set hinge axes.
@@ -91,6 +88,8 @@ struct hinge_constraint : public constraint_base {
         const constraint_body &bodyA, const constraint_body &bodyB);
 
     void solve_position(position_solver &solver);
+
+    void store_applied_impulses(const std::vector<scalar> &impulses);
 };
 
 template<typename Archive>
@@ -103,7 +102,12 @@ void serialize(Archive &archive, hinge_constraint &c) {
     archive(c.friction_torque);
     archive(c.rest_angle, c.stiffness, c.damping);
     archive(c.angle);
-    archive(c.impulse);
+    archive(c.applied_impulse.linear);
+    archive(c.applied_impulse.hinge);
+    archive(c.applied_impulse.limit);
+    archive(c.applied_impulse.bump_stop);
+    archive(c.applied_impulse.spring);
+    archive(c.applied_impulse.friction_damping);
 }
 
 }

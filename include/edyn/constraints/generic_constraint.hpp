@@ -7,7 +7,6 @@
 #include "edyn/math/vector3.hpp"
 #include "edyn/constraints/constraint_base.hpp"
 #include "edyn/constraints/constraint_body.hpp"
-#include "edyn/util/array_util.hpp"
 
 namespace edyn {
 
@@ -26,6 +25,13 @@ struct generic_constraint : public constraint_base {
         scalar rest_offset{};
         scalar spring_stiffness{};
         scalar damping{};
+
+        struct {
+            scalar limit;
+            scalar bump_stop;
+            scalar spring;
+            scalar friction_damping;
+        } applied_impulse;
     };
 
     struct angular_dof {
@@ -40,6 +46,13 @@ struct generic_constraint : public constraint_base {
         scalar spring_stiffness{};
         scalar damping{};
         scalar current_angle{};
+
+        struct {
+            scalar limit;
+            scalar bump_stop;
+            scalar spring;
+            scalar friction_damping;
+        } applied_impulse;
     };
 
     std::array<vector3, 2> pivot;
@@ -47,15 +60,14 @@ struct generic_constraint : public constraint_base {
     std::array<linear_dof, 3> linear_dofs;
     std::array<angular_dof, 3> angular_dofs;
 
-    static constexpr auto num_rows = 24;
-    std::array<scalar, num_rows> impulse {make_array<num_rows, scalar>(0)};
-
     void prepare(
         const entt::registry &, entt::entity,
         constraint_row_prep_cache &cache, scalar dt,
         const constraint_body &bodyA, const constraint_body &bodyB);
 
     void solve_position(position_solver &solver);
+
+    void store_applied_impulses(const std::vector<scalar> &impulses);
 };
 
 template<typename Archive>
@@ -88,7 +100,6 @@ void serialize(Archive &archive, generic_constraint &c) {
     archive(c.frame);
     archive(c.linear_dofs);
     archive(c.angular_dofs);
-    archive(c.impulse);
 }
 
 }

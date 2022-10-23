@@ -33,7 +33,6 @@ void generic_constraint::prepare(
     auto rB = pivotB - bodyB.pos;
 
     auto pivot_offset = pivotB - pivotA;
-    auto row_idx = size_t{};
 
     // Linear.
     for (int i = 0; i < 3; ++i) {
@@ -50,7 +49,7 @@ void generic_constraint::prepare(
 
             auto &row = cache.add_row();
             row.J = J;
-            row.impulse = impulse[row_idx++];
+            row.impulse = dof.applied_impulse.limit;
             auto &options = cache.get_options();
 
             if (non_zero_limit) {
@@ -95,7 +94,7 @@ void generic_constraint::prepare(
 
             auto &row = cache.add_row();
             row.J = J;
-            row.impulse = impulse[row_idx++];
+            row.impulse = dof.applied_impulse.bump_stop;
 
             auto spring_force = dof.bump_stop_stiffness * bump_stop_deflection;
             auto spring_impulse = spring_force * dt;
@@ -110,7 +109,7 @@ void generic_constraint::prepare(
         if (dof.spring_stiffness > 0) {
             auto &row = cache.add_row();
             row.J = J;
-            row.impulse = impulse[row_idx++];
+            row.impulse = dof.applied_impulse.spring;
 
             auto spring_deflection = offset_proj - dof.rest_offset;
             auto spring_force = dof.spring_stiffness * spring_deflection;
@@ -126,7 +125,7 @@ void generic_constraint::prepare(
         if (dof.friction_force > 0 || dof.damping > 0) {
             auto &row = cache.add_row();
             row.J = J;
-            row.impulse = impulse[row_idx++];
+            row.impulse = dof.applied_impulse.friction_damping;
 
             auto friction_impulse = dof.friction_force * dt;
 
@@ -181,7 +180,7 @@ void generic_constraint::prepare(
 
             auto &row = cache.add_row();
             row.J = J;
-            row.impulse = impulse[row_idx++];
+            row.impulse = dof.applied_impulse.limit;
             auto &options = cache.get_options();
 
             if (non_zero_limit) {
@@ -221,7 +220,7 @@ void generic_constraint::prepare(
 
             auto &row = cache.add_row();
             row.J = J;
-            row.impulse = impulse[row_idx++];
+            row.impulse = dof.applied_impulse.bump_stop;
 
             auto spring_force = dof.bump_stop_stiffness * bump_stop_deflection;
             auto spring_impulse = spring_force * dt;
@@ -236,7 +235,7 @@ void generic_constraint::prepare(
         if (dof.spring_stiffness > 0) {
             auto &row = cache.add_row();
             row.J = J;
-            row.impulse = impulse[row_idx++];
+            row.impulse = dof.applied_impulse.spring;
 
             auto deflection = dof.current_angle - dof.rest_angle;
             auto spring_torque = dof.spring_stiffness * deflection;
@@ -251,7 +250,7 @@ void generic_constraint::prepare(
         if (dof.friction_torque > 0 || dof.damping > 0) {
             auto &row = cache.add_row();
             row.J = J;
-            row.impulse = impulse[row_idx++];
+            row.impulse = dof.applied_impulse.friction_damping;
 
             auto friction_impulse = dof.friction_torque * dt;
 
@@ -295,6 +294,52 @@ void generic_constraint::solve_position(position_solver &solver) {
         }
 
         solver.solve({axisA, cross(rA, axisA), -axisA, -cross(rB, axisA)}, error);
+    }
+}
+
+void generic_constraint::store_applied_impulses(const std::vector<scalar> &impulses) {
+    unsigned row_idx = 0;
+
+    for (int i = 0; i < 3; ++i) {
+        auto &dof = linear_dofs[i];
+        auto non_zero_limit = dof.offset_min < dof.offset_max;
+
+        if (dof.limit_enabled) {
+            dof.applied_impulse.limit = impulses[row_idx++];
+        }
+
+        if (dof.limit_enabled && non_zero_limit && dof.bump_stop_stiffness > 0 && dof.bump_stop_length > 0) {
+            dof.applied_impulse.bump_stop = impulses[row_idx++];
+        }
+
+        if (dof.spring_stiffness > 0) {
+            dof.applied_impulse.spring = impulses[row_idx++];
+        }
+
+        if (dof.friction_force > 0 || dof.damping > 0) {
+            dof.applied_impulse.friction_damping = impulses[row_idx++];
+        }
+    }
+
+    for (int i = 0; i < 3; ++i) {
+        auto &dof = angular_dofs[i];
+        auto non_zero_limit = dof.angle_min < dof.angle_max;
+
+        if (dof.limit_enabled) {
+            dof.applied_impulse.limit = impulses[row_idx++];
+        }
+
+        if (dof.limit_enabled && non_zero_limit && dof.bump_stop_stiffness > 0 && dof.bump_stop_angle > 0) {
+            dof.applied_impulse.bump_stop = impulses[row_idx++];
+        }
+
+        if (dof.spring_stiffness > 0) {
+            dof.applied_impulse.spring = impulses[row_idx++];
+        }
+
+        if (dof.friction_torque > 0 || dof.damping > 0) {
+            dof.applied_impulse.friction_damping = impulses[row_idx++];
+        }
     }
 }
 

@@ -36,7 +36,6 @@ void hinge_constraint::prepare(
     const auto rA_skew = skew_matrix(rA);
     const auto rB_skew = skew_matrix(rB);
     constexpr auto I = matrix3x3_identity;
-    auto row_idx = size_t{};
 
     // Make the position of pivot points match, akin to a `point_constraint`.
     for (int i = 0; i < 3; ++i) {
@@ -45,7 +44,7 @@ void hinge_constraint::prepare(
                 -I.row[i],  rB_skew.row[i]};
         row.lower_limit = -EDYN_SCALAR_MAX;
         row.upper_limit = EDYN_SCALAR_MAX;
-        row.impulse = impulse[row_idx++];
+        row.impulse = applied_impulse.linear[i];
     }
 
     // Make relative angular velocity go to zero along directions orthogonal
@@ -58,7 +57,7 @@ void hinge_constraint::prepare(
         row.J = {vector3_zero, p, vector3_zero, -p};
         row.lower_limit = -EDYN_SCALAR_MAX;
         row.upper_limit = EDYN_SCALAR_MAX;
-        row.impulse = impulse[row_idx++];
+        row.impulse = applied_impulse.hinge[0];
     }
 
     {
@@ -66,7 +65,7 @@ void hinge_constraint::prepare(
         row.J = {vector3_zero, q, vector3_zero, -q};
         row.lower_limit = -EDYN_SCALAR_MAX;
         row.upper_limit = EDYN_SCALAR_MAX;
-        row.impulse = impulse[row_idx++];
+        row.impulse = applied_impulse.hinge[1];
     }
 
     // Handle angular limits and friction.
@@ -94,7 +93,7 @@ void hinge_constraint::prepare(
         /* One row for angular limits. */ {
             auto &row = cache.add_row();
             row.J = {vector3_zero, hinge_axis, vector3_zero, -hinge_axis};
-            row.impulse = impulse[row_idx++];
+            row.impulse = applied_impulse.limit;
 
             auto limit_error = scalar{0};
             auto halfway_limit = (angle_min + angle_max) / scalar(2);
@@ -130,8 +129,7 @@ void hinge_constraint::prepare(
             if (bump_stop_deflection != 0) {
                 auto &row = cache.add_row();
                 row.J = {vector3_zero, hinge_axis, vector3_zero, -hinge_axis};
-                row.impulse = impulse[row_idx++];
-
+                row.impulse = applied_impulse.bump_stop;
                 auto spring_force = bump_stop_stiffness * bump_stop_deflection;
                 auto spring_impulse = spring_force * dt;
                 row.lower_limit = std::min(spring_impulse, scalar(0));
@@ -146,7 +144,7 @@ void hinge_constraint::prepare(
     if (has_spring) {
         auto &row = cache.add_row();
         row.J = {vector3_zero, hinge_axis, vector3_zero, -hinge_axis};
-        row.impulse = impulse[row_idx++];
+        row.impulse = applied_impulse.spring;
 
         auto deflection = angle - rest_angle;
         auto spring_force = stiffness * deflection;
@@ -163,7 +161,7 @@ void hinge_constraint::prepare(
         // is employed for both damping and constant friction.
         auto &row = cache.add_row();
         row.J = {vector3_zero, hinge_axis, vector3_zero, -hinge_axis};
-        row.impulse = impulse[row_idx++];
+        row.impulse = applied_impulse.friction_damping;
 
         auto friction_impulse = friction_torque * dt;
 
@@ -209,6 +207,50 @@ void hinge_constraint::solve_position(position_solver &solver) {
         auto rA = pivotA - posA;
         auto rB = pivotB - posB;
         solver.solve({dir, cross(rA, dir), -dir, -cross(rB, dir)}, -error);
+    }
+}
+
+void hinge_constraint::store_applied_impulses(const std::vector<scalar> &impulses) {
+    unsigned row_idx = 0;
+
+    for (int i = 0; i < 3; ++i) {
+        applied_impulse.linear[i] = impulses[row_idx++];
+    }
+
+    for (int i = 0; i < 2; ++i) {
+        applied_impulse.hinge[i] = impulses[row_idx++];
+    }
+
+    auto has_limit = angle_min < angle_max;
+    auto has_spring = stiffness > 0;
+    auto has_friction = friction_torque > 0 || damping > 0;
+
+    if (has_limit) {
+        applied_impulse.limit = impulses[row_idx++];
+
+        if (bump_stop_stiffness > 0 && bump_stop_angle > 0) {
+            auto bump_stop_deflection = scalar{0};
+            auto bump_stop_min = angle_min + bump_stop_angle;
+            auto bump_stop_max = angle_max - bump_stop_angle;
+
+            if (angle < bump_stop_min) {
+                bump_stop_deflection = angle - bump_stop_min;
+            } else if (angle > bump_stop_max) {
+                bump_stop_deflection = angle - bump_stop_max;
+            }
+
+            if (bump_stop_deflection != 0) {
+                applied_impulse.bump_stop = impulses[row_idx++];
+            }
+        }
+    }
+
+    if (has_spring) {
+        applied_impulse.spring = impulses[row_idx++];
+    }
+
+    if (has_friction) {
+        applied_impulse.friction_damping = impulses[row_idx++];
     }
 }
 

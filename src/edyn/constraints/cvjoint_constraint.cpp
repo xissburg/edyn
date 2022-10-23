@@ -56,7 +56,6 @@ void cvjoint_constraint::prepare(
     const auto rA_skew = skew_matrix(rA);
     const auto rB_skew = skew_matrix(rB);
     constexpr auto I = matrix3x3_identity;
-    auto row_idx = size_t{};
 
     // Make the position of pivot points match, akin to a `point_constraint`.
     for (int i = 0; i < 3; ++i) {
@@ -65,7 +64,7 @@ void cvjoint_constraint::prepare(
                 -I.row[i],  rB_skew.row[i]};
         row.lower_limit = -large_scalar;
         row.upper_limit = large_scalar;
-        row.impulse = impulse[row_idx++];
+        row.impulse = applied_impulse.linear[i];
     }
 
     auto twist_axisA = rotate(bodyA.orn, frame[0].column(0));
@@ -77,7 +76,7 @@ void cvjoint_constraint::prepare(
     {
         auto &row = cache.add_row();
         row.J = {vector3_zero, twist_axisA, vector3_zero, -twist_axisB};
-        row.impulse = impulse[row_idx++];
+        row.impulse = applied_impulse.twist_limit;
 
         auto angle = relative_angle(bodyA.orn, bodyB.orn, twist_axisA, twist_axisB);
         auto &options = cache.get_options();
@@ -127,7 +126,7 @@ void cvjoint_constraint::prepare(
 
         auto &row = cache.add_row();
         row.J = {vector3_zero, twist_axisA, vector3_zero, -twist_axisB};
-        row.impulse = impulse[row_idx++];
+        row.impulse = applied_impulse.twist_bump_stop;
 
         auto spring_force = twist_bump_stop_stiffness * bump_stop_deflection;
         auto spring_impulse = spring_force * dt;
@@ -142,7 +141,7 @@ void cvjoint_constraint::prepare(
     if (has_limit && twist_stiffness > 0) {
         auto &row = cache.add_row();
         row.J = {vector3_zero, twist_axisA, vector3_zero, -twist_axisB};
-        row.impulse = impulse[row_idx++];
+        row.impulse = applied_impulse.twist_spring;
 
         auto deflection = twist_angle - twist_rest_angle;
         auto spring_force = twist_stiffness * deflection;
@@ -160,7 +159,7 @@ void cvjoint_constraint::prepare(
         // is employed for both damping and constant friction.
         auto &row = cache.add_row();
         row.J = {vector3_zero, twist_axisA, vector3_zero, -twist_axisB};
-        row.impulse = impulse[row_idx++];
+        row.impulse = applied_impulse.twist_friction_damping;
 
         auto friction_impulse = twist_friction_torque * dt;
 
@@ -192,7 +191,7 @@ void cvjoint_constraint::prepare(
 
         auto &row = cache.add_row();
         row.J = {vector3_zero, angvel_axis, vector3_zero, -angvel_axis};
-        row.impulse = impulse[row_idx++];
+        row.impulse = applied_impulse.bend_friction_damping;
 
         auto friction_impulse = bend_friction_torque * dt;
 
@@ -218,7 +217,7 @@ void cvjoint_constraint::prepare(
 
         auto &row = cache.add_row();
         row.J = {vector3_zero, bend_axis, vector3_zero, -bend_axis};
-        row.impulse = impulse[row_idx++];
+        row.impulse = applied_impulse.bend_spring;
 
         auto spring_force = bend_stiffness * angle;
         auto spring_impulse = spring_force * dt;
@@ -267,6 +266,38 @@ void cvjoint_constraint::solve_position(position_solver &solver) {
         auto rA = pivotA - posA;
         auto rB = pivotB - posB;
         solver.solve({dir, cross(rA, dir), -dir, -cross(rB, dir)}, -error);
+    }
+}
+
+void cvjoint_constraint::store_applied_impulses(const std::vector<scalar> &impulses) {
+    unsigned row_idx = 0;
+
+    for (int i = 0; i < 3; ++i) {
+        applied_impulse.linear[i] = impulses[row_idx++];
+    }
+
+    applied_impulse.twist_limit = impulses[row_idx++];
+
+    auto has_limit = twist_min < twist_max;
+
+    if (has_limit && twist_bump_stop_stiffness > 0 && twist_bump_stop_angle > 0) {
+        applied_impulse.twist_bump_stop = impulses[row_idx++];
+    }
+
+    if (has_limit && twist_stiffness > 0) {
+        applied_impulse.twist_spring = impulses[row_idx++];
+    }
+
+    if (has_limit && (twist_friction_torque > 0 || twist_damping > 0)) {
+        applied_impulse.twist_friction_damping = impulses[row_idx++];
+    }
+
+    if (bend_friction_torque > 0 || bend_damping > 0) {
+        applied_impulse.bend_friction_damping = impulses[row_idx++];
+    }
+
+    if (bend_stiffness > 0) {
+        applied_impulse.bend_spring = impulses[row_idx++];
     }
 }
 
