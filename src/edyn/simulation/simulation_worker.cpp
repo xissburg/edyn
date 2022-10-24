@@ -293,7 +293,7 @@ void simulation_worker::update(double dt) {
     m_poly_initializer.init_new_shapes();
     bphase.init_new_aabb_entities();
 
-    for (int i = 0; i < num_steps; ++i) {
+    for (unsigned i = 0; i < num_steps; ++i) {
         auto step_time = m_last_time + fixed_dt * i;
 
         if (settings.pre_step_callback) {

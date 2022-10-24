@@ -525,7 +525,7 @@ void entity_graph::clear() {
     m_edge_count = 0;
 
     if (!m_nodes.empty()) {
-        for (auto i = 0; i < m_nodes.size(); ++i) {
+        for (size_t i = 0; i < m_nodes.size(); ++i) {
             auto &node = m_nodes[i];
             node.next = i + 1;
             node.adjacency_index = null_index;
@@ -537,7 +537,7 @@ void entity_graph::clear() {
     }
 
     if (!m_edges.empty()) {
-        for (auto i = 0; i < m_edges.size(); ++i) {
+        for (size_t i = 0; i < m_edges.size(); ++i) {
             auto &edge = m_edges[i];
             edge.next = i + 1;
             edge.node_index0 = null_index;
@@ -552,7 +552,7 @@ void entity_graph::clear() {
     }
 
     if (!m_adjacencies.empty()) {
-        for (auto i = 0; i < m_adjacencies.size(); ++i) {
+        for (size_t i = 0; i < m_adjacencies.size(); ++i) {
             m_adjacencies[i].next = i + 1;
             m_adjacencies[i].node_index = null_index;
             m_adjacencies[i].edge_index = null_index;

@@ -211,18 +211,18 @@ void update_impulse(entt::registry &registry, const std::vector<entt::entity> &e
     auto con_view = registry.view<C>();
     auto manifold_view = registry.view<contact_manifold>();
     std::vector<scalar> applied_impuses;
-    std::vector<std::array<scalar, 2>> applied_pair_impulses;
 
     for (auto entity : entities) {
         auto [con] = con_view.get(entity);
         auto num_rows = cache.con_num_rows[con_idx];
 
         if constexpr(std::is_same_v<C, contact_constraint>) {
-            for (size_t i = 0; i < num_rows; ++i) {
-                auto [manifold] = manifold_view.get(entity);
-                con.store_applied_impulse(cache.rows[row_idx + i].impulse, i, manifold);
+            auto [manifold] = manifold_view.get(entity);
 
-                auto flags = cache.flags[row_idx + i];
+            for (size_t i = 0; i < num_rows; ++i) {
+                auto flags = cache.flags[row_idx];
+
+                con.store_applied_impulse(cache.rows[row_idx++].impulse, i, manifold);
 
                 if (flags & constraint_row_flag_friction) {
                     auto &friction_row = cache.friction[friction_row_idx++];
@@ -243,16 +243,13 @@ void update_impulse(entt::registry &registry, const std::vector<entt::entity> &e
             applied_impuses.reserve(num_rows);
 
             for (size_t i = 0; i < num_rows; ++i) {
-                applied_impuses.push_back(cache.rows[row_idx + i].impulse);
+                applied_impuses.push_back(cache.rows[row_idx++].impulse);
             }
 
             con.store_applied_impulses(applied_impuses);
         }
 
         applied_impuses.clear();
-        applied_pair_impulses.clear();
-
-        row_idx += num_rows;
         ++con_idx;
     }
 }

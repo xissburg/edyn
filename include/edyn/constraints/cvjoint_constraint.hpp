@@ -2,6 +2,7 @@
 #define EDYN_CONSTRAINTS_CVJOINT_CONSTRAINT_HPP
 
 #include <array>
+#include <vector>
 #include <entt/entity/fwd.hpp>
 #include "edyn/math/vector3.hpp"
 #include "edyn/math/matrix3x3.hpp"

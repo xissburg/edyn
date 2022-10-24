@@ -2,6 +2,7 @@
 #define EDYN_CONSTRAINTS_POINT_CONSTRAINT_HPP
 
 #include <array>
+#include <vector>
 #include <entt/entity/fwd.hpp>
 #include "edyn/math/vector3.hpp"
 #include "edyn/constraints/constraint_base.hpp"
