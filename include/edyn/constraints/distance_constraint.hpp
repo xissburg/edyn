@@ -2,6 +2,7 @@
 #define EDYN_CONSTRAINTS_DISTANCE_CONSTRAINT
 
 #include <array>
+#include <vector>
 #include <entt/entity/fwd.hpp>
 #include <vector>
 #include "edyn/math/vector3.hpp"

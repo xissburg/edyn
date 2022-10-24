@@ -1,6 +1,7 @@
 #ifndef EDYN_CONSTRAINTS_CVJOINT_CONSTRAINT_HPP
 #define EDYN_CONSTRAINTS_CVJOINT_CONSTRAINT_HPP
 
+#include <array>
 #include <vector>
 #include <entt/entity/fwd.hpp>
 #include "edyn/math/vector3.hpp"
