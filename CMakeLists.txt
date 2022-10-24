@@ -6,6 +6,7 @@ if(DEFINED PROJECT_SOURCE_DIR)
 endif()
 
 project(Edyn VERSION 1.2.0 LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 17)
 
 include(CMakeDependentOption)
 
@@ -201,7 +202,7 @@ target_link_options(Edyn
 if(MSVC)
     target_compile_options(Edyn PRIVATE /W4 /bigobj)
 else()
-    target_compile_options(Edyn PRIVATE -Wall -Wno-reorder -Wno-long-long -Wimplicit-fallthrough -Wshadow)
+    target_compile_options(Edyn PRIVATE -Wall -Wno-reorder -Wno-long-long -Wimplicit-fallthrough)
 endif()
 
 if(EDYN_BUILD_EXAMPLES)
