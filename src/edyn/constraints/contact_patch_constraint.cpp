@@ -79,6 +79,7 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
                                        constraint_row_prep_cache &cache, scalar dt,
                                        const constraint_body &bodyA, const constraint_body &bodyB) {
     if (manifold.num_points == 0) {
+        num_patches = 0;
         return;
     }
 

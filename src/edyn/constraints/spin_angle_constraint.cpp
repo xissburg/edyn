@@ -74,6 +74,11 @@ scalar spin_angle_constraint::calculate_offset(const entt::registry &registry) c
 }
 
 void spin_angle_constraint::store_applied_impulses(const std::vector<scalar> &impulses) {
+    if (impulses.empty()) {
+        return;
+    }
+
+    EDYN_ASSERT(impulses.size() == 2);
     applied_impulse.spring = impulses[0];
     applied_impulse.damping = impulses[1];
 }
