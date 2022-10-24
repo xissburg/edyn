@@ -210,7 +210,7 @@ void update_impulse(entt::registry &registry, const std::vector<entt::entity> &e
                     size_t &rolling_row_idx, size_t &spinning_row_idx) {
     auto con_view = registry.view<C>();
     auto manifold_view = registry.view<contact_manifold>();
-    std::vector<scalar> applied_impuses;
+    std::vector<scalar> applied_impulses;
 
     for (auto entity : entities) {
         auto [con] = con_view.get(entity);
@@ -240,16 +240,16 @@ void update_impulse(entt::registry &registry, const std::vector<entt::entity> &e
                 }
             }
         } else {
-            applied_impuses.reserve(num_rows);
+            applied_impulses.reserve(num_rows);
 
             for (size_t i = 0; i < num_rows; ++i) {
-                applied_impuses.push_back(cache.rows[row_idx++].impulse);
+                applied_impulses.push_back(cache.rows[row_idx++].impulse);
             }
 
-            con.store_applied_impulses(applied_impuses);
+            con.store_applied_impulses(applied_impulses);
         }
 
-        applied_impuses.clear();
+        applied_impulses.clear();
         ++con_idx;
     }
 }
