@@ -201,6 +201,7 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
     }
 
     if (num_points == 0) {
+        num_patches = 0;
         return;
     }
 
@@ -320,7 +321,7 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
         init_patch_with_info(patch, info);
     }
 
-    EDYN_ASSERT(num_patches <= max_contacts);
+    EDYN_ASSERT(num_patches > 0 && num_patches <= max_contacts);
 
     // Create constraint rows for each contact patch.
     for (unsigned i = 0; i < num_patches; ++i) {
