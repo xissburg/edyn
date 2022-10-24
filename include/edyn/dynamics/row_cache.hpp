@@ -12,7 +12,6 @@
 #include "edyn/constraints/constraint_row_triple.hpp"
 #include "edyn/constraints/constraint_row_with_spin.hpp"
 #include "edyn/constraints/constraint_row_options.hpp"
-#include "edyn/constraints/doublewishbone_constraint.hpp"
 
 namespace edyn {
 
