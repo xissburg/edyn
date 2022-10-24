@@ -3,6 +3,7 @@
 
 #include <entt/entity/fwd.hpp>
 #include <entt/entity/entity.hpp>
+#include <edyn/serialization/entt_s11n.hpp>
 
 namespace edyn {
 
