@@ -1,6 +1,8 @@
 #ifndef EDYN_CONSTRAINTS_CONE_CONSTRAINT_HPP
 #define EDYN_CONSTRAINTS_CONE_CONSTRAINT_HPP
 
+#include <array>
+#include <vector>
 #include "edyn/constraints/constraint_base.hpp"
 #include "edyn/constraints/constraint_body.hpp"
 #include "edyn/math/matrix3x3.hpp"
