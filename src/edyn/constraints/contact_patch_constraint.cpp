@@ -623,7 +623,7 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
                 auto tread_length = (bristle_idx == 0 ? scalar(0.5) : scalar(1)) * bristle_length_delta;
                 auto tread_area = tread_width * tread_length;
 
-                // TODO: handle anysotropic stiffness.
+                // TODO: handle anisotropic stiffness.
                 // The force is calculated as an integral from the previous deflection until the
                 // current deflection along the row.
                 auto bristle_defl = bristle_tip - bristle_root;
