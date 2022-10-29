@@ -6,9 +6,6 @@
 
 namespace edyn {
 
-template<typename Archive, typename T>
-void serialize(Archive &, T &);
-
 template<typename Archive, typename Enum>
 void serialize_enum(Archive &archive, Enum &value) {
     using underlying_type = std::underlying_type_t<Enum>;

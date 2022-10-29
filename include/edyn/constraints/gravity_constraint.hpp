@@ -1,6 +1,7 @@
 #ifndef EDYN_CONSTRAINTS_GRAVITY_CONSTRAINT_HPP
 #define EDYN_CONSTRAINTS_GRAVITY_CONSTRAINT_HPP
 
+#include <vector>
 #include <entt/entity/fwd.hpp>
 #include "edyn/math/scalar.hpp"
 #include "edyn/constraints/constraint_base.hpp"

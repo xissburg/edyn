@@ -2,6 +2,7 @@
 #define EDYN_SHAPES_PLANE_SHAPE_HPP
 
 #include "edyn/math/vector3.hpp"
+#include "edyn/serialization/math_s11n.hpp"
 
 namespace edyn {
 

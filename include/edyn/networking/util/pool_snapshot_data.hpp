@@ -9,6 +9,7 @@
 #include "edyn/comp/merge_component.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/replication/map_child_entity.hpp"
+#include "edyn/serialization/std_s11n.hpp"
 #include "edyn/serialization/memory_archive.hpp"
 #include "edyn/replication/entity_map.hpp"
 #include "edyn/config/config.h"
