@@ -50,7 +50,6 @@ struct springdamper_constraint : public constraint_base {
 
     scalar m_damping_ratio;
     vector3 m_spring_damper_dir;
-    scalar m_inclination_factor;
 
     void set_constant_spring_stiffness();
     void set_constant_spring_stiffness(scalar stiffness, scalar max_defl);
@@ -110,7 +109,6 @@ void serialize(Archive &archive, springdamper_constraint &con) {
     archive(con.m_rebound_knee_speed);
     archive(con.m_damping_ratio);
     archive(con.m_spring_damper_dir);
-    archive(con.m_inclination_factor);
 }
 
 }
