@@ -47,22 +47,15 @@ void update_rotated_mesh(rotated_mesh &rotated, const convex_mesh &mesh,
 
 template<typename RotatedView, typename OrientationView>
 void update_rotated_mesh(entt::entity entity, RotatedView &rotated_view, OrientationView &orn_view) {
-    auto &orn = orn_view.template get<orientation>(entity);
-    auto &rotated_list = rotated_view.template get<rotated_mesh_list>(entity);
+    const auto &orn = orn_view.template get<orientation>(entity);
 
-    auto *rot_list_ptr = &rotated_list;
-
-    while (true) {
+    do {
+        auto &rotated = rotated_view.template get<rotated_mesh_list>(entity);
         // TODO: `rot_list_ptr->orientation` is often `quaternion_identity`.
         // What could be done to avoid this often unnecessary multiplication?
-        update_rotated_mesh(*rot_list_ptr->rotated, *rot_list_ptr->mesh, orn * rot_list_ptr->orientation);
-
-        if (rot_list_ptr->next == entt::null) {
-            break;
-        }
-
-        rot_list_ptr = &rotated_view.template get<rotated_mesh_list>(rot_list_ptr->next);
-    }
+        update_rotated_mesh(*rotated.rotated, *rotated.mesh, orn * rotated.orientation);
+        entity = rotated.next;
+    } while (entity != entt::null);
 }
 
 void update_rotated_mesh(entt::registry &registry, entt::entity entity) {
