@@ -122,7 +122,7 @@ struct convex_mesh {
 };
 
 /**
- * @brief Accompanying component for `convex_mesh`es containg their
+ * @brief Accompanying component for `convex_mesh`es containing their
  * rotated vertices, normals and edges to prevent repeated recalculation of
  * these values.
  */
