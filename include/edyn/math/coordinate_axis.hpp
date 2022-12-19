@@ -31,6 +31,7 @@ constexpr vector3 coordinate_axis_vector(coordinate_axis axis) {
         return vector3_z;
     }
     EDYN_ASSERT(false);
+    return vector3_zero;
 }
 
 /**

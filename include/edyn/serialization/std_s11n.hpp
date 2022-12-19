@@ -119,7 +119,7 @@ void serialize(Archive& archive, std::variant<Ts...>& var) {
     using id_type = uint8_t;
 
     if constexpr(Archive::is_input::value) {
-        id_type id;
+        id_type id {};
         archive(id);
         internal::read_variant(archive, id, var);
     } else {

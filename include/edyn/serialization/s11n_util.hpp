@@ -10,7 +10,7 @@ template<typename Archive, typename Enum>
 void serialize_enum(Archive &archive, Enum &value) {
     using underlying_type = std::underlying_type_t<Enum>;
     if constexpr(Archive::is_input::value) {
-        underlying_type i;
+        underlying_type i {};
         archive(i);
         value = Enum{i};
     } else {
@@ -22,7 +22,7 @@ void serialize_enum(Archive &archive, Enum &value) {
 template<typename Archive, typename T>
 void serialize_pointer(Archive &archive, T **ptr) {
     if constexpr(Archive::is_input::value) {
-        intptr_t ptr_int;
+        intptr_t ptr_int {};
         archive(ptr_int);
         *ptr = reinterpret_cast<T *>(ptr_int);
     } else {

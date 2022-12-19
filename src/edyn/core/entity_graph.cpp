@@ -133,7 +133,6 @@ void entity_graph::remove_edge(index_type edge_index) {
 
     auto &edge = m_edges[edge_index];
     auto &node0 = m_nodes[edge.node_index0];
-    auto &node1 = m_nodes[edge.node_index1];
 
     auto adj_index0 = node0.adjacency_index;
     while (m_adjacencies[adj_index0].node_index != edge.node_index1) {
@@ -141,17 +140,22 @@ void entity_graph::remove_edge(index_type edge_index) {
         adj_index0 = m_adjacencies[adj_index0].next;
     }
 
-    auto adj_index1 = node1.adjacency_index;
-    while (m_adjacencies[adj_index1].node_index != edge.node_index0) {
-        EDYN_ASSERT(adj_index1 != null_index);
-        adj_index1 = m_adjacencies[adj_index1].next;
-    }
-
-    EDYN_ASSERT(m_adjacencies[adj_index0].edge_index == m_adjacencies[adj_index1].edge_index);
     auto first_edge_index = m_adjacencies[adj_index0].edge_index;
 
+    if (edge.node_index1 != edge.node_index0) {
+        auto &node1 = m_nodes[edge.node_index1];
+
+        auto adj_index1 = node1.adjacency_index;
+        while (m_adjacencies[adj_index1].node_index != edge.node_index0) {
+            EDYN_ASSERT(adj_index1 != null_index);
+            adj_index1 = m_adjacencies[adj_index1].next;
+        }
+
+        EDYN_ASSERT(m_adjacencies[adj_index0].edge_index == m_adjacencies[adj_index1].edge_index);
+        remove_adjacency_edge(edge.node_index1, adj_index1, edge_index);
+    }
+
     remove_adjacency_edge(edge.node_index0, adj_index0, edge_index);
-    remove_adjacency_edge(edge.node_index1, adj_index1, edge_index);
 
     if (edge_index != first_edge_index) {
         // Find edge before the one being removed.

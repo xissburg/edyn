@@ -14,6 +14,7 @@ double get_simulation_timestamp(entt::registry &registry) {
         return stepper.get_timestamp();
     }
     EDYN_ASSERT(false);
+    return {};
 }
 
 }
