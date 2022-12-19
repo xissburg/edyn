@@ -60,7 +60,7 @@ struct tuple_type_index_of<IndexType, T, std::tuple<Ts...>> : index_of<IndexType
  * Find index of a type in a tuple.
  */
 template<typename IndexType, typename T, typename... Ts>
-constexpr IndexType tuple_index_of(std::tuple<Ts...>) {
+constexpr IndexType tuple_index_of(const std::tuple<Ts...> &) {
     return index_of_v<IndexType, T, Ts...>;
 }
 
