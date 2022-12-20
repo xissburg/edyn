@@ -1251,7 +1251,7 @@ intersect_ray_cylinder_result intersect_ray_cylinder(vector3 p0, vector3 p1,
     // the cylinder.
     // Detailed derivation: https://xissburg.github.io/2022-10-03-intersecting-line-against-cylinder
 
-    auto cyl_dir = quaternion_x(orn);
+    auto cyl_dir = coordinate_axis_vector(axis, orn);
     vector3 cyl_vertices[] = {
         pos + cyl_dir * half_length,
         pos - cyl_dir * half_length

@@ -245,13 +245,14 @@ inline quaternion to_quaternion(const matrix3x3 &m) noexcept {
     size_t k = (i + 2) % 3;
     auto s = std::sqrt(m[i][i] - m[j][j] - m[k][k] + scalar(1));
     auto t = scalar(0.5) / s;
-    scalar temp[4];
-    temp[i] = scalar(0.5) * s;
-    temp[j] = t * (m[j][i] - m[i][j]);
-    temp[k] = t * (m[k][i] - m[i][k]);
-    temp[3] = t * (m[k][j] - m[j][k]);
 
-    return {temp[0], temp[1], temp[2], temp[3]};
+    quaternion quat;
+    quat.w = t * (m[k][j] - m[j][k]);
+    quat[i] = scalar(0.5) * s;
+    quat[j] = t * (m[j][i] + m[i][j]);
+    quat[k] = t * (m[k][i] + m[i][k]);
+
+    return quat;
 }
 
 // Get XYZ Euler angles from a rotation matrix.
