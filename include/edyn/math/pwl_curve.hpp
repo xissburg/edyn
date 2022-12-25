@@ -20,6 +20,8 @@ public:
     void resize(size_t new_size) { points.resize(new_size); }
     std::pair<scalar, scalar>& operator[](size_t i) { return points[i]; }
     const std::pair<scalar, scalar>& operator[](size_t i) const { return points[i]; }
+    auto begin() const { return points.cbegin(); };
+    auto end() const { return points.cend(); };
 
     template<typename Archive>
     friend void serialize(Archive &, pwl_curve &);
