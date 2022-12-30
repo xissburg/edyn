@@ -4,6 +4,7 @@
 #include <entt/entity/fwd.hpp>
 #include <type_traits>
 #include "edyn/comp/action_list.hpp"
+#include "edyn/comp/child_list.hpp"
 #include "edyn/comp/graph_edge.hpp"
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/core/entity_graph.hpp"
@@ -137,6 +138,8 @@ public:
         auto &registry = *m_registry;
         auto modified_view = registry.view<modified_components>();
         auto sleeping_view = registry.view<sleeping_tag>();
+        auto parent_view = registry.view<parent_comp>();
+        auto child_view = registry.view<child_list>();
 
         if (allow_full_ownership) {
             // Include all networked entities in the islands that contain an entity
@@ -202,6 +205,25 @@ public:
                         internal::snapshot_insert_entity<orientation>(registry, entity, snap, index_of_v<unsigned, orientation, Components...>);
                         internal::snapshot_insert_entity<linvel     >(registry, entity, snap, index_of_v<unsigned, linvel,      Components...>);
                         internal::snapshot_insert_entity<angvel     >(registry, entity, snap, index_of_v<unsigned, angvel,      Components...>);
+                    }
+
+                    // Export child entities.
+                    if (parent_view.contains(entity)) {
+                        auto [parent] = parent_view.get(entity);
+                        auto child_entity = parent.child;
+
+                        while (child_entity != entt::null) {
+                            auto [child] = child_view.get(child_entity);
+
+                            if (modified_view.contains(child_entity)) {
+                                auto [modified] = modified_view.get(child_entity);
+                                unsigned i = 0;
+                                (((registry.all_of<Components>(child_entity) && modified.time_remaining[i] > 0 ?
+                                    internal::snapshot_insert_entity<Components>(registry, child_entity, snap, i) : void(0)), ++i), ...);
+                            }
+
+                            child_entity = child.next;
+                        }
                     }
                 }
             }

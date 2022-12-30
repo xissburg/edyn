@@ -10,6 +10,7 @@
 #include <vector>
 #include "edyn/comp/action_list.hpp"
 #include "edyn/comp/angvel.hpp"
+#include "edyn/comp/child_list.hpp"
 #include "edyn/comp/graph_edge.hpp"
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/comp/linvel.hpp"
@@ -105,6 +106,8 @@ public:
         auto modified_view = registry.view<modified_components>();
         auto sleeping_view = registry.view<sleeping_tag>();
         bool allow_ownership = registry.get<remote_client>(dest_client_entity).allow_full_ownership;
+        auto parent_view = registry.view<parent_comp>();
+        auto child_view = registry.view<child_list>();
 
         // Do not include input components of entities owned by destination
         // client as to not override client input on the client-side.
@@ -184,6 +187,26 @@ public:
                 internal::snapshot_insert_entity<orientation>(*m_registry, entity, snap, index_of_v<unsigned, orientation, Components...>);
                 internal::snapshot_insert_entity<linvel     >(*m_registry, entity, snap, index_of_v<unsigned, linvel,      Components...>);
                 internal::snapshot_insert_entity<angvel     >(*m_registry, entity, snap, index_of_v<unsigned, angvel,      Components...>);
+            }
+
+            // Include child entities
+            if (!temporary_ownership && parent_view.contains(entity)) {
+                auto [parent] = parent_view.get(entity);
+                auto child_entity = parent.child;
+
+                while (child_entity != entt::null) {
+                    auto [child] = child_view.get(child_entity);
+
+                    if (modified_view.contains(child_entity)) {
+                        auto [modified] = modified_view.get(child_entity);
+                        unsigned i = 0;
+                        (((modified.time_remaining[i] > 0 &&
+                           !(owned_by_destination_client && std::is_base_of_v<network_input, Components>) ?
+                            internal::get_pool<Components>(snap.pools, i)->insert_single(registry, child_entity, snap.entities) : void(0)), ++i), ...);
+                    }
+
+                    child_entity = child.next;
+                }
             }
         }
     }

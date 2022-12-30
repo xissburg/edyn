@@ -223,16 +223,18 @@ void entity_graph::visit_edges(index_type node_index, Func func) const {
 
     while (adj_index != null_index) {
         auto &adj = m_adjacencies[adj_index];
+        auto next_adj_index = adj.next;
         auto edge_index = adj.edge_index;
 
         while (edge_index != null_index) {
-            func(edge_index);
             auto &edge = m_edges[edge_index];
             EDYN_ASSERT(edge.next != edge_index);
-            edge_index = edge.next;
+            auto next_edge_index = edge.next;
+            func(edge_index);
+            edge_index = next_edge_index;
         }
 
-        adj_index = adj.next;
+        adj_index = next_adj_index;
     }
 }
 

@@ -1,6 +1,7 @@
 #ifndef EDYN_NETWORKING_NETWORKED_COMP_HPP
 #define EDYN_NETWORKING_NETWORKED_COMP_HPP
 
+#include "edyn/comp/child_list.hpp"
 #include "edyn/comp/gravity.hpp"
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/angvel.hpp"
@@ -87,7 +88,9 @@ static const auto networked_components = std::tuple_cat(std::tuple<
     plane_shape,
     shape_index,
     entity_owner,
-    action_history
+    action_history,
+    child_list,
+    parent_comp
 >{});
 
 using networked_components_t = std::decay_t<decltype(networked_components)>;

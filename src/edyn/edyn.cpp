@@ -4,6 +4,7 @@
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_manifold_map.hpp"
 #include "edyn/collision/narrowphase.hpp"
+#include "edyn/comp/child_list.hpp"
 #include "edyn/comp/collision_exclusion.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/config/execution_mode.hpp"
@@ -42,6 +43,10 @@ static void init_meta() {
 
     entt::meta<antiroll_constraint>().type()
         .data<&antiroll_constraint::m_third_entity, entt::as_ref_t>("m_third_entity"_hs);
+
+    entt::meta<child_list>().type()
+        .data<&child_list::parent, entt::as_ref_t>("parent"_hs)
+        .data<&child_list::next, entt::as_ref_t>("next"_hs);
 }
 
 void attach(entt::registry &registry, const init_config &config) {

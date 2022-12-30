@@ -42,8 +42,7 @@ public:
     stepper_async operator=(stepper_async const&) = delete;
     stepper_async(entt::registry &);
 
-    void on_construct_graph_node(entt::registry &, entt::entity);
-    void on_construct_graph_edge(entt::registry &, entt::entity);
+    void on_construct_shared(entt::registry &, entt::entity);
 
     void on_destroy_graph_node(entt::registry &, entt::entity);
     void on_destroy_graph_edge(entt::registry &, entt::entity);
