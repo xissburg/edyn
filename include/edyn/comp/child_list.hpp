@@ -16,9 +16,14 @@ struct child_list {
 };
 
 template<typename Archive>
-void serialize(Archive &archive, child_list &list) {
-    archive(list.parent);
-    archive(list.next);
+void serialize(Archive &archive, parent_comp &par) {
+    archive(par.child);
+}
+
+template<typename Archive>
+void serialize(Archive &archive, child_list &child) {
+    archive(child.parent);
+    archive(child.next);
 }
 
 }
