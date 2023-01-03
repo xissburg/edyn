@@ -10,8 +10,13 @@
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/constraints/null_constraint.hpp"
 #include "edyn/networking/comp/action_history.hpp"
+#include "edyn/networking/comp/asset_ref.hpp"
 #include "edyn/networking/packet/client_created.hpp"
 #include "edyn/networking/packet/edyn_packet.hpp"
+#include "edyn/networking/packet/entity_entered.hpp"
+#include "edyn/networking/packet/entity_exited.hpp"
+#include "edyn/networking/packet/entity_response.hpp"
+#include "edyn/networking/packet/query_entity.hpp"
 #include "edyn/networking/packet/registry_snapshot.hpp"
 #include "edyn/networking/packet/update_entity_map.hpp"
 #include "edyn/networking/comp/remote_client.hpp"
@@ -81,7 +86,6 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
 
     // Collect entity mappings for new entities to send back to client.
     auto emap_packet = packet::update_entity_map{};
-    emap_packet.timestamp = performance_time();
 
     // Create entities first, import pools later, since components might contain
     // entities which have to be mapped from remote to local.
@@ -99,6 +103,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     }
 
     if (!emap_packet.pairs.empty()) {
+        emap_packet.timestamp = performance_time();
         ctx.packet_signal.publish(client_entity, packet::edyn_packet{emap_packet});
     }
 
@@ -218,9 +223,31 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     aabboi.aabb.max = aabb.max;
 }
 
+static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::query_entity &query) {
+    auto &ctx = registry.ctx().at<server_network_context>();
+    auto res = packet::entity_response{};
+    res.id = query.id;
+
+    for (auto [entity, indices] : query.entities) {
+        if (!indices.empty() && registry.valid(entity)) {
+            ctx.snapshot_exporter->export_comp_index(res, entity, indices);
+        }
+    }
+
+    // Sort components to ensure order of construction on the other end.
+    std::sort(res.pools.begin(), res.pools.end(), [](auto &&lhs, auto &&rhs) {
+        return lhs.component_index < rhs.component_index;
+    });
+
+    ctx.packet_signal.publish(client_entity, packet::edyn_packet{res});
+}
+
+static void process_packet(entt::registry &, entt::entity, const packet::entity_response &) {}
 static void process_packet(entt::registry &, entt::entity, const packet::client_created &) {}
 static void process_packet(entt::registry &, entt::entity, const packet::set_playout_delay &) {}
 static void process_packet(entt::registry &, entt::entity, const packet::server_settings &) {}
+static void process_packet(entt::registry &, entt::entity, const packet::entity_entered &) {}
+static void process_packet(entt::registry &, entt::entity, const packet::entity_exited &) {}
 
 void init_network_server(entt::registry &registry) {
     registry.ctx().emplace<server_network_context>(registry);
@@ -275,20 +302,18 @@ static void publish_pending_created_clients(entt::registry &registry) {
     ctx.pending_created_clients.clear();
 }
 
-static void process_aabb_of_interest_destroyed_entities(entt::registry &registry,
-                                                        entt::entity client_entity,
-                                                        aabb_of_interest &aabboi,
-                                                        double time) {
-    if (aabboi.destroy_entities.empty()) {
+static void process_aabb_of_interest_entities_exited(entt::registry &registry,
+                                                     entt::entity client_entity,
+                                                     aabb_of_interest &aabboi) {
+    if (aabboi.entities_exited.empty()) {
         return;
     }
 
     // Notify client of entities that have been removed from its AABB-of-interest.
     auto owner_view = registry.view<entity_owner>();
-    auto packet = packet::destroy_entity{};
-    packet.timestamp = time;
+    auto packet = packet::entity_exited{};
 
-    for (auto entity : aabboi.destroy_entities) {
+    for (auto entity : aabboi.entities_exited) {
         // Ignore entities owned by client.
         if (!registry.valid(entity) ||
             !owner_view.contains(entity) ||
@@ -298,7 +323,7 @@ static void process_aabb_of_interest_destroyed_entities(entt::registry &registry
         }
     }
 
-    aabboi.destroy_entities.clear();
+    aabboi.entities_exited.clear();
 
     if (!packet.entities.empty()) {
         auto &ctx = registry.ctx().at<server_network_context>();
@@ -306,43 +331,38 @@ static void process_aabb_of_interest_destroyed_entities(entt::registry &registry
     }
 }
 
-static void process_aabb_of_interest_created_entities(entt::registry &registry,
+static void process_aabb_of_interest_entities_entered(entt::registry &registry,
                                                       entt::entity client_entity,
-                                                      aabb_of_interest &aabboi,
-                                                      double time) {
-    if (aabboi.create_entities.empty()) {
+                                                      aabb_of_interest &aabboi) {
+    if (aabboi.entities_entered.empty()) {
         return;
     }
 
     auto owner_view = registry.view<entity_owner>();
-    entt::sparse_set entities;
+    auto packet = packet::entity_entered{};
 
-    for (auto entity : aabboi.create_entities) {
+    for (auto entity : aabboi.entities_entered) {
         // Ignore entities owned by client, since these entities must be
         // persistent in the client-side.
         if (!owner_view.contains(entity) ||
             std::get<0>(owner_view.get(entity)).client_entity != client_entity)
         {
-            entities.emplace(entity);
+            packet.entities.push_back(entity);
         }
     }
 
-    if (!entities.empty()) {
-        auto packet = packet::create_entity{};
-        packet.timestamp = time;
+    if (!packet.entities.empty()) {
+        auto asset_view = registry.view<asset_ref>();
+
+        for (auto entity : packet.entities) {
+            packet.assets.push_back(std::get<0>(asset_view.get(entity)));
+        }
 
         auto &ctx = registry.ctx().at<server_network_context>();
-        ctx.snapshot_exporter->export_all(packet, entities);
-
-        // Sort components to ensure order of construction on the other end.
-        std::sort(packet.pools.begin(), packet.pools.end(), [](auto &&lhs, auto &&rhs) {
-            return lhs.component_index < rhs.component_index;
-        });
-
         ctx.packet_signal.publish(client_entity, packet::edyn_packet{packet});
     }
 
-    aabboi.create_entities.clear();
+    aabboi.entities_entered.clear();
 }
 
 static void maybe_publish_client_registry_snapshot(entt::registry &registry,
@@ -402,8 +422,8 @@ static void calculate_client_playout_delay(entt::registry &registry,
 
 static void process_aabbs_of_interest(entt::registry &registry, double time) {
     for (auto [client_entity, client, aabboi] : registry.view<remote_client, aabb_of_interest>().each()) {
-        process_aabb_of_interest_destroyed_entities(registry, client_entity, aabboi, time);
-        process_aabb_of_interest_created_entities(registry, client_entity, aabboi, time);
+        process_aabb_of_interest_entities_exited(registry, client_entity, aabboi);
+        process_aabb_of_interest_entities_entered(registry, client_entity, aabboi);
         maybe_publish_client_registry_snapshot(registry, client_entity, client, aabboi, time);
         calculate_client_playout_delay(registry, client_entity, client, aabboi);
     }

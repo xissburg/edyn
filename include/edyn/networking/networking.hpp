@@ -3,11 +3,6 @@
 
 #include "edyn/math/scalar.hpp"
 #include "edyn/networking/packet/edyn_packet.hpp"
-#include "edyn/networking/sys/client_side.hpp"
-#include "edyn/networking/sys/server_side.hpp"
-#include "edyn/networking/context/client_network_context.hpp"
-#include "edyn/networking/context/server_network_context.hpp"
-#include "edyn/networking/comp/remote_client.hpp"
 #include "edyn/networking/networking_external.hpp"
 #include <entt/entity/fwd.hpp>
 
@@ -161,6 +156,9 @@ network_client_extrapolation_timeout_sink(entt::registry &);
  */
 entt::sink<entt::sigh<void(entt::entity, const packet::edyn_packet &)>>
 network_server_packet_sink(entt::registry &);
+
+entt::sink<entt::sigh<void(const std::vector<entt::entity> &)>>
+network_client_entity_entered_sink(entt::registry &);
 
 }
 

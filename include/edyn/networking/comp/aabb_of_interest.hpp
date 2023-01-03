@@ -23,8 +23,8 @@ struct aabb_of_interest {
     // Entities that entered and exited the AABB in the last update. These
     // containers are for temporary data storage in the AABB of interest update
     // and so they get cleared up in every update and should not be modified.
-    std::vector<entt::entity> create_entities;
-    std::vector<entt::entity> destroy_entities;
+    std::vector<entt::entity> entities_entered;
+    std::vector<entt::entity> entities_exited;
 };
 
 }

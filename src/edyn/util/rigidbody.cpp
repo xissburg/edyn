@@ -144,8 +144,9 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         registry.emplace<sleeping_disabled_tag>(entity);
     }
 
-    if (def.networked) {
+    if (def.network_info) {
         registry.emplace<networked_tag>(entity);
+        registry.emplace<asset_ref>(entity, *def.network_info);
     }
 
     // Insert rigid body as a node in the entity graph.

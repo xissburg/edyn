@@ -19,10 +19,12 @@
 #include "edyn/config/config.h"
 #include "edyn/core/entity_graph.hpp"
 #include "edyn/networking/comp/action_history.hpp"
+#include "edyn/networking/comp/asset_ref.hpp"
 #include "edyn/networking/comp/entity_owner.hpp"
 #include "edyn/networking/comp/network_input.hpp"
 #include "edyn/networking/comp/remote_client.hpp"
 #include "edyn/networking/packet/registry_snapshot.hpp"
+#include "edyn/networking/util/component_index_type.hpp"
 #include "edyn/util/island_util.hpp"
 #include "edyn/util/tuple_util.hpp"
 
@@ -40,6 +42,12 @@ public:
     virtual void export_modified(packet::registry_snapshot &snap,
                                  const entt::sparse_set &entities_of_interest,
                                  entt::entity dest_client_entity) const = 0;
+
+    virtual void export_comp_index(packet::registry_snapshot &snap, entt::entity entity,
+                                   const std::vector<component_index_type> &indices) const = 0;
+
+    virtual void export_asset_refs(packet::registry_snapshot &snap, const entt::sparse_set &entities) const = 0;
+    virtual void export_asset_refs(packet::registry_snapshot &snap, const std::vector<entt::entity> &entities) const = 0;
 
     // Decays the time remaining in each of the recently modified components.
     // They stop being included in the snapshot once the timer reaches zero.
@@ -186,6 +194,36 @@ public:
                 internal::snapshot_insert_entity<angvel     >(*m_registry, entity, snap, index_of_v<unsigned, angvel,      Components...>);
             }
         }
+    }
+
+    void export_comp_index(packet::registry_snapshot &snap, entt::entity entity,
+                           const std::vector<component_index_type> &indices) const override {
+        static const auto tuple = std::tuple<Components...>{};
+
+        for (auto index : indices) {
+            if (index < sizeof...(Components)) {
+                visit_tuple(tuple, index, [&](auto &&c) {
+                    using CompType = std::decay_t<decltype(c)>;
+                    if (m_registry->all_of<CompType>(entity)) {
+                        internal::snapshot_insert_entity<CompType>(*m_registry, entity, snap, index);
+                    }
+                });
+            }
+        }
+    }
+
+    template<typename It>
+    void export_asset_refs(packet::registry_snapshot &snap, It first, It last) const {
+        static constexpr auto index = index_of_v<component_index_type, asset_ref, Components...>;
+        internal::snapshot_insert_entities<asset_ref>(*m_registry, first, last, snap, index);
+    }
+
+    void export_asset_refs(packet::registry_snapshot &snap, const entt::sparse_set &entities) const override {
+        export_asset_refs(snap, entities.begin(), entities.end());
+    }
+
+    void export_asset_refs(packet::registry_snapshot &snap, const std::vector<entt::entity> &entities) const override {
+        export_asset_refs(snap, entities.begin(), entities.end());
     }
 
     void update(double time) override {

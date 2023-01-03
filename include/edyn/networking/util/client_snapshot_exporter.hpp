@@ -11,6 +11,7 @@
 #include "edyn/networking/comp/network_input.hpp"
 #include "edyn/networking/comp/networked_comp.hpp"
 #include "edyn/networking/packet/registry_snapshot.hpp"
+#include "edyn/networking/util/component_index_type.hpp"
 #include "edyn/serialization/memory_archive.hpp"
 #include "edyn/util/island_util.hpp"
 #include "edyn/util/tuple_util.hpp"
@@ -45,12 +46,20 @@ public:
         m_observer_enabled = enabled;
     }
 
+    template<typename Component>
+    component_index_type get_component_index() const {
+        auto id = entt::type_index<Component>();
+        return m_component_indices.at(id);
+    }
+
 protected:
     entt::registry *m_registry;
     bool m_observer_enabled {true};
 
     using append_current_actions_func_t = void(entt::registry &registry, double time);
     append_current_actions_func_t *m_append_current_actions_func {nullptr};
+
+    std::map<entt::id_type, component_index_type> m_component_indices;
 };
 
 template<typename... Components>
@@ -112,6 +121,9 @@ public:
         if constexpr(sizeof...(Actions) > 0) {
             m_append_current_actions_func = &append_current_actions<Actions...>;
         }
+
+        auto i = component_index_type{};
+        (m_component_indices.emplace(entt::type_index<Components>(), i++), ...);
     }
 
     template<typename It>

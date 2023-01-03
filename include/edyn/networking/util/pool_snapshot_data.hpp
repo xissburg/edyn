@@ -17,6 +17,7 @@
 namespace edyn {
 
 struct pool_snapshot_data {
+    // Snapshot is not expected to have more than 256 entities.
     using index_type = uint8_t;
     std::vector<index_type> entity_indices;
 

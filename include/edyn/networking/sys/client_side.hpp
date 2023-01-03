@@ -2,7 +2,9 @@
 #define EDYN_NETWORKING_CLIENT_SIDE_HPP
 
 #include <entt/entity/fwd.hpp>
+#include "edyn/networking/context/client_network_context.hpp"
 #include "edyn/networking/packet/edyn_packet.hpp"
+#include "edyn/networking/util/component_index_type.hpp"
 
 namespace edyn {
 
@@ -44,6 +46,19 @@ void client_receive_packet(entt::registry &, packet::edyn_packet &);
  * @return Whether the networked entity is owned by the current client.
  */
 bool client_owns_entity(const entt::registry &, entt::entity);
+
+void client_instantiate_entity_indices(entt::registry &registry, entt::entity entity,
+                                       std::vector<component_index_type> &sync_indices);
+
+template<typename... Component>
+void client_instantiate_entity(entt::registry &registry, entt::entity entity)
+{
+    auto &ctx = registry.ctx().at<client_network_context>();
+    auto indices = std::vector<component_index_type>{};
+    indices.reserve(sizeof...(Component));
+    (indices.push_back(ctx.snapshot_exporter->get_component_index<Component>()), ...);
+    client_instantiate_entity_indices(registry, entity, indices);
+}
 
 }
 
