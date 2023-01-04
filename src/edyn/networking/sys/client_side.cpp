@@ -753,16 +753,21 @@ void client_link_asset(entt::registry &registry, entt::entity entity,
 
     // Set as importing entities to avoid handling these as "created entities".
     ctx.importing_entities = true;
+    auto emap_packet = packet::update_entity_map{};
 
     for (auto [asset_id, remote_entity] : asset.entity_map) {
         auto local_entity = emap.at(asset_id);
         ctx.entity_map.insert(remote_entity, local_entity);
+        emap_packet.pairs.emplace_back(remote_entity, local_entity);
 
         // Must tag it as networked.
         registry.emplace<networked_tag>(local_entity);
     }
 
     ctx.importing_entities = false;
+
+    emap_packet.timestamp = performance_time();
+    ctx.packet_signal.publish(packet::edyn_packet{std::move(emap_packet)});
 }
 
 }

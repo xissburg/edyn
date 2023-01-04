@@ -1,8 +1,6 @@
 #ifndef EDYN_NETWORKING_UTIL_SERVER_SNAPSHOT_EXPORTER_HPP
 #define EDYN_NETWORKING_UTIL_SERVER_SNAPSHOT_EXPORTER_HPP
 
-#include <entt/core/type_info.hpp>
-#include <entt/entity/fwd.hpp>
 #include <entt/entity/registry.hpp>
 #include <entt/signal/sigh.hpp>
 #include <numeric>
