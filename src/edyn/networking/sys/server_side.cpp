@@ -11,6 +11,8 @@
 #include "edyn/constraints/null_constraint.hpp"
 #include "edyn/networking/comp/action_history.hpp"
 #include "edyn/networking/comp/asset_ref.hpp"
+#include "edyn/networking/comp/asset_entry.hpp"
+#include "edyn/networking/packet/asset_sync.hpp"
 #include "edyn/networking/packet/client_created.hpp"
 #include "edyn/networking/packet/edyn_packet.hpp"
 #include "edyn/networking/packet/entity_entered.hpp"
@@ -242,12 +244,41 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     ctx.packet_signal.publish(client_entity, packet::edyn_packet{res});
 }
 
+static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::asset_sync &query) {
+    if (!registry.valid(query.entity) || !registry.all_of<asset_ref>(query.entity)) {
+        return;
+    }
+
+    auto res = packet::asset_sync_response{};
+    res.id = query.id;
+    res.entity = query.entity;
+
+    auto &ctx = registry.ctx().at<server_network_context>();
+    auto entry_view = registry.view<asset_entry>();
+    auto &asset = registry.get<asset_ref>(query.entity);
+
+    for (auto [asset_id, entity] : asset.entity_map) {
+        auto [entry] = entry_view.get(entity);
+        if (!entry.sync_indices.empty()) {
+            ctx.snapshot_exporter->export_comp_index(res, entity, entry.sync_indices);
+        }
+    }
+
+    // Sort components to ensure order of construction on the other end.
+    std::sort(res.pools.begin(), res.pools.end(), [](auto &&lhs, auto &&rhs) {
+        return lhs.component_index < rhs.component_index;
+    });
+
+    ctx.packet_signal.publish(client_entity, packet::edyn_packet{res});
+}
+
 static void process_packet(entt::registry &, entt::entity, const packet::entity_response &) {}
 static void process_packet(entt::registry &, entt::entity, const packet::client_created &) {}
 static void process_packet(entt::registry &, entt::entity, const packet::set_playout_delay &) {}
 static void process_packet(entt::registry &, entt::entity, const packet::server_settings &) {}
 static void process_packet(entt::registry &, entt::entity, const packet::entity_entered &) {}
 static void process_packet(entt::registry &, entt::entity, const packet::entity_exited &) {}
+static void process_packet(entt::registry &, entt::entity, const packet::asset_sync_response &) {}
 
 void init_network_server(entt::registry &registry) {
     registry.ctx().emplace<server_network_context>(registry);
@@ -338,8 +369,9 @@ static void process_aabb_of_interest_entities_entered(entt::registry &registry,
         return;
     }
 
-    auto owner_view = registry.view<entity_owner>();
-    auto packet = packet::entity_entered{};
+    const auto owner_view = registry.view<entity_owner>();
+    const auto entry_view = registry.view<asset_entry>();
+    entt::sparse_set parents;
 
     for (auto entity : aabboi.entities_entered) {
         // Ignore entities owned by client, since these entities must be
@@ -347,13 +379,19 @@ static void process_aabb_of_interest_entities_entered(entt::registry &registry,
         if (!owner_view.contains(entity) ||
             std::get<0>(owner_view.get(entity)).client_entity != client_entity)
         {
-            packet.entities.push_back(entity);
+            auto [entry] = entry_view.get(entity);
+
+            if (!parents.contains(entry.asset_entity)) {
+                parents.emplace(entry.asset_entity);
+            }
         }
     }
 
-    if (!packet.entities.empty()) {
-        auto asset_view = registry.view<asset_ref>();
+    if (!parents.empty()) {
+        auto packet = packet::entity_entered{};
+        packet.entities.insert(packet.entities.end(), parents.begin(), parents.end());
 
+        auto asset_view = registry.view<asset_ref>();
         for (auto entity : packet.entities) {
             packet.assets.push_back(std::get<0>(asset_view.get(entity)));
         }

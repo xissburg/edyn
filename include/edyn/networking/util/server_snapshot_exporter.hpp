@@ -19,7 +19,6 @@
 #include "edyn/config/config.h"
 #include "edyn/core/entity_graph.hpp"
 #include "edyn/networking/comp/action_history.hpp"
-#include "edyn/networking/comp/asset_ref.hpp"
 #include "edyn/networking/comp/entity_owner.hpp"
 #include "edyn/networking/comp/network_input.hpp"
 #include "edyn/networking/comp/remote_client.hpp"
@@ -46,12 +45,18 @@ public:
     virtual void export_comp_index(packet::registry_snapshot &snap, entt::entity entity,
                                    const std::vector<component_index_type> &indices) const = 0;
 
-    virtual void export_asset_refs(packet::registry_snapshot &snap, const entt::sparse_set &entities) const = 0;
-    virtual void export_asset_refs(packet::registry_snapshot &snap, const std::vector<entt::entity> &entities) const = 0;
-
     // Decays the time remaining in each of the recently modified components.
     // They stop being included in the snapshot once the timer reaches zero.
     virtual void update(double time) = 0;
+
+    template<typename Component>
+    component_index_type get_component_index() const {
+        auto id = entt::type_index<Component>();
+        return m_component_indices.at(id);
+    }
+
+protected:
+    std::map<entt::id_type, component_index_type> m_component_indices;
 };
 
 template<typename... Components>
@@ -81,6 +86,9 @@ public:
     {
         m_connections.push_back(registry.on_construct<networked_tag>().connect<&entt::registry::emplace<modified_components>>());
         ((m_connections.push_back(registry.on_update<Components>().template connect<&server_snapshot_exporter_impl<Components...>::template on_update<Components>>(*this))), ...);
+
+        auto i = component_index_type{};
+        (m_component_indices.emplace(entt::type_index<Components>(), i++), ...);
     }
 
     template<typename It>
@@ -210,20 +218,6 @@ public:
                 });
             }
         }
-    }
-
-    template<typename It>
-    void export_asset_refs(packet::registry_snapshot &snap, It first, It last) const {
-        static constexpr auto index = index_of_v<component_index_type, asset_ref, Components...>;
-        internal::snapshot_insert_entities<asset_ref>(*m_registry, first, last, snap, index);
-    }
-
-    void export_asset_refs(packet::registry_snapshot &snap, const entt::sparse_set &entities) const override {
-        export_asset_refs(snap, entities.begin(), entities.end());
-    }
-
-    void export_asset_refs(packet::registry_snapshot &snap, const std::vector<entt::entity> &entities) const override {
-        export_asset_refs(snap, entities.begin(), entities.end());
     }
 
     void update(double time) override {

@@ -11,6 +11,7 @@
 #include "edyn/networking/comp/discontinuity.hpp"
 #include "edyn/networking/extrapolation/extrapolation_result.hpp"
 #include "edyn/networking/networking_external.hpp"
+#include "edyn/networking/packet/asset_sync.hpp"
 #include "edyn/networking/packet/edyn_packet.hpp"
 #include "edyn/networking/packet/entity_entered.hpp"
 #include "edyn/networking/packet/entity_exited.hpp"
@@ -38,6 +39,7 @@
 #include "edyn/util/vector_util.hpp"
 #include "edyn/util/aabb_util.hpp"
 #include "edyn/time/simulation_time.hpp"
+#include <entt/core/fwd.hpp>
 #include <entt/entity/registry.hpp>
 #include <set>
 
@@ -256,14 +258,6 @@ void update_client_snapshot_exporter(entt::registry &registry, double time) {
     ctx.snapshot_exporter->update(time);
 }
 
-void make_entity_query(entt::registry &registry) {
-    auto &ctx = registry.ctx().at<client_network_context>();
-
-    if (!ctx.current_query.entities.empty()) {
-        ctx.packet_signal.publish(packet::edyn_packet{std::move(ctx.current_query)});
-    }
-}
-
 void update_network_client(entt::registry &registry) {
     auto time = performance_time();
 
@@ -275,7 +269,6 @@ void update_network_client(entt::registry &registry) {
     registry.ctx().at<client_network_context>().message_queue.update();
     update_input_history(registry, time);
     trim_and_insert_actions(registry, time);
-    make_entity_query(registry);
 }
 
 static void process_packet(entt::registry &registry, const packet::client_created &packet) {
@@ -713,22 +706,27 @@ static void process_packet(entt::registry &registry, const packet::server_settin
 
 static void process_packet(entt::registry &registry, packet::entity_response &res) {
     auto &ctx = registry.ctx().at<client_network_context>();
-    auto factory_view = registry.view<asset_factory>();
-
-    // Instantiate entities first using their asset information.
-    for (auto remote_entity : res.entities) {
-        auto local_entity = ctx.entity_map.at(remote_entity);
-        auto [factory] = factory_view.get(local_entity);
-        (*factory.create)(registry, local_entity);
-    }
 
     // Override synchronized state.
     res.convert_remloc(registry, ctx.entity_map);
     snap_to_registry_snapshot(registry, res);
 }
 
+static void process_packet(entt::registry &registry, packet::asset_sync_response &res) {
+    auto &ctx = registry.ctx().at<client_network_context>();
+
+    // Instantiate entities in asset.
+    auto local_entity = ctx.entity_map.at(res.entity);
+    ctx.instantiate_asset_signal.publish(local_entity);
+
+    // Override with synchronized state.
+    res.convert_remloc(registry, ctx.entity_map);
+    snap_to_registry_snapshot(registry, res);
+}
+
 static void process_packet(entt::registry &, const packet::set_aabb_of_interest &) {}
 static void process_packet(entt::registry &, const packet::query_entity &) {}
+static void process_packet(entt::registry &, const packet::asset_sync &) {}
 
 void client_receive_packet(entt::registry &registry, packet::edyn_packet &packet) {
     std::visit([&](auto &&inner_packet) {
@@ -741,11 +739,30 @@ bool client_owns_entity(const entt::registry &registry, entt::entity entity) {
     return ctx.client_entity == registry.get<entity_owner>(entity).client_entity;
 }
 
-void client_instantiate_entity_indices(entt::registry &registry, entt::entity entity,
-                                       std::vector<component_index_type> &sync_indices) {
-    EDYN_ASSERT(registry.all_of<asset_factory>(entity));
+void client_instantiate_entity(entt::registry &registry, entt::entity entity) {
     auto &ctx = registry.ctx().at<client_network_context>();
-    ctx.current_query.entities.emplace_back(entity, std::move(sync_indices));
+    packet::asset_sync packet;
+    packet.entity = ctx.entity_map.at_local(entity);
+    ctx.packet_signal.publish(packet::edyn_packet{std::move(packet)});
+}
+
+void client_link_asset(entt::registry &registry, entt::entity entity,
+                       const std::map<entt::id_type, entt::entity> &emap) {
+    auto &ctx = registry.ctx().at<client_network_context>();
+    auto &asset = registry.get<asset_ref>(entity);
+
+    // Set as importing entities to avoid handling these as "created entities".
+    ctx.importing_entities = true;
+
+    for (auto [asset_id, remote_entity] : asset.entity_map) {
+        auto local_entity = emap.at(asset_id);
+        ctx.entity_map.insert(remote_entity, local_entity);
+
+        // Must tag it as networked.
+        registry.emplace<networked_tag>(local_entity);
+    }
+
+    ctx.importing_entities = false;
 }
 
 }

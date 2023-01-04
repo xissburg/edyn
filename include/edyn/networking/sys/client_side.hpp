@@ -47,18 +47,24 @@ void client_receive_packet(entt::registry &, packet::edyn_packet &);
  */
 bool client_owns_entity(const entt::registry &, entt::entity);
 
-void client_instantiate_entity_indices(entt::registry &registry, entt::entity entity,
-                                       std::vector<component_index_type> &sync_indices);
+/**
+ * @brief Notify Edyn that assets are ready to instantiate entities.
+ * @remark The server will be asked to send a snapshot containing relevant
+ * initial state to be applied immediately after local instantiation.
+ * @param registry Data source.
+ * @param entities Asset entities.
+ */
+void client_instantiate_entity(entt::registry &registry, entt::entity entity);
 
-template<typename... Component>
-void client_instantiate_entity(entt::registry &registry, entt::entity entity)
-{
-    auto &ctx = registry.ctx().at<client_network_context>();
-    auto indices = std::vector<component_index_type>{};
-    indices.reserve(sizeof...(Component));
-    (indices.push_back(ctx.snapshot_exporter->get_component_index<Component>()), ...);
-    client_instantiate_entity_indices(registry, entity, indices);
-}
+/**
+ * @brief Must be called after instantiating an entity from an asset to link
+ * local entities to remote entities via the common internal asset ids.
+ * @param registry Data source.
+ * @param entity Asset entity.
+ * @param emap Maps internal asset ids to local entities.
+ */
+void client_link_asset(entt::registry &registry, entt::entity entity,
+                       const std::map<entt::id_type, entt::entity> &emap);
 
 }
 

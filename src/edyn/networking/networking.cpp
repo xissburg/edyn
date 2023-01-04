@@ -123,6 +123,12 @@ network_client_entity_entered_sink(entt::registry &registry) {
     return ctx.entity_entered_sink();
 }
 
+entt::sink<entt::sigh<void(entt::entity)>>
+network_client_instantiate_asset_sink(entt::registry &registry) {
+    auto &ctx = registry.ctx().at<client_network_context>();
+    return ctx.instantiate_asset_sink();
+}
+
 entt::sink<entt::sigh<void(entt::entity, const packet::edyn_packet &)>>
 network_server_packet_sink(entt::registry &registry) {
     auto &ctx = registry.ctx().at<server_network_context>();

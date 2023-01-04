@@ -2,7 +2,6 @@
 #define EDYN_NETWORKING_CLIENT_NETWORKING_CONTEXT_HPP
 
 #include "edyn/networking/extrapolation/extrapolation_result.hpp"
-#include "edyn/networking/packet/query_entity.hpp"
 #include "edyn/parallel/message_dispatcher.hpp"
 #include "edyn/replication/entity_map.hpp"
 #include "edyn/networking/util/input_state_history.hpp"
@@ -74,14 +73,17 @@ struct client_network_context {
         return entt::sink{entity_entered_signal};
     }
 
+    entt::sigh<void(entt::entity)> instantiate_asset_signal;
+    auto instantiate_asset_sink() {
+        return entt::sink{instantiate_asset_signal};
+    }
+
     make_extrapolation_modified_comp_func_t *make_extrapolation_modified_comp;
 
     std::shared_ptr<client_snapshot_importer> snapshot_importer;
     std::shared_ptr<client_snapshot_exporter> snapshot_exporter;
 
     clock_sync_data clock_sync;
-
-    packet::query_entity current_query;
 };
 
 }

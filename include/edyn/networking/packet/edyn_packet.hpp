@@ -1,6 +1,7 @@
 #ifndef EDYN_NETWORKING_PACKET_EDYN_PACKET_HPP
 #define EDYN_NETWORKING_PACKET_EDYN_PACKET_HPP
 
+#include "edyn/networking/packet/asset_sync.hpp"
 #include "edyn/networking/packet/entity_entered.hpp"
 #include "edyn/networking/packet/entity_exited.hpp"
 #include "edyn/networking/packet/entity_response.hpp"
@@ -39,7 +40,9 @@ struct edyn_packet {
         query_entity,
         entity_response,
         entity_entered,
-        entity_exited
+        entity_exited,
+        asset_sync,
+        asset_sync_response
     > var;
 };
 

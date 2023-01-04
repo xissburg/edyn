@@ -6,7 +6,7 @@
 #include "edyn/math/vector3.hpp"
 #include "edyn/math/quaternion.hpp"
 #include "edyn/math/matrix3x3.hpp"
-#include "edyn/networking/comp/asset_ref.hpp"
+#include "edyn/networking/comp/asset_entry.hpp"
 #include "edyn/shapes/shapes.hpp"
 #include "edyn/comp/material.hpp"
 #include "edyn/comp/collision_filter.hpp"
@@ -70,7 +70,7 @@ struct rigidbody_def {
     bool sleeping_disabled {false};
 
     // Asset info to share this rigid body over the network.
-    std::optional<asset_ref> network_info;
+    std::optional<asset_entry> network_info;
 };
 
 /**

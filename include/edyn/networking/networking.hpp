@@ -157,8 +157,33 @@ network_client_extrapolation_timeout_sink(entt::registry &);
 entt::sink<entt::sigh<void(entt::entity, const packet::edyn_packet &)>>
 network_server_packet_sink(entt::registry &);
 
+/**
+ * @brief Notify client about entities which have entered its AABB of interest.
+ * These entities contain an `edyn::asset_ref` component which holds the id of
+ * the asset to be loaded.
+ * @remark Once the asset is ready, the entities must be instantiated from the
+ * asset though not before a snapshot containing relevant initial state is
+ * available. Thus, `edyn::client_instantiate_entity` must be called to
+ * request a snapshot and then the _instantiate asset_  signal will be triggered
+ * to perform the asset instantiation.
+ * @param registry Data source.
+ * @return Sink which is triggered when new entities enter the client's AABB of
+ * interest. The set of entities is given in the sole argument.
+ */
 entt::sink<entt::sigh<void(const std::vector<entt::entity> &)>>
 network_client_entity_entered_sink(entt::registry &);
+
+/**
+ * @brief Ask client to instantiate an entity from an asset. Invoked when
+ * a fresh snapshot is available to be loaded right after instantiation, thus
+ * placing the entities in a proper initial state and avoiding glitches.
+ * The snapshot is requested when `edyn::client_instantiate_entity` is called.
+ * @param registry Data source.
+ * @return Sink which is triggered when a new snapshot is available. A set of
+ * asset entities is given to be instantiated.
+ */
+entt::sink<entt::sigh<void(entt::entity)>>
+network_client_instantiate_asset_sink(entt::registry &);
 
 }
 
