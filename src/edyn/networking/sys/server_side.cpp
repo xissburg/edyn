@@ -341,25 +341,11 @@ static void process_aabb_of_interest_entities_exited(entt::registry &registry,
     }
 
     // Notify client of entities that have been removed from its AABB-of-interest.
-    auto owner_view = registry.view<entity_owner>();
     auto packet = packet::entity_exited{};
+    packet.entities = std::move(aabboi.entities_exited);
 
-    for (auto entity : aabboi.entities_exited) {
-        // Ignore entities owned by client.
-        if (!registry.valid(entity) ||
-            !owner_view.contains(entity) ||
-            std::get<0>(owner_view.get(entity)).client_entity != client_entity)
-        {
-            packet.entities.push_back(entity);
-        }
-    }
-
-    aabboi.entities_exited.clear();
-
-    if (!packet.entities.empty()) {
-        auto &ctx = registry.ctx().at<server_network_context>();
-        ctx.packet_signal.publish(client_entity, packet::edyn_packet{packet});
-    }
+    auto &ctx = registry.ctx().at<server_network_context>();
+    ctx.packet_signal.publish(client_entity, packet::edyn_packet{packet});
 }
 
 static void process_aabb_of_interest_entities_entered(entt::registry &registry,
@@ -369,26 +355,19 @@ static void process_aabb_of_interest_entities_entered(entt::registry &registry,
         return;
     }
 
-    const auto owner_view = registry.view<entity_owner>();
     const auto entry_view = registry.view<asset_entry>();
     entt::sparse_set parents;
     entt::sparse_set entities;
 
     for (auto entity : aabboi.entities_entered) {
-        // Ignore entities owned by client, since these entities must be
-        // persistent in the client-side.
-        if (!owner_view.contains(entity) ||
-            std::get<0>(owner_view.get(entity)).client_entity != client_entity)
-        {
-            if (entry_view.contains(entity)) {
-                auto [entry] = entry_view.get(entity);
+        if (entry_view.contains(entity)) {
+            auto [entry] = entry_view.get(entity);
 
-                if (!parents.contains(entry.asset_entity)) {
-                    parents.emplace(entry.asset_entity);
-                }
-            } else {
-                entities.emplace(entity);
+            if (!parents.contains(entry.asset_entity)) {
+                parents.emplace(entry.asset_entity);
             }
+        } else {
+            entities.emplace(entity);
         }
     }
 
@@ -397,8 +376,12 @@ static void process_aabb_of_interest_entities_entered(entt::registry &registry,
         packet.entities.insert(packet.entities.end(), parents.begin(), parents.end());
 
         auto asset_view = registry.view<asset_ref>();
+        auto owner_view = registry.view<entity_owner>();
+
         for (auto entity : packet.entities) {
             packet.assets.push_back(std::get<0>(asset_view.get(entity)));
+            packet.owners.push_back(owner_view.contains(entity) ?
+                std::get<0>(owner_view.get(entity)).client_entity : entt::null);
         }
 
         auto &ctx = registry.ctx().at<server_network_context>();
@@ -681,30 +664,6 @@ void server_set_allow_full_ownership(entt::registry &registry, entt::entity clie
 void server_set_client_round_trip_time(entt::registry &registry, entt::entity client_entity, double rtt) {
     auto &client = registry.get<remote_client>(client_entity);
     client.round_trip_time = rtt;
-}
-
-void server_notify_created_entities(entt::registry &registry,
-                                    entt::entity client_entity,
-                                    const std::vector<entt::entity> &entities) {
-    auto &ctx = registry.ctx().at<server_network_context>();
-
-#ifndef EDYN_DISABLE_ASSERT
-    // Ensure all entities are networked.
-    for (auto entity : entities) {
-        EDYN_ASSERT(registry.all_of<networked_tag>(entity));
-    }
-#endif
-
-    auto packet = edyn::packet::create_entity{};
-    packet.timestamp = performance_time();
-    ctx.snapshot_exporter->export_all(packet, entities);
-
-    // Sort components to ensure order of construction.
-    std::sort(packet.pools.begin(), packet.pools.end(), [](auto &&lhs, auto &&rhs) {
-        return lhs.component_index < rhs.component_index;
-    });
-
-    ctx.packet_signal.publish(client_entity, packet::edyn_packet{packet});
 }
 
 }
