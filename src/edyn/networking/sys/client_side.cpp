@@ -39,7 +39,6 @@
 #include "edyn/util/vector_util.hpp"
 #include "edyn/util/aabb_util.hpp"
 #include "edyn/time/simulation_time.hpp"
-#include <entt/core/fwd.hpp>
 #include <entt/entity/registry.hpp>
 #include <set>
 
@@ -322,6 +321,7 @@ static void process_packet(entt::registry &registry, const packet::create_entity
 
     // Collect new entity mappings to send back to server.
     auto emap_packet = packet::update_entity_map{};
+    std::vector<entt::entity> entities_created;
 
     // Create entities first...
     for (auto remote_entity : packet.entities) {
@@ -330,6 +330,7 @@ static void process_packet(entt::registry &registry, const packet::create_entity
         auto local_entity = registry.create();
         ctx.entity_map.insert(remote_entity, local_entity);
         emap_packet.pairs.emplace_back(remote_entity, local_entity);
+        entities_created.push_back(local_entity);
     }
 
     if (!emap_packet.pairs.empty()) {
@@ -348,57 +349,55 @@ static void process_packet(entt::registry &registry, const packet::create_entity
 
     // Create nodes and edges in entity graph, assign networked tags and
     // dependent components which are not networked.
-    for (auto remote_entity : packet.entities) {
-        auto local_entity = ctx.entity_map.at(remote_entity);
-
+    for (auto entity : entities_created) {
         // Assign computed properties such as AABB and inverse mass.
-        if (registry.any_of<shape_index>(local_entity)) {
-            auto &pos = registry.get<position>(local_entity);
-            auto &orn = registry.get<orientation>(local_entity);
+        if (registry.any_of<shape_index>(entity)) {
+            auto &pos = registry.get<position>(entity);
+            auto &orn = registry.get<orientation>(entity);
 
-            visit_shape(registry, local_entity, [&](auto &&shape) {
+            visit_shape(registry, entity, [&](auto &&shape) {
                 auto aabb = shape_aabb(shape, pos, orn);
-                registry.emplace<AABB>(local_entity, aabb);
+                registry.emplace<AABB>(entity, aabb);
             });
         }
 
-        if (auto *mass = registry.try_get<edyn::mass>(local_entity)) {
+        if (auto *mass = registry.try_get<edyn::mass>(entity)) {
             EDYN_ASSERT(
-                (registry.all_of<dynamic_tag>(local_entity) && *mass > 0 && *mass < EDYN_SCALAR_MAX) ||
-                (registry.any_of<kinematic_tag, static_tag>(local_entity) && *mass == EDYN_SCALAR_MAX));
-            auto inv = registry.all_of<dynamic_tag>(local_entity) ? scalar(1) / *mass : scalar(0);
-            registry.emplace<mass_inv>(local_entity, inv);
+                (registry.all_of<dynamic_tag>(entity) && *mass > 0 && *mass < EDYN_SCALAR_MAX) ||
+                (registry.any_of<kinematic_tag, static_tag>(entity) && *mass == EDYN_SCALAR_MAX));
+            auto inv = registry.all_of<dynamic_tag>(entity) ? scalar(1) / *mass : scalar(0);
+            registry.emplace<mass_inv>(entity, inv);
         }
 
-        if (auto *inertia = registry.try_get<edyn::inertia>(local_entity)) {
-            if (registry.all_of<dynamic_tag>(local_entity)) {
+        if (auto *inertia = registry.try_get<edyn::inertia>(entity)) {
+            if (registry.all_of<dynamic_tag>(entity)) {
                 EDYN_ASSERT(*inertia != matrix3x3_zero);
                 auto I_inv = inverse_matrix_symmetric(*inertia);
-                registry.emplace<inertia_inv>(local_entity, I_inv);
-                registry.emplace<inertia_world_inv>(local_entity, I_inv);
+                registry.emplace<inertia_inv>(entity, I_inv);
+                registry.emplace<inertia_world_inv>(entity, I_inv);
             } else {
                 EDYN_ASSERT(*inertia == matrix3x3_zero);
-                registry.emplace<inertia_inv>(local_entity, matrix3x3_zero);
-                registry.emplace<inertia_world_inv>(local_entity, matrix3x3_zero);
+                registry.emplace<inertia_inv>(entity, matrix3x3_zero);
+                registry.emplace<inertia_world_inv>(entity, matrix3x3_zero);
             }
         }
 
         // Assign discontinuity to dynamic rigid bodies.
-        if (registry.any_of<dynamic_tag>(local_entity) && !registry.all_of<discontinuity>(local_entity)) {
-            registry.emplace<discontinuity>(local_entity);
+        if (registry.any_of<dynamic_tag>(entity) && !registry.all_of<discontinuity>(entity)) {
+            registry.emplace<discontinuity>(entity);
         }
 
         // All remote entities must have a networked tag.
-        if (!registry.all_of<networked_tag>(local_entity)) {
-            registry.emplace<networked_tag>(local_entity);
+        if (!registry.all_of<networked_tag>(entity)) {
+            registry.emplace<networked_tag>(entity);
         }
 
         // Assign graph node to rigid bodies and external entities.
-        if (registry.any_of<rigidbody_tag, external_tag>(local_entity) &&
-            !registry.all_of<graph_node>(local_entity)) {
-            auto non_connecting = !registry.any_of<procedural_tag>(local_entity);
-            auto node_index = registry.ctx().at<entity_graph>().insert_node(local_entity, non_connecting);
-            registry.emplace<graph_node>(local_entity, node_index);
+        if (registry.any_of<rigidbody_tag, external_tag>(entity) &&
+            !registry.all_of<graph_node>(entity)) {
+            auto non_connecting = !registry.any_of<procedural_tag>(entity);
+            auto node_index = registry.ctx().at<entity_graph>().insert_node(entity, non_connecting);
+            registry.emplace<graph_node>(entity, node_index);
         }
     }
 
@@ -451,18 +450,32 @@ static void process_packet(entt::registry &registry, const packet::entity_entere
     // Create entities first...
     for (size_t i = 0; i < packet.entities.size() && i < packet.assets.size(); ++i) {
         auto remote_entity = packet.entities[i];
-        entt::entity local_entity;
+        if (ctx.entity_map.contains(remote_entity)) continue;
 
-        if (ctx.entity_map.contains(remote_entity)) {
-            local_entity = ctx.entity_map.at(remote_entity);
-        } else {
-            local_entity = registry.create();
-            ctx.entity_map.insert(remote_entity, local_entity);
-            emap_packet.pairs.emplace_back(remote_entity, local_entity);
-        }
-
+        auto local_entity = registry.create();
         local_entities.push_back(local_entity);
-        registry.emplace_or_replace<asset_ref>(local_entity, packet.assets[i]);
+
+        ctx.entity_map.insert(remote_entity, local_entity);
+        emap_packet.pairs.emplace_back(remote_entity, local_entity);
+
+        registry.emplace<asset_ref>(local_entity, packet.assets[i]);
+
+        // Assign owner to asset.
+        auto remote_owner = packet.owners[i];
+
+        if (remote_owner != entt::null) {
+            entt::entity local_owner;
+
+            if (ctx.entity_map.contains(remote_owner)) {
+                local_owner = ctx.entity_map.at(remote_owner);
+            } else {
+                local_owner = registry.create();
+                ctx.entity_map.insert(remote_owner, local_owner);
+                emap_packet.pairs.emplace_back(remote_owner, local_owner);
+            }
+
+            registry.emplace<entity_owner>(local_entity, local_owner);
+        }
 
         // All remote entities must have a networked tag.
         if (!registry.all_of<networked_tag>(local_entity)) {
@@ -479,7 +492,9 @@ static void process_packet(entt::registry &registry, const packet::entity_entere
     // The client will subsequently obtain the assets required to instantiate
     // these entities and ask for their state to be synchronized before
     // instantiating them.
-    ctx.entity_entered_signal.publish(local_entities);
+    if (!local_entities.empty()) {
+        ctx.entity_entered_signal.publish(local_entities);
+    }
 
     ctx.importing_entities = false;
 }
@@ -746,10 +761,16 @@ void client_instantiate_entity(entt::registry &registry, entt::entity entity) {
     ctx.packet_signal.publish(packet::edyn_packet{std::move(packet)});
 }
 
-void client_link_asset(entt::registry &registry, entt::entity entity,
+void client_link_asset(entt::registry &registry, entt::entity asset_entity,
                        const std::map<entt::id_type, entt::entity> &emap) {
     auto &ctx = registry.ctx().at<client_network_context>();
-    auto &asset = registry.get<asset_ref>(entity);
+    const auto &asset = registry.get<asset_ref>(asset_entity);
+
+    entt::entity owner_entity = entt::null;
+
+    if (const auto *owner = registry.try_get<entity_owner>(asset_entity)) {
+        owner_entity = owner->client_entity;
+    }
 
     // Set as importing entities to avoid handling these as "created entities".
     ctx.importing_entities = true;
@@ -762,6 +783,10 @@ void client_link_asset(entt::registry &registry, entt::entity entity,
 
         // Must tag it as networked.
         registry.emplace<networked_tag>(local_entity);
+
+        if (owner_entity != entt::null) {
+            registry.emplace<entity_owner>(local_entity, owner_entity);
+        }
     }
 
     ctx.importing_entities = false;
