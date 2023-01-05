@@ -173,7 +173,7 @@ public:
                     if (!to_visit.contains(edge_node_entity)) {
                         to_visit.emplace(edge_node_entity);
                     }
-                } else if (!to_visit.contains(entity)) {
+                } else if (node_view.contains(entity) && !to_visit.contains(entity)) {
                     EDYN_ASSERT(node_view.contains(entity));
                     to_visit.emplace(entity);
                 }

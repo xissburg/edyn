@@ -10,12 +10,14 @@ namespace edyn::packet {
 struct entity_entered {
     std::vector<entt::entity> entities;
     std::vector<asset_ref> assets;
+    std::vector<entt::entity> owners;
 };
 
 template<typename Archive>
 void serialize(Archive &archive, entity_entered &packet) {
     archive(packet.entities);
     archive(packet.assets);
+    archive(packet.owners);
 }
 
 }
