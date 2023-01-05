@@ -5,7 +5,6 @@
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/transform.hpp"
 #include "edyn/math/vector3.hpp"
-#include "edyn/networking/comp/asset_ref.hpp"
 #include "edyn/util/rigidbody.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/aabb.hpp"
@@ -145,15 +144,8 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         registry.emplace<sleeping_disabled_tag>(entity);
     }
 
-    if (def.network_info) {
-        auto &entry = *def.network_info;
-        registry.emplace<asset_entry>(entity, entry);
+    if (def.networked) {
         registry.emplace<networked_tag>(entity);
-
-        // Insert entity into asset entity map. Now a mapping between an asset
-        // entry and an instantiated entity exists.
-        auto &asset = registry.get<asset_ref>(entry.asset_entity);
-        asset.entity_map[entry.id] = entity;
     }
 
     // Insert rigid body as a node in the entity graph.
