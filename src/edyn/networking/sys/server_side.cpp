@@ -37,7 +37,6 @@
 #include "edyn/util/vector_util.hpp"
 #include "edyn/util/aabb_util.hpp"
 #include "edyn/time/simulation_time.hpp"
-#include <entt/entity/fwd.hpp>
 #include <entt/entity/registry.hpp>
 #include <algorithm>
 #include <set>
@@ -341,11 +340,32 @@ static void process_aabb_of_interest_entities_exited(entt::registry &registry,
     }
 
     // Notify client of entities that have been removed from its AABB-of-interest.
+    entt::sparse_set parents;
+
+    const auto entry_view = registry.view<asset_entry>();
+    for (auto entity : aabboi.entities_exited) {
+        if (entry_view.contains(entity)) {
+            auto [entry] = entry_view.get(entity);
+
+            if (!parents.contains(entry.asset_entity)) {
+                parents.emplace(entry.asset_entity);
+            }
+        }
+    }
+
     auto packet = packet::entity_exited{};
     packet.entities = std::move(aabboi.entities_exited);
+    packet.entities.insert(packet.entities.end(), parents.begin(), parents.end());
+
+    auto &client = registry.get<remote_client>(client_entity);
+    for (auto entity : packet.entities) {
+        if (client.entity_map.contains_local(entity)) {
+            client.entity_map.erase_local(entity);
+        }
+    }
 
     auto &ctx = registry.ctx().at<server_network_context>();
-    ctx.packet_signal.publish(client_entity, packet::edyn_packet{packet});
+    ctx.packet_signal.publish(client_entity, packet::edyn_packet{std::move(packet)});
 }
 
 static void process_aabb_of_interest_entities_entered(entt::registry &registry,
@@ -385,7 +405,7 @@ static void process_aabb_of_interest_entities_entered(entt::registry &registry,
         }
 
         auto &ctx = registry.ctx().at<server_network_context>();
-        ctx.packet_signal.publish(client_entity, packet::edyn_packet{packet});
+        ctx.packet_signal.publish(client_entity, packet::edyn_packet{std::move(packet)});
     }
 
     if (!entities.empty()) {
@@ -399,7 +419,7 @@ static void process_aabb_of_interest_entities_entered(entt::registry &registry,
             return lhs.component_index < rhs.component_index;
         });
 
-        ctx.packet_signal.publish(client_entity, packet::edyn_packet{packet});
+        ctx.packet_signal.publish(client_entity, packet::edyn_packet{std::move(packet)});
     }
 
     aabboi.entities_entered.clear();
