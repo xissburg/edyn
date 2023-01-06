@@ -362,7 +362,6 @@ void island_manager::split_islands() {
             std::find_if(source_island.nodes.begin(), source_island.nodes.end(),
                          [&](auto entity){return procedural_view.contains(entity);}) == source_island.nodes.end()) {
             EDYN_ASSERT(source_island.edges.empty());
-            m_registry->destroy(source_island_entity);
 
             // Remove destroyed island from non-procedural entities.
             for (auto entity : source_island.nodes) {
@@ -372,6 +371,7 @@ void island_manager::split_islands() {
                 resident.island_entities.erase(source_island_entity);
             }
 
+            m_registry->destroy(source_island_entity);
             continue;
         }
 
