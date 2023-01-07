@@ -100,12 +100,6 @@ static void update_input_history(entt::registry &registry, double timestamp) {
 }
 
 static void apply_extrapolation_result(entt::registry &registry, extrapolation_result &result) {
-    // Result contains entities already mapped into the main registry space.
-    // Entities could've been destroyed while extrapolation was running.
-    auto invalid_it = std::remove_if(result.entities.begin(), result.entities.end(),
-                                     [&](auto entity) { return !registry.valid(entity); });
-    result.entities.erase(invalid_it, result.entities.end());
-
     if (result.terminated_early) {
         auto &ctx = registry.ctx().at<client_network_context>();
         ctx.extrapolation_timeout_signal.publish();
