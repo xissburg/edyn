@@ -175,7 +175,7 @@ public:
             }
 
             auto owned_by_destination_client = owner_view.contains(entity) &&
-                                               owner_view.get<entity_owner>(entity).client_entity == dest_client_entity;
+                                               std::get<0>(owner_view.get(entity)).client_entity == dest_client_entity;
 
             if (modified_view.contains(entity)) {
                 auto [modified] = modified_view.get(entity);

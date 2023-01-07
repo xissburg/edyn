@@ -50,11 +50,14 @@ public:
     void set_settings(const edyn::settings &settings);
     void set_material_table(const material_mix_table &material_table);
     void set_registry_operation_context(const registry_operation_context &reg_op_ctx);
+    void set_context_settings(std::shared_ptr<input_state_history> input_history,
+                              make_extrapolation_modified_comp_func_t *make_extrapolation_modified_comp);
 
     void on_extrapolation_request(message<extrapolation_request> &msg);
     void on_set_settings(message<msg::set_settings> &msg);
     void on_set_reg_op_ctx(message<msg::set_registry_operation_context> &msg);
     void on_set_material_table(message<msg::set_material_table> &msg);
+    void on_set_extrapolator_context_settings(message<msg::set_extrapolator_context_settings> &msg);
     void on_push_message();
 
 private:
@@ -71,7 +74,8 @@ private:
         extrapolation_request,
         msg::set_settings,
         msg::set_registry_operation_context,
-        msg::set_material_table> m_message_queue;
+        msg::set_material_table,
+        msg::set_extrapolator_context_settings> m_message_queue;
 
     std::unique_ptr<std::thread> m_thread;
     std::atomic<bool> m_running {false};
