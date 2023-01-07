@@ -9,6 +9,7 @@
 #include "edyn/comp/tag.hpp"
 #include "edyn/core/entity_graph.hpp"
 #include "edyn/networking/comp/action_history.hpp"
+#include "edyn/networking/comp/exporter_modified_components.hpp"
 #include "edyn/networking/comp/network_input.hpp"
 #include "edyn/networking/comp/networked_comp.hpp"
 #include "edyn/networking/packet/registry_snapshot.hpp"
@@ -66,24 +67,7 @@ protected:
 template<typename... Components>
 class client_snapshot_exporter_impl : public client_snapshot_exporter {
 
-    struct modified_components {
-        struct comp_index_time {
-            uint16_t index;
-            uint16_t remaining;
-        };
-
-        std::array<comp_index_time, sizeof...(Components)> entry {};
-        uint16_t count {};
-
-        bool empty() const {
-            for (unsigned i = 0; i < count; ++i) {
-                if (entry[i].remaining > 0) {
-                    return false;
-                }
-            }
-            return true;
-        }
-    };
+    using modified_components = exporter_modified_components<sizeof...(Components)>;
 
     template<typename Action>
     static void append_actions(entt::registry &registry, unsigned index, double time) {
@@ -115,20 +99,7 @@ class client_snapshot_exporter_impl : public client_snapshot_exporter {
 
         if (auto *modified = registry.try_get<modified_components>(entity)) {
             static const auto index = index_of_v<unsigned, Component, Components...>;
-            bool found = false;
-            const uint16_t time_remaining = 400;
-
-            for (unsigned i = 0; i < modified->count; ++i) {
-                if (modified->entry[i].index == index) {
-                    modified->entry[i].remaining = time_remaining;
-                    found = true;
-                }
-            }
-
-            if (!found) {
-                EDYN_ASSERT(modified->count < sizeof...(Components));
-                modified->entry[modified->count++] = {index, time_remaining};
-            }
+            modified->bump_index(index);
         }
     }
 
@@ -240,37 +211,39 @@ public:
                     }
                 });
 
-                if (client_reachable) {
-                    // Client is present in this connected component, thus export
-                    // entities and components.
-                    for (auto entity : entities_export) {
-                        auto is_owned_by_another_client =
-                            owner_view.contains(entity) &&
-                            std::get<0>(owner_view.get(entity)).client_entity != client_entity;
+                if (!client_reachable) {
+                    continue;
+                }
 
-                        // Do not send state of entities owned by other client.
-                        if (is_owned_by_another_client) {
-                            continue;
+                // Client is present in this connected component, thus export
+                // entities and components.
+                for (auto entity : entities_export) {
+                    auto is_owned_by_another_client =
+                        owner_view.contains(entity) &&
+                        std::get<0>(owner_view.get(entity)).client_entity != client_entity;
+
+                    // Do not send state of entities owned by other client.
+                    if (is_owned_by_another_client) {
+                        continue;
+                    }
+
+                    if (modified_view.contains(entity)) {
+                        auto [modified] = modified_view.get(entity);
+
+                        for (unsigned i = 0; i < modified.count; ++i) {
+                            auto comp_index = modified.entry[i].index;
+                            visit_tuple(components_tuple, comp_index, [&](auto &&c) {
+                                using CompType = std::decay_t<decltype(c)>;
+                                internal::snapshot_insert_entity<CompType>(registry, entity, snap, comp_index);
+                            });
                         }
+                    }
 
-                        if (modified_view.contains(entity)) {
-                            auto [modified] = modified_view.get(entity);
-
-                            for (unsigned i = 0; i < modified.count; ++i) {
-                                auto comp_index = modified.entry[i].index;
-                                visit_tuple(components_tuple, comp_index, [&](auto &&c) {
-                                    using CompType = std::decay_t<decltype(c)>;
-                                    internal::snapshot_insert_entity<CompType>(registry, entity, snap, comp_index);
-                                });
-                            }
-                        }
-
-                        if (body_view.contains(entity)) {
-                            internal::snapshot_insert_entity<position   >(registry, entity, snap, index_of_v<unsigned, position,    Components...>);
-                            internal::snapshot_insert_entity<orientation>(registry, entity, snap, index_of_v<unsigned, orientation, Components...>);
-                            internal::snapshot_insert_entity<linvel     >(registry, entity, snap, index_of_v<unsigned, linvel,      Components...>);
-                            internal::snapshot_insert_entity<angvel     >(registry, entity, snap, index_of_v<unsigned, angvel,      Components...>);
-                        }
+                    if (body_view.contains(entity)) {
+                        internal::snapshot_insert_entity<position   >(registry, entity, snap, index_of_v<unsigned, position,    Components...>);
+                        internal::snapshot_insert_entity<orientation>(registry, entity, snap, index_of_v<unsigned, orientation, Components...>);
+                        internal::snapshot_insert_entity<linvel     >(registry, entity, snap, index_of_v<unsigned, linvel,      Components...>);
+                        internal::snapshot_insert_entity<angvel     >(registry, entity, snap, index_of_v<unsigned, angvel,      Components...>);
                     }
                 }
             }
@@ -312,18 +285,8 @@ public:
         auto elapsed_ms = static_cast<unsigned>((time - m_last_time) * 1000u);
         m_last_time = time;
 
-        m_registry->view<modified_components>().each([&](modified_components &modified) {
-            for (unsigned i = 0; i < modified.count;) {
-                auto &entry = modified.entry[i];
-                if (elapsed_ms > entry.remaining) {
-                    // Assign value of last and decrement count.
-                    // Note that `i` isn't incremented in this case.
-                    entry = modified.entry[--modified.count];
-                } else {
-                    entry.remaining -= elapsed_ms;
-                    ++i;
-                }
-            }
+        m_registry->view<modified_components>().each([elapsed_ms](modified_components &modified) {
+            modified.decay(elapsed_ms);
         });
     }
 

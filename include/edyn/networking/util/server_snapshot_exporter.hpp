@@ -18,6 +18,7 @@
 #include "edyn/core/entity_graph.hpp"
 #include "edyn/networking/comp/action_history.hpp"
 #include "edyn/networking/comp/entity_owner.hpp"
+#include "edyn/networking/comp/exporter_modified_components.hpp"
 #include "edyn/networking/comp/network_input.hpp"
 #include "edyn/networking/comp/remote_client.hpp"
 #include "edyn/networking/packet/registry_snapshot.hpp"
@@ -60,20 +61,21 @@ protected:
 template<typename... Components>
 class server_snapshot_exporter_impl : public server_snapshot_exporter {
 
-    struct modified_components {
-        std::array<unsigned short, sizeof...(Components)> time_remaining {};
-
-        bool empty() const {
-            return std::accumulate(time_remaining.begin(), time_remaining.end(), 0) == 0;
-        }
-    };
+    using modified_components = exporter_modified_components<sizeof...(Components)>;
 
     template<typename Component>
     void on_update(entt::registry &registry, entt::entity entity) {
         static const auto index = index_of_v<unsigned, Component, Components...>;
 
         if (auto *modified = registry.try_get<modified_components>(entity)) {
-            modified->time_remaining[index] = 400;
+            modified->bump_index(index);
+        }
+    }
+
+    template<typename Component>
+    void observe_update(entt::registry &registry) {
+        if constexpr(!std::is_empty_v<Component>) {
+            m_connections.push_back(registry.on_update<Component>().template connect<&server_snapshot_exporter_impl<Components...>::template on_update<Component>>(*this));
         }
     }
 
@@ -83,7 +85,7 @@ public:
         : m_registry(&registry)
     {
         m_connections.push_back(registry.on_construct<networked_tag>().connect<&entt::registry::emplace<modified_components>>());
-        ((m_connections.push_back(registry.on_update<Components>().template connect<&server_snapshot_exporter_impl<Components...>::template on_update<Components>>(*this))), ...);
+        (observe_update<Components>(registry), ...);
 
         auto i = component_index_type{};
         (m_component_indices.emplace(entt::type_index<Components>(), i++), ...);
@@ -119,6 +121,7 @@ public:
         auto modified_view = registry.view<modified_components>();
         auto sleeping_view = registry.view<sleeping_tag>();
         bool allow_ownership = registry.get<remote_client>(dest_client_entity).allow_full_ownership;
+        static const auto components_tuple = std::tuple<Components...>{};
 
         // Do not include input components of entities owned by destination
         // client as to not override client input on the client-side.
@@ -174,26 +177,37 @@ public:
                 temporary_ownership = dest_client_reachable && !other_client_reachable;
             }
 
-            auto owned_by_destination_client = owner_view.contains(entity) &&
-                                               std::get<0>(owner_view.get(entity)).client_entity == dest_client_entity;
+            if (temporary_ownership) {
+                // Entity is temporarily owned by the destination client, which
+                // means the server applies state set by client directly and so
+                // does not send state back to this client which would override
+                // the state they're controlling.
+                continue;
+            }
+
+            const auto owned_by_destination_client = owner_view.contains(entity) &&
+                std::get<0>(owner_view.get(entity)).client_entity == dest_client_entity;
 
             if (modified_view.contains(entity)) {
                 auto [modified] = modified_view.get(entity);
 
-                if (!modified.empty()) {
-                    // Components that have been modified recently must be included in the
-                    // packet, except if the client has temporary ownership of it or if it's
-                    // an input component and the entity owner is the same as the destination
-                    // client.
-                    unsigned i = 0;
-                    ((((modified.time_remaining[i] > 0 && !temporary_ownership &&
-                        !(owned_by_destination_client && std::is_base_of_v<network_input, Components>) &&
-                        !std::is_same_v<Components, action_history>) ?
-                        internal::get_pool<Components>(snap.pools, i)->insert_single(registry, entity, snap.entities) : void(0)), ++i), ...);
+                for (unsigned i = 0; i < modified.count; ++i) {
+                    auto comp_index = modified.entry[i].index;
+                    visit_tuple(components_tuple, comp_index, [&](auto &&c) {
+                        using CompType = std::decay_t<decltype(c)>;
+                        constexpr auto is_input = std::is_base_of_v<network_input, CompType>;
+                        constexpr auto is_action = std::is_same_v<CompType, action_history>;
+
+                        // Must not send back action history nor should send back
+                        // input state of entities owned by destination client.
+                        if (!(is_action || (owned_by_destination_client && is_input))) {
+                            internal::snapshot_insert_entity<CompType>(registry, entity, snap, comp_index);
+                        }
+                    });
                 }
             }
 
-            if (!temporary_ownership && body_view.contains(entity)) {
+            if (body_view.contains(entity)) {
                 internal::snapshot_insert_entity<position   >(*m_registry, entity, snap, index_of_v<unsigned, position,    Components...>);
                 internal::snapshot_insert_entity<orientation>(*m_registry, entity, snap, index_of_v<unsigned, orientation, Components...>);
                 internal::snapshot_insert_entity<linvel     >(*m_registry, entity, snap, index_of_v<unsigned, linvel,      Components...>);
@@ -223,14 +237,8 @@ public:
         auto elapsed_ms = static_cast<unsigned>((time - m_last_time) * 1000u);
         m_last_time = time;
 
-        m_registry->view<modified_components>().each([&](modified_components &modified) {
-            for (auto &remaining : modified.time_remaining) {
-                if (elapsed_ms > remaining) {
-                    remaining = 0;
-                } else {
-                    remaining -= elapsed_ms;
-                }
-            }
+        m_registry->view<modified_components>().each([elapsed_ms](modified_components &modified) {
+            modified.decay(elapsed_ms);
         });
     }
 

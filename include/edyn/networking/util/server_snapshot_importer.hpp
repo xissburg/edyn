@@ -64,7 +64,7 @@ class server_snapshot_importer_impl : public server_snapshot_importer {
     template<typename Component>
     bool is_owned_by_client(const entt::registry &registry, entt::entity client_entity, entt::entity entity) {
         // If the entity is not fully owned by the client, the update must
-        // not be applied, because in this case the server is in control of
+        // not be imported, because in this case the server is in control of
         // the procedural state. Input components are one exception because
         // they must always be applied.
         if constexpr(std::is_base_of_v<network_input, Component> ||
