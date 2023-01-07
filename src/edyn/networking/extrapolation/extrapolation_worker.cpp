@@ -137,15 +137,15 @@ void extrapolation_worker::on_push_message() {
 
 void extrapolation_worker::apply_history() {
     auto &settings = m_registry.ctx().at<edyn::settings>();
-    auto start_time = m_current_time - settings.fixed_dt;
-    m_input_history->import_each(start_time, settings.fixed_dt, m_registry, m_entity_map);
+    auto since_time = m_current_time - settings.fixed_dt;
+    m_input_history->import_each(since_time, settings.fixed_dt, m_registry, m_entity_map);
 }
 
 void extrapolation_worker::init_extrapolation() {
-    m_start_time = performance_time();
-    m_current_time = m_start_time;
+    m_init_time = performance_time();
+    m_current_time = m_request.start_time;
     m_step_count = 0;
-    m_island_manager.set_last_time(m_start_time);
+    m_island_manager.set_last_time(m_current_time);
     m_terminated_early = false;
 
     // Import entities and components.
@@ -181,7 +181,7 @@ void extrapolation_worker::init_extrapolation() {
     m_registry.view<null_constraint>().each(insert_graph_edge);
 
     // Create islands.
-    m_island_manager.update(m_start_time);
+    m_island_manager.update(m_current_time);
 
     // Initialize shapes.
     m_poly_initializer.init_new_shapes();
@@ -275,7 +275,7 @@ void extrapolation_worker::finish_extrapolation() {
 bool extrapolation_worker::should_step() {
     auto time = performance_time();
 
-    if (time - m_start_time > m_request.execution_time_limit) {
+    if (time - m_init_time > m_request.execution_time_limit) {
         // Timeout.
         m_terminated_early = true;
         return false;

@@ -85,7 +85,7 @@ private:
     message_queue_identifier m_destination_queue;
     extrapolation_request m_request;
 
-    double m_start_time;
+    double m_init_time;
     double m_current_time;
     unsigned m_step_count {0};
     bool m_terminated_early {false};
