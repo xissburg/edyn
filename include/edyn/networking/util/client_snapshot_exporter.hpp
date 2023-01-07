@@ -67,10 +67,21 @@ template<typename... Components>
 class client_snapshot_exporter_impl : public client_snapshot_exporter {
 
     struct modified_components {
-        std::array<unsigned short, sizeof...(Components)> time_remaining {};
+        struct comp_index_time {
+            uint16_t index;
+            uint16_t remaining;
+        };
+
+        std::array<comp_index_time, sizeof...(Components)> entry {};
+        uint16_t count {};
 
         bool empty() const {
-            return std::accumulate(time_remaining.begin(), time_remaining.end(), 0) == 0;
+            for (unsigned i = 0; i < count; ++i) {
+                if (entry[i].remaining > 0) {
+                    return false;
+                }
+            }
+            return true;
         }
     };
 
@@ -102,10 +113,30 @@ class client_snapshot_exporter_impl : public client_snapshot_exporter {
             return;
         }
 
-        static const auto index = index_of_v<unsigned, Component, Components...>;
-
         if (auto *modified = registry.try_get<modified_components>(entity)) {
-            modified->time_remaining[index] = 400;
+            static const auto index = index_of_v<unsigned, Component, Components...>;
+            bool found = false;
+            const uint16_t time_remaining = 400;
+
+            for (unsigned i = 0; i < modified->count; ++i) {
+                if (modified->entry[i].index == index) {
+                    modified->entry[i].remaining = time_remaining;
+                    found = true;
+                }
+            }
+
+            if (!found) {
+                EDYN_ASSERT(modified->count < sizeof...(Components));
+                modified->entry[modified->count++] = {index, time_remaining};
+            }
+        }
+    }
+
+    // Only add _on update_ observer to non-empty components.
+    template<typename Component>
+    void observe_update(entt::registry &registry) {
+        if constexpr(!std::is_empty_v<Component>) {
+            m_connections.push_back(registry.on_update<Component>().template connect<&client_snapshot_exporter_impl<Components...>::template on_update<Component>>(*this));
         }
     }
 
@@ -117,7 +148,7 @@ public:
         : client_snapshot_exporter(registry)
     {
         m_connections.push_back(registry.on_construct<networked_tag>().connect<&entt::registry::emplace<modified_components>>());
-        ((m_connections.push_back(registry.on_update<Components>().template connect<&client_snapshot_exporter_impl<Components...>::template on_update<Components>>(*this))), ...);
+        (observe_update<Components>(registry), ...);
 
         if constexpr(sizeof...(Actions) > 0) {
             m_append_current_actions_func = &append_current_actions<Actions...>;
@@ -148,8 +179,9 @@ public:
     void export_modified(packet::registry_snapshot &snap, entt::entity client_entity,
                          const entt::sparse_set &owned_entities, bool allow_full_ownership) const override {
         auto &registry = *m_registry;
-        auto modified_view = registry.view<modified_components>();
+        auto modified_view = registry.view<const modified_components>();
         auto sleeping_view = registry.view<sleeping_tag>();
+        static const auto components_tuple = std::tuple<Components...>{};
 
         if (allow_full_ownership) {
             // Include all networked entities in the islands that contain an entity
@@ -223,9 +255,14 @@ public:
 
                         if (modified_view.contains(entity)) {
                             auto [modified] = modified_view.get(entity);
-                            unsigned i = 0;
-                            (((registry.all_of<Components>(entity) && modified.time_remaining[i] > 0 ?
-                                internal::snapshot_insert_entity<Components>(registry, entity, snap, i) : void(0)), ++i), ...);
+
+                            for (unsigned i = 0; i < modified.count; ++i) {
+                                auto comp_index = modified.entry[i].index;
+                                visit_tuple(components_tuple, comp_index, [&](auto &&c) {
+                                    using CompType = std::decay_t<decltype(c)>;
+                                    internal::snapshot_insert_entity<CompType>(registry, entity, snap, comp_index);
+                                });
+                            }
                         }
 
                         if (body_view.contains(entity)) {
@@ -246,9 +283,16 @@ public:
                 }
 
                 auto [modified] = modified_view.get(entity);
-                unsigned i = 0;
-                (((std::is_base_of_v<network_input, Components> && registry.all_of<Components>(entity) && modified.time_remaining[i] > 0 ?
-                    internal::snapshot_insert_entity<Components>(registry, entity, snap, i) : void(0)), ++i), ...);
+
+                for (unsigned i = 0; i < modified.count; ++i) {
+                    auto comp_index = modified.entry[i].index;
+                    visit_tuple(components_tuple, comp_index, [&](auto &&c) {
+                        using CompType = std::decay_t<decltype(c)>;
+                        if constexpr(std::is_base_of_v<network_input, CompType>) {
+                            internal::snapshot_insert_entity<CompType>(registry, entity, snap, comp_index);
+                        }
+                    });
+                }
             }
         }
 
@@ -269,11 +313,15 @@ public:
         m_last_time = time;
 
         m_registry->view<modified_components>().each([&](modified_components &modified) {
-            for (auto &remaining : modified.time_remaining) {
-                if (elapsed_ms > remaining) {
-                    remaining = 0;
+            for (unsigned i = 0; i < modified.count;) {
+                auto &entry = modified.entry[i];
+                if (elapsed_ms > entry.remaining) {
+                    // Assign value of last and decrement count.
+                    // Note that `i` isn't incremented in this case.
+                    entry = modified.entry[--modified.count];
                 } else {
-                    remaining -= elapsed_ms;
+                    entry.remaining -= elapsed_ms;
+                    ++i;
                 }
             }
         });
