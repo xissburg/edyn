@@ -67,7 +67,7 @@ struct client_network_context {
         return entt::sink{extrapolation_timeout_signal};
     }
 
-    using entity_entered_func_t = void(const std::vector<entt::entity> &);
+    using entity_entered_func_t = void(entt::entity);
     entt::sigh<entity_entered_func_t> entity_entered_signal;
     auto entity_entered_sink() {
         return entt::sink{entity_entered_signal};

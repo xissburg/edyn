@@ -387,35 +387,48 @@ static void process_aabb_of_interest_entities_entered(entt::registry &registry,
     }
 
     const auto entry_view = registry.view<asset_entry>();
-    entt::sparse_set parents;
+    entt::sparse_set assets;
     entt::sparse_set entities;
 
     for (auto entity : aabboi.entities_entered) {
         if (entry_view.contains(entity)) {
             auto [entry] = entry_view.get(entity);
 
-            if (!parents.contains(entry.asset_entity)) {
-                parents.emplace(entry.asset_entity);
+            if (!assets.contains(entry.asset_entity)) {
+                assets.emplace(entry.asset_entity);
             }
         } else {
             entities.emplace(entity);
         }
     }
 
-    if (!parents.empty()) {
-        auto packet = packet::entity_entered{};
-        packet.entities.insert(packet.entities.end(), parents.begin(), parents.end());
-
+    if (!assets.empty()) {
+        auto &ctx = registry.ctx().at<server_network_context>();
         auto asset_view = registry.view<asset_ref>();
         auto owner_view = registry.view<entity_owner>();
+        auto entry_view = registry.view<asset_entry>();
+        auto packet = packet::entity_entered{};
 
-        for (auto entity : packet.entities) {
-            packet.assets.push_back(std::get<0>(asset_view.get(entity)));
-            packet.owners.push_back(owner_view.contains(entity) ?
-                std::get<0>(owner_view.get(entity)).client_entity : entt::null);
+        for (auto asset_entity : assets) {
+            auto &info = packet.entry.emplace_back();
+            info.entity = asset_entity;
+            info.asset = std::get<0>(asset_view.get(asset_entity));
+            info.owner = owner_view.contains(asset_entity) ?
+                         std::get<0>(owner_view.get(asset_entity)).client_entity : entt::null;
+
+            for (auto [asset_id, entity] : info.asset.entity_map) {
+                auto [entry] = entry_view.get(entity);
+                if (!entry.sync_indices.empty()) {
+                    ctx.snapshot_exporter->export_comp_index(info, entity, entry.sync_indices);
+                }
+            }
+
+            // Sort components to ensure order of construction on the other end.
+            std::sort(info.pools.begin(), info.pools.end(), [](auto &&lhs, auto &&rhs) {
+                return lhs.component_index < rhs.component_index;
+            });
         }
 
-        auto &ctx = registry.ctx().at<server_network_context>();
         ctx.packet_signal.publish(client_entity, packet::edyn_packet{std::move(packet)});
     }
 

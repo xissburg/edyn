@@ -117,7 +117,7 @@ network_client_extrapolation_timeout_sink(entt::registry &registry) {
     return ctx.extrapolation_timeout_sink();
 }
 
-entt::sink<entt::sigh<void(const std::vector<entt::entity> &)>>
+entt::sink<entt::sigh<void(entt::entity)>>
 network_client_entity_entered_sink(entt::registry &registry) {
     auto &ctx = registry.ctx().at<client_network_context>();
     return ctx.entity_entered_sink();

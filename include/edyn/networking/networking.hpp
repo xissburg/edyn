@@ -168,9 +168,9 @@ network_server_packet_sink(entt::registry &);
  * to perform the asset instantiation.
  * @param registry Data source.
  * @return Sink which is triggered when new entities enter the client's AABB of
- * interest. The set of entities is given in the sole argument.
+ * interest.
  */
-entt::sink<entt::sigh<void(const std::vector<entt::entity> &)>>
+entt::sink<entt::sigh<void(entt::entity)>>
 network_client_entity_entered_sink(entt::registry &);
 
 /**

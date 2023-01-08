@@ -48,13 +48,15 @@ void client_receive_packet(entt::registry &, packet::edyn_packet &);
 bool client_owns_entity(const entt::registry &, entt::entity);
 
 /**
- * @brief Notify Edyn that assets are ready to instantiate entities.
+ * @brief Notify Edyn that asset is ready to instantiate entities.
  * @remark The server will be asked to send a snapshot containing relevant
  * initial state to be applied immediately after local instantiation.
+ * When the snapshot is received, the `edyn::network_client_instantiate_asset_sink`
+ * signal will be triggered.
  * @param registry Data source.
- * @param entities Asset entities.
+ * @param entity Asset entity.
  */
-void client_instantiate_entity(entt::registry &registry, entt::entity entity);
+void client_asset_ready(entt::registry &registry, entt::entity entity);
 
 /**
  * @brief Must be called after instantiating an entity from an asset to link

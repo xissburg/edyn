@@ -10,7 +10,7 @@
 namespace edyn {
 
 template<typename... Component>
-void set_belongs_to_asset(entt::registry &registry, entt::entity entity, entt::entity asset_entity, entt::id_type id) {
+void assign_to_asset(entt::registry &registry, entt::entity entity, entt::entity asset_entity, entt::id_type id) {
     registry.get<asset_ref>(asset_entity).entity_map[id] = entity;
     registry.emplace<networked_tag>(entity);
 

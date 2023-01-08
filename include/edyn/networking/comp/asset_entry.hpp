@@ -11,8 +11,8 @@ namespace edyn {
 /**
  * @brief An entry contained in an asset.
  * @remark When an asset is replicated, the components referenced in `sync_indices`
- * will be included in a registry snapshot and sent to the other end to ensure the
- * corresponding entity will be instantiated with the correct initial state.
+ * will be included in a registry snapshot and be sent to the other end to ensure
+ * the corresponding entity will be instantiated with the correct initial state.
  */
 struct asset_entry {
     // Asset it belongs to.

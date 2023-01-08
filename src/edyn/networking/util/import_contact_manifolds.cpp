@@ -20,15 +20,15 @@ void replace_manifold(entt::registry &registry, const contact_manifold &manifold
         // ...or create a new one and assign a new value to it.
         auto separation_threshold = contact_breaking_threshold * scalar(1.3);
         auto manifold_entity = make_contact_manifold(registry,
-                                                        manifold.body[0], manifold.body[1],
-                                                        separation_threshold);
+                                                     manifold.body[0], manifold.body[1],
+                                                     separation_threshold);
         registry.replace<contact_manifold>(manifold_entity, manifold);
     }
 }
 
 void import_contact_manifolds(entt::registry &registry, const entity_map &emap,
                               const std::vector<contact_manifold> &manifolds) {
-    auto &manifold_map = registry.ctx().at<contact_manifold_map>();
+    const auto &manifold_map = registry.ctx().at<contact_manifold_map>();
 
     for (auto manifold : manifolds) {
         if (!emap.contains(manifold.body[0]) || !emap.contains(manifold.body[1])) {
@@ -48,7 +48,7 @@ void import_contact_manifolds(entt::registry &registry, const entity_map &emap,
 
 void import_contact_manifolds(entt::registry &registry,
                               const std::vector<contact_manifold> &manifolds) {
-    auto &manifold_map = registry.ctx().at<contact_manifold_map>();
+    const auto &manifold_map = registry.ctx().at<contact_manifold_map>();
 
     for (auto manifold : manifolds) {
         if (!registry.valid(manifold.body[0]) || !registry.valid(manifold.body[1])) {

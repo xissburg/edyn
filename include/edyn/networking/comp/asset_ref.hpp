@@ -25,6 +25,12 @@ void serialize(Archive &archive, asset_ref &ref) {
     archive(ref.entity_map);
 }
 
+/**
+ * @brief Assigned to assets after they're instantiated as a replica of a
+ * remote asset, thus having the local entities linked to the remote counterparts.
+ */
+struct asset_linked_tag {};
+
 }
 
 #endif // EDYN_NETWORKING_COMP_ASSET_REF_HPP

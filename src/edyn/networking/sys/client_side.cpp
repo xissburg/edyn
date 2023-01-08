@@ -44,6 +44,8 @@
 
 namespace edyn {
 
+static void snap_to_registry_snapshot(entt::registry &registry, packet::registry_snapshot &snapshot);
+
 void on_construct_networked_entity(entt::registry &registry, entt::entity entity) {
     auto &ctx = registry.ctx().at<client_network_context>();
 
@@ -446,18 +448,18 @@ static void process_packet(entt::registry &registry, const packet::entity_exited
     destroy_remote_entities(registry, packet.entities);
 }
 
-static void process_packet(entt::registry &registry, const packet::entity_entered &packet) {
+static void process_packet(entt::registry &registry, packet::entity_entered &packet) {
     auto &ctx = registry.ctx().at<client_network_context>();
     ctx.importing_entities = true;
 
     // Collect new entity mappings to send back to server.
     auto emap_packet = packet::update_entity_map{};
     std::vector<entt::entity> local_entities;
-    local_entities.reserve(packet.entities.size());
+    local_entities.reserve(packet.entry.size());
 
     // Create entities first...
-    for (size_t i = 0; i < packet.entities.size() && i < packet.assets.size(); ++i) {
-        auto remote_entity = packet.entities[i];
+    for (auto &info : packet.entry) {
+        auto remote_entity = info.entity;
         if (ctx.entity_map.contains(remote_entity)) continue;
 
         auto local_entity = registry.create();
@@ -466,10 +468,10 @@ static void process_packet(entt::registry &registry, const packet::entity_entere
         ctx.entity_map.insert(remote_entity, local_entity);
         emap_packet.pairs.emplace_back(remote_entity, local_entity);
 
-        registry.emplace<asset_ref>(local_entity, packet.assets[i]);
+        registry.emplace<asset_ref>(local_entity, info.asset);
 
         // Assign owner to asset.
-        auto remote_owner = packet.owners[i];
+        auto remote_owner = info.owner;
 
         if (remote_owner != entt::null) {
             entt::entity local_owner;
@@ -489,19 +491,27 @@ static void process_packet(entt::registry &registry, const packet::entity_entere
         if (!registry.all_of<networked_tag>(local_entity)) {
             registry.emplace<networked_tag>(local_entity);
         }
+
+        // Notify client that a new entity entered their AABB of interest.
+        // The client might not have the assets ready to instantiate the
+        // entity in which case it will obtain them and will call
+        // `edyn::client_instantiate_entity` later when it's ready.
+        // Otherwise, it will instantiate it now and call
+        // `edyn::client_link_asset` which will tag the asset as instantiated
+        // which means the snapshot contained in this packet can be loaded
+        // right here.
+        ctx.entity_entered_signal.publish(local_entity);
+
+        if (registry.all_of<asset_linked_tag>(local_entity)) {
+            // Override with latest state.
+            info.convert_remloc(registry, ctx.entity_map);
+            snap_to_registry_snapshot(registry, info);
+        }
     }
 
     if (!emap_packet.pairs.empty()) {
         emap_packet.timestamp = performance_time();
         ctx.packet_signal.publish(packet::edyn_packet{std::move(emap_packet)});
-    }
-
-    // Notify client of entities that have entered their AABB of interest.
-    // The client will subsequently obtain the assets required to instantiate
-    // these entities and ask for their state to be synchronized before
-    // instantiating them.
-    if (!local_entities.empty()) {
-        ctx.entity_entered_signal.publish(local_entities);
     }
 
     ctx.importing_entities = false;
@@ -766,10 +776,10 @@ bool client_owns_entity(const entt::registry &registry, entt::entity entity) {
     return ctx.client_entity == registry.get<entity_owner>(entity).client_entity;
 }
 
-void client_instantiate_entity(entt::registry &registry, entt::entity entity) {
+void client_asset_ready(entt::registry &registry, entt::entity asset_entity) {
     auto &ctx = registry.ctx().at<client_network_context>();
     packet::asset_sync packet;
-    packet.entity = ctx.entity_map.at_local(entity);
+    packet.entity = ctx.entity_map.at_local(asset_entity);
     ctx.packet_signal.publish(packet::edyn_packet{std::move(packet)});
 }
 
@@ -785,6 +795,7 @@ void client_link_asset(entt::registry &registry, entt::entity asset_entity,
     }
 
     // Set as importing entities to avoid handling these as "created entities".
+    const auto importing_entities_prev = ctx.importing_entities;
     ctx.importing_entities = true;
     auto emap_packet = packet::update_entity_map{};
 
@@ -796,12 +807,19 @@ void client_link_asset(entt::registry &registry, entt::entity asset_entity,
         // Must tag it as networked.
         registry.emplace<networked_tag>(local_entity);
 
+        // Assign discontinuity to dynamic rigid bodies.
+        if (registry.any_of<dynamic_tag>(local_entity)) {
+            registry.emplace<discontinuity>(local_entity);
+        }
+
+        // Assign the same owner.
         if (owner_entity != entt::null) {
             registry.emplace<entity_owner>(local_entity, owner_entity);
         }
     }
 
-    ctx.importing_entities = false;
+    registry.emplace<asset_linked_tag>(asset_entity);
+    ctx.importing_entities = importing_entities_prev;
 
     emap_packet.timestamp = performance_time();
     ctx.packet_signal.publish(packet::edyn_packet{std::move(emap_packet)});
