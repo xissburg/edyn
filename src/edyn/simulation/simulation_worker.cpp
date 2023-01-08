@@ -46,6 +46,7 @@
 #include "edyn/networking/comp/discontinuity.hpp"
 #include <algorithm>
 #include <atomic>
+#include <entt/entity/fwd.hpp>
 #include <entt/entity/registry.hpp>
 
 namespace edyn {

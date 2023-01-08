@@ -167,10 +167,6 @@ public:
             auto to_visit = entt::sparse_set{};
 
             for (auto entity : owned_entities) {
-                if (sleeping_view.contains(entity)) {
-                    continue;
-                }
-
                 if (edge_view.contains(entity)) {
                     auto [edge] = edge_view.get(entity);
                     auto edge_node_entity = graph.edge_node_entities(edge.edge_index).first;
@@ -185,7 +181,7 @@ public:
             }
 
             // Visit each node in the graph and collect all nodes that are reachable
-            // from it. Remove then from the `to_visit` list to avoid traversing
+            // from it. Remove them from the `to_visit` list to avoid traversing
             // the same connected component.
             std::vector<entt::entity> entities_export;
 
@@ -239,7 +235,7 @@ public:
                         }
                     }
 
-                    if (body_view.contains(entity)) {
+                    if (body_view.contains(entity) && !sleeping_view.contains(entity)) {
                         internal::snapshot_insert_entity<position   >(registry, entity, snap, index_of_v<unsigned, position,    Components...>);
                         internal::snapshot_insert_entity<orientation>(registry, entity, snap, index_of_v<unsigned, orientation, Components...>);
                         internal::snapshot_insert_entity<linvel     >(registry, entity, snap, index_of_v<unsigned, linvel,      Components...>);

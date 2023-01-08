@@ -99,7 +99,9 @@ static void update_input_history(entt::registry &registry, double timestamp) {
     ctx.input_history->erase_until(timestamp - (client_server_time_difference * 1.1 + 0.2));
 }
 
-static void apply_extrapolation_result(entt::registry &registry, extrapolation_result &result) {
+static void on_extrapolation_result(entt::registry &registry, message<extrapolation_result> &msg) {
+    auto &result = msg.content;
+
     if (result.terminated_early) {
         auto &ctx = registry.ctx().at<client_network_context>();
         ctx.extrapolation_timeout_signal.publish();
@@ -116,10 +118,6 @@ static void apply_extrapolation_result(entt::registry &registry, extrapolation_r
         process_extrapolation_result(registry, result);
         ctx.snapshot_exporter->set_observer_enabled(true);
     }
-}
-
-static void on_extrapolation_result(entt::registry &registry, message<extrapolation_result> &msg) {
-    apply_extrapolation_result(registry, msg.content);
 }
 
 void init_network_client(entt::registry &registry) {

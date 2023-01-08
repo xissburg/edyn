@@ -72,6 +72,11 @@ void island_manager::on_destroy_graph_edge(entt::registry &registry, entt::entit
 
 void island_manager::on_destroy_island_resident(entt::registry &registry, entt::entity entity) {
     auto &resident = registry.get<island_resident>(entity);
+
+    if (resident.island_entity == entt::null) {
+        return;
+    }
+
     auto &island = registry.get<edyn::island>(resident.island_entity);
 
     if (island.nodes.contains(entity)) {
@@ -532,11 +537,11 @@ void island_manager::put_to_sleep(entt::entity island_entity) {
         m_registry->emplace<sleeping_tag>(entity);
 
         if (m_registry->all_of<linvel>(entity)) {
-            m_registry->replace<linvel>(entity, vector3_zero);
+            m_registry->get<linvel>(entity) = vector3_zero;
         }
 
         if (m_registry->all_of<angvel>(entity)) {
-            m_registry->replace<angvel>(entity, vector3_zero);
+            m_registry->get<angvel>(entity) = vector3_zero;
         }
     }
 
@@ -546,10 +551,6 @@ void island_manager::put_to_sleep(entt::entity island_entity) {
 }
 
 bool island_manager::could_go_to_sleep(entt::entity island_entity) const {
-    if (m_registry->any_of<sleeping_tag>(island_entity)) {
-        return false;
-    }
-
     auto &island = m_registry->get<edyn::island>(island_entity);
     auto sleeping_disabled_view = m_registry->view<sleeping_disabled_tag>();
 
