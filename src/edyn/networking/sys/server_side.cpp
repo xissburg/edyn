@@ -340,32 +340,43 @@ static void process_aabb_of_interest_entities_exited(entt::registry &registry,
     }
 
     // Notify client of entities that have been removed from its AABB-of-interest.
-    entt::sparse_set parents;
+    // Add assets separately. Do not include entities that belong to an asset.
+    // With the asset entity the client will be able to delete all entities that
+    // belong to it.
+    entt::sparse_set assets;
+    std::vector<entt::entity> entities;
+    auto &client = registry.get<remote_client>(client_entity);
 
     const auto entry_view = registry.view<asset_entry>();
     for (auto entity : aabboi.entities_exited) {
         if (entry_view.contains(entity)) {
             auto [entry] = entry_view.get(entity);
 
-            if (!parents.contains(entry.asset_entity)) {
-                parents.emplace(entry.asset_entity);
+            if (!assets.contains(entry.asset_entity)) {
+                assets.emplace(entry.asset_entity);
+
+                if (client.entity_map.contains_local(entry.asset_entity)) {
+                    client.entity_map.erase_local(entry.asset_entity);
+                }
             }
+        } else {
+            entities.push_back(entity);
         }
-    }
 
-    auto packet = packet::entity_exited{};
-    packet.entities = std::move(aabboi.entities_exited);
-    packet.entities.insert(packet.entities.end(), parents.begin(), parents.end());
-
-    auto &client = registry.get<remote_client>(client_entity);
-    for (auto entity : packet.entities) {
         if (client.entity_map.contains_local(entity)) {
             client.entity_map.erase_local(entity);
         }
     }
 
+    auto packet = packet::entity_exited{};
+    packet.entities = std::move(entities);
+    packet.entities.insert(packet.entities.end(), assets.begin(), assets.end());
+
     auto &ctx = registry.ctx().at<server_network_context>();
     ctx.packet_signal.publish(client_entity, packet::edyn_packet{std::move(packet)});
+
+    // Do not forget to clear it after processing.
+    aabboi.entities_exited.clear();
 }
 
 static void process_aabb_of_interest_entities_entered(entt::registry &registry,
@@ -422,6 +433,7 @@ static void process_aabb_of_interest_entities_entered(entt::registry &registry,
         ctx.packet_signal.publish(client_entity, packet::edyn_packet{std::move(packet)});
     }
 
+    // Do not forget to clear it after processing.
     aabboi.entities_entered.clear();
 }
 

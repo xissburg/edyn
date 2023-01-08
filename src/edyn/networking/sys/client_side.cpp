@@ -408,6 +408,8 @@ static void destroy_remote_entities(entt::registry &registry, const std::vector<
     auto &ctx = registry.ctx().at<client_network_context>();
     ctx.importing_entities = true;
 
+    auto asset_view = registry.view<const asset_ref>();
+
     for (auto remote_entity : entities) {
         if (!ctx.entity_map.contains(remote_entity)) continue;
 
@@ -415,6 +417,20 @@ static void destroy_remote_entities(entt::registry &registry, const std::vector<
         ctx.entity_map.erase(remote_entity);
 
         if (registry.valid(local_entity)) {
+            // If the destroyed entity is an asset, destroy all of its entries.
+            if (asset_view.contains(local_entity)) {
+                auto [asset] = asset_view.get(local_entity);
+
+                for (auto [asset_id, remote_entry_entity] : asset.entity_map) {
+                    auto local_entry_entity = ctx.entity_map.at(remote_entry_entity);
+                    ctx.entity_map.erase(remote_entry_entity);
+
+                    if (registry.valid(local_entry_entity)) {
+                        registry.destroy(local_entry_entity);
+                    }
+                }
+            }
+
             registry.destroy(local_entity);
         }
     }

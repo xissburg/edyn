@@ -7,31 +7,42 @@
 
 namespace edyn {
 
+void replace_manifold(entt::registry &registry, const contact_manifold &manifold,
+                      const contact_manifold_map &manifold_map) {
+    EDYN_ASSERT(registry.all_of<rigidbody_tag>(manifold.body[0]));
+    EDYN_ASSERT(registry.all_of<rigidbody_tag>(manifold.body[1]));
+
+    // Find a matching manifold and replace it...
+    if (manifold_map.contains(manifold.body[0], manifold.body[1])) {
+        auto manifold_entity = manifold_map.get(manifold.body[0], manifold.body[1]);
+        registry.replace<contact_manifold>(manifold_entity, manifold);
+    } else {
+        // ...or create a new one and assign a new value to it.
+        auto separation_threshold = contact_breaking_threshold * scalar(1.3);
+        auto manifold_entity = make_contact_manifold(registry,
+                                                        manifold.body[0], manifold.body[1],
+                                                        separation_threshold);
+        registry.replace<contact_manifold>(manifold_entity, manifold);
+    }
+}
+
 void import_contact_manifolds(entt::registry &registry, const entity_map &emap,
                               const std::vector<contact_manifold> &manifolds) {
     auto &manifold_map = registry.ctx().at<contact_manifold_map>();
 
     for (auto manifold : manifolds) {
-        if (!emap.contains(manifold.body[0]) ||
-            !emap.contains(manifold.body[1])) {
+        if (!emap.contains(manifold.body[0]) || !emap.contains(manifold.body[1])) {
             continue;
         }
 
         manifold.body[0] = emap.at(manifold.body[0]);
         manifold.body[1] = emap.at(manifold.body[1]);
 
-        // Find a matching manifold and replace it...
-        if (manifold_map.contains(manifold.body[0], manifold.body[1])) {
-            auto manifold_entity = manifold_map.get(manifold.body[0], manifold.body[1]);
-            registry.replace<contact_manifold>(manifold_entity, manifold);
-        } else {
-            // ...or create a new one and assign a new value to it.
-            auto separation_threshold = contact_breaking_threshold * scalar(1.3);
-            auto manifold_entity = make_contact_manifold(registry,
-                                                         manifold.body[0], manifold.body[1],
-                                                         separation_threshold);
-            registry.replace<contact_manifold>(manifold_entity, manifold);
+        if (!registry.valid(manifold.body[0]) || !registry.valid(manifold.body[1])) {
+            continue;
         }
+
+        replace_manifold(registry, manifold, manifold_map);
     }
 }
 
@@ -40,23 +51,11 @@ void import_contact_manifolds(entt::registry &registry,
     auto &manifold_map = registry.ctx().at<contact_manifold_map>();
 
     for (auto manifold : manifolds) {
-        EDYN_ASSERT(registry.valid(manifold.body[0]));
-        EDYN_ASSERT(registry.valid(manifold.body[1]));
-        EDYN_ASSERT(registry.all_of<rigidbody_tag>(manifold.body[0]));
-        EDYN_ASSERT(registry.all_of<rigidbody_tag>(manifold.body[1]));
-
-        // Find a matching manifold and replace it...
-        if (manifold_map.contains(manifold.body[0], manifold.body[1])) {
-            auto manifold_entity = manifold_map.get(manifold.body[0], manifold.body[1]);
-            registry.replace<contact_manifold>(manifold_entity, manifold);
-        } else {
-            // ...or create a new one and assign a new value to it.
-            auto separation_threshold = contact_breaking_threshold * scalar(1.3);
-            auto manifold_entity = make_contact_manifold(registry,
-                                                         manifold.body[0], manifold.body[1],
-                                                         separation_threshold);
-            registry.replace<contact_manifold>(manifold_entity, manifold);
+        if (!registry.valid(manifold.body[0]) || !registry.valid(manifold.body[1])) {
+            continue;
         }
+
+        replace_manifold(registry, manifold, manifold_map);
     }
 }
 
