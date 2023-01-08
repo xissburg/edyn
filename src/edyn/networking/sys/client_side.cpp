@@ -531,6 +531,10 @@ static void insert_input_to_state_history(entt::registry &registry,
 }
 
 static void snap_to_registry_snapshot(entt::registry &registry, packet::registry_snapshot &snapshot) {
+    if (snapshot.pools.empty()) {
+        return;
+    }
+
     auto &settings = registry.ctx().at<edyn::settings>();
 
     if (settings.execution_mode == edyn::execution_mode::asynchronous) {
