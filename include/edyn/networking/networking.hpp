@@ -4,6 +4,7 @@
 #include "edyn/math/scalar.hpp"
 #include "edyn/networking/packet/edyn_packet.hpp"
 #include "edyn/networking/networking_external.hpp"
+#include "edyn/networking/util/asset_util.hpp"
 #include <entt/entity/fwd.hpp>
 
 namespace edyn {
@@ -95,7 +96,7 @@ scalar get_network_client_discontinuity_decay_rate(entt::registry &);
 
 /**
  * In case the timestamp of a registry snapshot lies right after the time an
- * action happenend, it is possible that the action wasn't still applied in the
+ * action happened, it is possible that the action wasn't still applied in the
  * server side at the time the snapshot was generated. Perhaps the action was
  * applied at the same time the snapshot was generated and then its effects
  * were only visible in the next update, which will cause a glitch on client-side

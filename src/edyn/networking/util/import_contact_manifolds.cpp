@@ -7,7 +7,7 @@
 
 namespace edyn {
 
-void replace_manifold(entt::registry &registry, const contact_manifold &manifold,
+void replace_manifold(entt::registry &registry, contact_manifold &manifold,
                       const contact_manifold_map &manifold_map) {
     EDYN_ASSERT(registry.all_of<rigidbody_tag>(manifold.body[0]));
     EDYN_ASSERT(registry.all_of<rigidbody_tag>(manifold.body[1]));
@@ -15,6 +15,15 @@ void replace_manifold(entt::registry &registry, const contact_manifold &manifold
     // Find a matching manifold and replace it...
     if (manifold_map.contains(manifold.body[0], manifold.body[1])) {
         auto manifold_entity = manifold_map.get(manifold.body[0], manifold.body[1]);
+        auto &original_manifold = registry.get<contact_manifold>(manifold_entity);
+
+        // Must maintain bodies in the same order.
+        if (manifold.body[0] != original_manifold.body[0]) {
+            EDYN_ASSERT(manifold.body[1] == original_manifold.body[0]);
+            EDYN_ASSERT(manifold.body[0] == original_manifold.body[1]);
+            swap_manifold(manifold);
+        }
+
         registry.replace<contact_manifold>(manifold_entity, manifold);
     } else {
         // ...or create a new one and assign a new value to it.
