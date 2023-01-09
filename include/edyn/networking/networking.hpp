@@ -158,29 +158,35 @@ entt::sink<entt::sigh<void(entt::entity, const packet::edyn_packet &)>>
 network_server_packet_sink(entt::registry &);
 
 /**
- * @brief Notify client about entities which have entered its AABB of interest.
- * These entities contain an `edyn::asset_ref` component which holds the id of
+ * @brief Notify client about an entity entering its AABB of interest.
+ * The entity contains an `edyn::asset_ref` component which holds the id of
  * the asset to be loaded.
- * @remark Once the asset is ready, the entities must be instantiated from the
- * asset though not before a snapshot containing relevant initial state is
- * available. Thus, `edyn::client_instantiate_entity` must be called to
- * request a snapshot and then the _instantiate asset_  signal will be triggered
- * to perform the asset instantiation.
+ * @remark If the asset is ready, it must be instantiated immediately and then
+ * linked. If not, the asset must be loaded and when it is ready, the
+ * `edyn::client_asset_ready` function must be called and only when
+ * `edyn::network_client_instantiate_asset_sink` is triggered, the asset must
+ * be instantiated and linked. The reason being that the remote state must be
+ * applied immediately after instantiation, so when Edyn is notified that the
+ * asset is ready, it will ask the server to send a snapshot containing the
+ * latest state of the asset, and when the response is received, it triggers a
+ * signal to ask for the asset to be instantiated.
  * @param registry Data source.
- * @return Sink which is triggered when new entities enter the client's AABB of
- * interest.
+ * @return Sink which is triggered when a new entity enters the client's AABB
+ * of interest.
  */
 entt::sink<entt::sigh<void(entt::entity)>>
 network_client_entity_entered_sink(entt::registry &);
 
 /**
- * @brief Ask client to instantiate an entity from an asset. Invoked when
- * a fresh snapshot is available to be loaded right after instantiation, thus
- * placing the entities in a proper initial state and avoiding glitches.
- * The snapshot is requested when `edyn::client_instantiate_entity` is called.
+ * @brief Ask client to instantiate an asset. Invoked when the initial asset
+ * state is received and the asset is ready to be instantiated with the correct
+ * initial state.
+ * @remark This is triggered after a call to `edyn::client_asset_ready` once
+ * the server sends back a snapshot containing the latest asset state.
  * @param registry Data source.
- * @return Sink which is triggered when a new snapshot is available. A set of
- * asset entities is given to be instantiated.
+ * @return Sink which is triggered when a new snapshot is received from server
+ * thus making it possible to instantiate the asset with the correct initial
+ * state.
  */
 entt::sink<entt::sigh<void(entt::entity)>>
 network_client_instantiate_asset_sink(entt::registry &);

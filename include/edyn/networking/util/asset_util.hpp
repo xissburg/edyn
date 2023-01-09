@@ -9,6 +9,18 @@
 
 namespace edyn {
 
+/**
+ * @brief Assign an entity to an asset.
+ * @remark When as asset is constructed, the entities that belong to that
+ * asset must be linked to the asset's internal ids.
+ * @tparam Component Types of components that must synchronized when the asset
+ * is instantiated. These include any component whose value could change after
+ * instantiation.
+ * @param registry Data source.
+ * @param entity Entity that belongs to asset.
+ * @param asset_entity Asset.
+ * @param id Unique id of entity inside of asset.
+ */
 template<typename... Component>
 void assign_to_asset(entt::registry &registry, entt::entity entity, entt::entity asset_entity, entt::id_type id) {
     registry.get<asset_ref>(asset_entity).entity_map[id] = entity;
