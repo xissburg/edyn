@@ -91,15 +91,21 @@ class client_snapshot_exporter_impl : public client_snapshot_exporter {
         (append_actions<Actions>(registry, index++, time), ...);
     }
 
+    template<typename... Cs>
+    void bump_component(modified_components &modified) const {
+        (modified.bump_index(index_of_v<unsigned, Cs, Components...>), ...);
+    }
+
     template<typename Component>
     void on_update(entt::registry &registry, entt::entity entity) {
         if (!m_observer_enabled) {
             return;
         }
 
-        if (auto *modified = registry.try_get<modified_components>(entity)) {
-            static const auto index = index_of_v<unsigned, Component, Components...>;
-            modified->bump_index(index);
+        auto modified_view = registry.view<modified_components>();
+        if (modified_view.contains(entity)) {
+            auto [modified] = modified_view.get(entity);
+            bump_component<Component>(modified);
         }
     }
 
@@ -150,8 +156,7 @@ public:
     void export_modified(packet::registry_snapshot &snap, entt::entity client_entity,
                          const entt::sparse_set &owned_entities, bool allow_full_ownership) const override {
         auto &registry = *m_registry;
-        auto modified_view = registry.view<const modified_components>();
-        auto sleeping_view = registry.view<sleeping_tag>();
+        auto modified_view = registry.view<modified_components>();
         static const auto components_tuple = std::tuple<Components...>{};
 
         if (allow_full_ownership) {
@@ -160,7 +165,7 @@ public:
             auto owner_view = registry.view<entity_owner>();
             auto node_view = registry.view<graph_node>();
             auto edge_view = registry.view<graph_edge>();
-            auto body_view = registry.view<position, orientation, linvel, angvel, dynamic_tag>();
+            auto body_view = registry.view<position, orientation, linvel, angvel, dynamic_tag>(exclude_sleeping_disabled);
             auto &graph = registry.ctx().at<entity_graph>();
 
             // Collect nodes to visit in entity graph from owned nodes and edges.
@@ -214,8 +219,7 @@ public:
                 // Client is present in this connected component, thus export
                 // entities and components.
                 for (auto entity : entities_export) {
-                    auto is_owned_by_another_client =
-                        owner_view.contains(entity) &&
+                    const auto is_owned_by_another_client = owner_view.contains(entity) &&
                         std::get<0>(owner_view.get(entity)).client_entity != client_entity;
 
                     // Do not send state of entities owned by other client.
@@ -223,23 +227,24 @@ public:
                         continue;
                     }
 
-                    if (modified_view.contains(entity)) {
-                        auto [modified] = modified_view.get(entity);
-
-                        for (unsigned i = 0; i < modified.count; ++i) {
-                            auto comp_index = modified.entry[i].index;
-                            visit_tuple(components_tuple, comp_index, [&](auto &&c) {
-                                using CompType = std::decay_t<decltype(c)>;
-                                internal::snapshot_insert_entity<CompType>(registry, entity, snap, comp_index);
-                            });
-                        }
+                    if (!modified_view.contains(entity)) {
+                        continue;
                     }
 
-                    if (body_view.contains(entity) && !sleeping_view.contains(entity)) {
-                        internal::snapshot_insert_entity<position   >(registry, entity, snap, index_of_v<unsigned, position,    Components...>);
-                        internal::snapshot_insert_entity<orientation>(registry, entity, snap, index_of_v<unsigned, orientation, Components...>);
-                        internal::snapshot_insert_entity<linvel     >(registry, entity, snap, index_of_v<unsigned, linvel,      Components...>);
-                        internal::snapshot_insert_entity<angvel     >(registry, entity, snap, index_of_v<unsigned, angvel,      Components...>);
+                    auto [modified] = modified_view.get(entity);
+
+                    // Bump time remaining for transforms and velocities of awake
+                    // dynamic rigid bodies.
+                    if (body_view.contains(entity)) {
+                        bump_component<position, orientation, linvel, angvel>(modified);
+                    }
+
+                    for (unsigned i = 0; i < modified.count; ++i) {
+                        auto comp_index = modified.entry[i].index;
+                        visit_tuple(components_tuple, comp_index, [&](auto &&c) {
+                            using CompType = std::decay_t<decltype(c)>;
+                            internal::snapshot_insert_entity<CompType>(registry, entity, snap, comp_index);
+                        });
                     }
                 }
             }
@@ -247,10 +252,6 @@ public:
             // Otherwise, only entities owned by this client which contain an
             // input component are included.
             for (auto entity : owned_entities) {
-                if (sleeping_view.contains(entity)) {
-                    continue;
-                }
-
                 auto [modified] = modified_view.get(entity);
 
                 for (unsigned i = 0; i < modified.count; ++i) {

@@ -63,12 +63,17 @@ class server_snapshot_exporter_impl : public server_snapshot_exporter {
 
     using modified_components = exporter_modified_components<sizeof...(Components)>;
 
+    template<typename... Cs>
+    void bump_component(modified_components &modified) const {
+        (modified.bump_index(index_of_v<unsigned, Cs, Components...>), ...);
+    }
+
     template<typename Component>
     void on_update(entt::registry &registry, entt::entity entity) {
-        static const auto index = index_of_v<unsigned, Component, Components...>;
-
-        if (auto *modified = registry.try_get<modified_components>(entity)) {
-            modified->bump_index(index);
+        auto modified_view = registry.view<modified_components>();
+        if (modified_view.contains(entity)) {
+            auto [modified] = modified_view.get(entity);
+            bump_component<Component>(modified);
         }
     }
 
@@ -116,10 +121,8 @@ public:
         auto &graph = registry.ctx().at<entity_graph>();
         auto node_view = registry.view<graph_node>();
         auto edge_view = registry.view<graph_edge>();
-        auto owner_view = registry.view<entity_owner>();
-        auto body_view = registry.view<position, orientation, linvel, angvel, dynamic_tag>();
-        auto modified_view = registry.view<modified_components>();
-        auto sleeping_view = registry.view<sleeping_tag>();
+        auto owner_view = registry.view<const entity_owner>();
+        auto modified_view = registry.view<const modified_components>();
         bool allow_ownership = registry.get<remote_client>(dest_client_entity).allow_full_ownership;
         static const auto components_tuple = std::tuple<Components...>{};
 
@@ -130,11 +133,13 @@ public:
         // since the server allows the client to have full control over entities in
         // the islands where there are no other clients present.
         for (auto entity : entities_of_interest) {
-            if (!registry.valid(entity)) {
+            if (!registry.valid(entity) || !modified_view.contains(entity)) {
                 continue;
             }
 
-            if (sleeping_view.contains(entity)) {
+            auto [modified] = modified_view.get(entity);
+
+            if (modified.count == 0) {
                 continue;
             }
 
@@ -188,30 +193,19 @@ public:
             const auto owned_by_destination_client = owner_view.contains(entity) &&
                 std::get<0>(owner_view.get(entity)).client_entity == dest_client_entity;
 
-            if (modified_view.contains(entity)) {
-                auto [modified] = modified_view.get(entity);
+            for (unsigned i = 0; i < modified.count; ++i) {
+                auto comp_index = modified.entry[i].index;
+                visit_tuple(components_tuple, comp_index, [&](auto &&c) {
+                    using CompType = std::decay_t<decltype(c)>;
+                    constexpr auto is_input = std::is_base_of_v<network_input, CompType>;
+                    constexpr auto is_action = std::is_same_v<CompType, action_history>;
 
-                for (unsigned i = 0; i < modified.count; ++i) {
-                    auto comp_index = modified.entry[i].index;
-                    visit_tuple(components_tuple, comp_index, [&](auto &&c) {
-                        using CompType = std::decay_t<decltype(c)>;
-                        constexpr auto is_input = std::is_base_of_v<network_input, CompType>;
-                        constexpr auto is_action = std::is_same_v<CompType, action_history>;
-
-                        // Must not send back action history nor should send back
-                        // input state of entities owned by destination client.
-                        if (!(is_action || (owned_by_destination_client && is_input))) {
-                            internal::snapshot_insert_entity<CompType>(registry, entity, snap, comp_index);
-                        }
-                    });
-                }
-            }
-
-            if (body_view.contains(entity)) {
-                internal::snapshot_insert_entity<position   >(*m_registry, entity, snap, index_of_v<unsigned, position,    Components...>);
-                internal::snapshot_insert_entity<orientation>(*m_registry, entity, snap, index_of_v<unsigned, orientation, Components...>);
-                internal::snapshot_insert_entity<linvel     >(*m_registry, entity, snap, index_of_v<unsigned, linvel,      Components...>);
-                internal::snapshot_insert_entity<angvel     >(*m_registry, entity, snap, index_of_v<unsigned, angvel,      Components...>);
+                    // Must not send action history nor should send input
+                    // state of entities owned by destination client.
+                    if (!(is_action || (owned_by_destination_client && is_input))) {
+                        internal::snapshot_insert_entity<CompType>(registry, entity, snap, comp_index);
+                    }
+                });
             }
         }
     }
@@ -237,9 +231,20 @@ public:
         auto elapsed_ms = static_cast<unsigned>((time - m_last_time) * 1000u);
         m_last_time = time;
 
-        m_registry->view<modified_components>().each([elapsed_ms](modified_components &modified) {
+        auto modified_view = m_registry->view<modified_components>();
+        auto body_view = m_registry->view<position, orientation, linvel, angvel, dynamic_tag>(exclude_sleeping_disabled);
+
+        for (auto [entity, modified] : modified_view.each()) {
             modified.decay(elapsed_ms);
-        });
+
+            // If it's a dynamic rigid body that's awake, mark transforms and velocities
+            // as modified because these components change in every step of the simulation
+            // and have their value assigned directly to avoid triggering the `on_update`
+            // signals every time.
+            if (body_view.contains(entity)) {
+                bump_component<position, orientation, linvel, angvel>(modified);
+            }
+        }
     }
 
 private:
