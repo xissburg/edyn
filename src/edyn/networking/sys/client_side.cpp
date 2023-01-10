@@ -7,10 +7,16 @@
 #include "edyn/context/registry_operation_context.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
 #include "edyn/networking/comp/action_history.hpp"
+#include "edyn/networking/comp/asset_ref.hpp"
 #include "edyn/networking/comp/discontinuity.hpp"
 #include "edyn/networking/extrapolation/extrapolation_result.hpp"
 #include "edyn/networking/networking_external.hpp"
+#include "edyn/networking/packet/asset_sync.hpp"
 #include "edyn/networking/packet/edyn_packet.hpp"
+#include "edyn/networking/packet/entity_entered.hpp"
+#include "edyn/networking/packet/entity_exited.hpp"
+#include "edyn/networking/packet/entity_response.hpp"
+#include "edyn/networking/util/component_index_type.hpp"
 #include "edyn/networking/util/process_extrapolation_result.hpp"
 #include "edyn/networking/util/process_update_entity_map_packet.hpp"
 #include "edyn/core/entity_graph.hpp"
@@ -37,6 +43,8 @@
 #include <set>
 
 namespace edyn {
+
+static void snap_to_registry_snapshot(entt::registry &registry, packet::registry_snapshot &snapshot);
 
 void on_construct_networked_entity(entt::registry &registry, entt::entity entity) {
     auto &ctx = registry.ctx().at<client_network_context>();
@@ -93,12 +101,8 @@ static void update_input_history(entt::registry &registry, double timestamp) {
     ctx.input_history->erase_until(timestamp - (client_server_time_difference * 1.1 + 0.2));
 }
 
-static void apply_extrapolation_result(entt::registry &registry, extrapolation_result &result) {
-    // Result contains entities already mapped into the main registry space.
-    // Entities could've been destroyed while extrapolation was running.
-    auto invalid_it = std::remove_if(result.entities.begin(), result.entities.end(),
-                                     [&](auto entity) { return !registry.valid(entity); });
-    result.entities.erase(invalid_it, result.entities.end());
+static void on_extrapolation_result(entt::registry &registry, message<extrapolation_result> &msg) {
+    auto &result = msg.content;
 
     if (result.terminated_early) {
         auto &ctx = registry.ctx().at<client_network_context>();
@@ -116,10 +120,6 @@ static void apply_extrapolation_result(entt::registry &registry, extrapolation_r
         process_extrapolation_result(registry, result);
         ctx.snapshot_exporter->set_observer_enabled(true);
     }
-}
-
-static void on_extrapolation_result(entt::registry &registry, message<extrapolation_result> &msg) {
-    apply_extrapolation_result(registry, msg.content);
 }
 
 void init_network_client(entt::registry &registry) {
@@ -315,7 +315,7 @@ static void process_packet(entt::registry &registry, const packet::create_entity
 
     // Collect new entity mappings to send back to server.
     auto emap_packet = packet::update_entity_map{};
-    emap_packet.timestamp = performance_time();
+    std::vector<entt::entity> entities_created;
 
     // Create entities first...
     for (auto remote_entity : packet.entities) {
@@ -324,9 +324,11 @@ static void process_packet(entt::registry &registry, const packet::create_entity
         auto local_entity = registry.create();
         ctx.entity_map.insert(remote_entity, local_entity);
         emap_packet.pairs.emplace_back(remote_entity, local_entity);
+        entities_created.push_back(local_entity);
     }
 
     if (!emap_packet.pairs.empty()) {
+        emap_packet.timestamp = performance_time();
         ctx.packet_signal.publish(packet::edyn_packet{std::move(emap_packet)});
     }
 
@@ -341,57 +343,55 @@ static void process_packet(entt::registry &registry, const packet::create_entity
 
     // Create nodes and edges in entity graph, assign networked tags and
     // dependent components which are not networked.
-    for (auto remote_entity : packet.entities) {
-        auto local_entity = ctx.entity_map.at(remote_entity);
-
+    for (auto entity : entities_created) {
         // Assign computed properties such as AABB and inverse mass.
-        if (registry.any_of<shape_index>(local_entity)) {
-            auto &pos = registry.get<position>(local_entity);
-            auto &orn = registry.get<orientation>(local_entity);
+        if (registry.any_of<shape_index>(entity)) {
+            auto &pos = registry.get<position>(entity);
+            auto &orn = registry.get<orientation>(entity);
 
-            visit_shape(registry, local_entity, [&](auto &&shape) {
+            visit_shape(registry, entity, [&](auto &&shape) {
                 auto aabb = shape_aabb(shape, pos, orn);
-                registry.emplace<AABB>(local_entity, aabb);
+                registry.emplace<AABB>(entity, aabb);
             });
         }
 
-        if (auto *mass = registry.try_get<edyn::mass>(local_entity)) {
+        if (auto *mass = registry.try_get<edyn::mass>(entity)) {
             EDYN_ASSERT(
-                (registry.all_of<dynamic_tag>(local_entity) && *mass > 0 && *mass < EDYN_SCALAR_MAX) ||
-                (registry.any_of<kinematic_tag, static_tag>(local_entity) && *mass == EDYN_SCALAR_MAX));
-            auto inv = registry.all_of<dynamic_tag>(local_entity) ? scalar(1) / *mass : scalar(0);
-            registry.emplace<mass_inv>(local_entity, inv);
+                (registry.all_of<dynamic_tag>(entity) && *mass > 0 && *mass < EDYN_SCALAR_MAX) ||
+                (registry.any_of<kinematic_tag, static_tag>(entity) && *mass == EDYN_SCALAR_MAX));
+            auto inv = registry.all_of<dynamic_tag>(entity) ? scalar(1) / *mass : scalar(0);
+            registry.emplace<mass_inv>(entity, inv);
         }
 
-        if (auto *inertia = registry.try_get<edyn::inertia>(local_entity)) {
-            if (registry.all_of<dynamic_tag>(local_entity)) {
+        if (auto *inertia = registry.try_get<edyn::inertia>(entity)) {
+            if (registry.all_of<dynamic_tag>(entity)) {
                 EDYN_ASSERT(*inertia != matrix3x3_zero);
                 auto I_inv = inverse_matrix_symmetric(*inertia);
-                registry.emplace<inertia_inv>(local_entity, I_inv);
-                registry.emplace<inertia_world_inv>(local_entity, I_inv);
+                registry.emplace<inertia_inv>(entity, I_inv);
+                registry.emplace<inertia_world_inv>(entity, I_inv);
             } else {
                 EDYN_ASSERT(*inertia == matrix3x3_zero);
-                registry.emplace<inertia_inv>(local_entity, matrix3x3_zero);
-                registry.emplace<inertia_world_inv>(local_entity, matrix3x3_zero);
+                registry.emplace<inertia_inv>(entity, matrix3x3_zero);
+                registry.emplace<inertia_world_inv>(entity, matrix3x3_zero);
             }
         }
 
         // Assign discontinuity to dynamic rigid bodies.
-        if (registry.any_of<dynamic_tag>(local_entity) && !registry.all_of<discontinuity>(local_entity)) {
-            registry.emplace<discontinuity>(local_entity);
+        if (registry.any_of<dynamic_tag>(entity) && !registry.all_of<discontinuity>(entity)) {
+            registry.emplace<discontinuity>(entity);
         }
 
         // All remote entities must have a networked tag.
-        if (!registry.all_of<networked_tag>(local_entity)) {
-            registry.emplace<networked_tag>(local_entity);
+        if (!registry.all_of<networked_tag>(entity)) {
+            registry.emplace<networked_tag>(entity);
         }
 
         // Assign graph node to rigid bodies and external entities.
-        if (registry.any_of<rigidbody_tag, external_tag>(local_entity) &&
-            !registry.all_of<graph_node>(local_entity)) {
-            auto non_connecting = !registry.any_of<procedural_tag>(local_entity);
-            auto node_index = registry.ctx().at<entity_graph>().insert_node(local_entity, non_connecting);
-            registry.emplace<graph_node>(local_entity, node_index);
+        if (registry.any_of<rigidbody_tag, external_tag>(entity) &&
+            !registry.all_of<graph_node>(entity)) {
+            auto non_connecting = !registry.any_of<procedural_tag>(entity);
+            auto node_index = registry.ctx().at<entity_graph>().insert_node(entity, non_connecting);
+            registry.emplace<graph_node>(entity, node_index);
         }
     }
 
@@ -406,19 +406,112 @@ static void process_packet(entt::registry &registry, const packet::create_entity
     ctx.importing_entities = false;
 }
 
-static void process_packet(entt::registry &registry, const packet::destroy_entity &packet) {
+static void destroy_remote_entities(entt::registry &registry, const std::vector<entt::entity> &entities) {
     auto &ctx = registry.ctx().at<client_network_context>();
     ctx.importing_entities = true;
 
-    for (auto remote_entity : packet.entities) {
+    auto asset_view = registry.view<const asset_ref>();
+
+    for (auto remote_entity : entities) {
         if (!ctx.entity_map.contains(remote_entity)) continue;
 
         auto local_entity = ctx.entity_map.at(remote_entity);
         ctx.entity_map.erase(remote_entity);
 
         if (registry.valid(local_entity)) {
+            // If the destroyed entity is an asset, destroy all of its entries.
+            if (asset_view.contains(local_entity)) {
+                auto [asset] = asset_view.get(local_entity);
+
+                for (auto [asset_id, remote_entry_entity] : asset.entity_map) {
+                    auto local_entry_entity = ctx.entity_map.at(remote_entry_entity);
+                    ctx.entity_map.erase(remote_entry_entity);
+
+                    if (registry.valid(local_entry_entity)) {
+                        registry.destroy(local_entry_entity);
+                    }
+                }
+            }
+
             registry.destroy(local_entity);
         }
+    }
+
+    ctx.importing_entities = false;
+}
+
+static void process_packet(entt::registry &registry, const packet::destroy_entity &packet) {
+    destroy_remote_entities(registry, packet.entities);
+}
+
+static void process_packet(entt::registry &registry, const packet::entity_exited &packet) {
+    destroy_remote_entities(registry, packet.entities);
+}
+
+static void process_packet(entt::registry &registry, packet::entity_entered &packet) {
+    auto &ctx = registry.ctx().at<client_network_context>();
+    ctx.importing_entities = true;
+
+    // Collect new entity mappings to send back to server.
+    auto emap_packet = packet::update_entity_map{};
+    std::vector<entt::entity> local_entities;
+    local_entities.reserve(packet.entry.size());
+
+    // Create entities first...
+    for (auto &info : packet.entry) {
+        auto remote_entity = info.entity;
+        if (ctx.entity_map.contains(remote_entity)) continue;
+
+        auto local_entity = registry.create();
+        local_entities.push_back(local_entity);
+
+        ctx.entity_map.insert(remote_entity, local_entity);
+        emap_packet.pairs.emplace_back(remote_entity, local_entity);
+
+        registry.emplace<asset_ref>(local_entity, info.asset);
+
+        // Assign owner to asset.
+        auto remote_owner = info.owner;
+
+        if (remote_owner != entt::null) {
+            entt::entity local_owner;
+
+            if (ctx.entity_map.contains(remote_owner)) {
+                local_owner = ctx.entity_map.at(remote_owner);
+            } else {
+                local_owner = registry.create();
+                ctx.entity_map.insert(remote_owner, local_owner);
+                emap_packet.pairs.emplace_back(remote_owner, local_owner);
+            }
+
+            registry.emplace<entity_owner>(local_entity, local_owner);
+        }
+
+        // All remote entities must have a networked tag.
+        if (!registry.all_of<networked_tag>(local_entity)) {
+            registry.emplace<networked_tag>(local_entity);
+        }
+
+        // Notify client that a new entity entered their AABB of interest.
+        // The client might not have the assets ready to instantiate the
+        // entity in which case it will obtain them and will call
+        // `edyn::client_instantiate_entity` later when it's ready.
+        // Otherwise, it will instantiate it now and call
+        // `edyn::client_link_asset` which will tag the asset as instantiated
+        // which means the snapshot contained in this packet can be loaded
+        // right here.
+        ctx.entity_entered_signal.publish(local_entity);
+
+        if (registry.all_of<asset_linked_tag>(local_entity)) {
+            // Override with latest state.
+            info.convert_remloc(registry, ctx.entity_map);
+            snap_to_registry_snapshot(registry, info);
+        }
+    }
+
+    if (!emap_packet.pairs.empty()) {
+        emap_packet.timestamp = performance_time();
+        ctx.packet_signal.publish(packet::edyn_packet{std::move(emap_packet)});
     }
 
     ctx.importing_entities = false;
@@ -464,6 +557,10 @@ static void insert_input_to_state_history(entt::registry &registry,
 }
 
 static void snap_to_registry_snapshot(entt::registry &registry, packet::registry_snapshot &snapshot) {
+    if (snapshot.pools.empty()) {
+        return;
+    }
+
     auto &settings = registry.ctx().at<edyn::settings>();
 
     if (settings.execution_mode == edyn::execution_mode::asynchronous) {
@@ -644,7 +741,29 @@ static void process_packet(entt::registry &registry, const packet::server_settin
     }
 }
 
+static void process_packet(entt::registry &registry, packet::entity_response &res) {
+    auto &ctx = registry.ctx().at<client_network_context>();
+
+    // Override synchronized state.
+    res.convert_remloc(registry, ctx.entity_map);
+    snap_to_registry_snapshot(registry, res);
+}
+
+static void process_packet(entt::registry &registry, packet::asset_sync_response &res) {
+    auto &ctx = registry.ctx().at<client_network_context>();
+
+    // Instantiate entities in asset.
+    auto local_entity = ctx.entity_map.at(res.entity);
+    ctx.instantiate_asset_signal.publish(local_entity);
+
+    // Override with synchronized state.
+    res.convert_remloc(registry, ctx.entity_map);
+    snap_to_registry_snapshot(registry, res);
+}
+
 static void process_packet(entt::registry &, const packet::set_aabb_of_interest &) {}
+static void process_packet(entt::registry &, const packet::query_entity &) {}
+static void process_packet(entt::registry &, const packet::asset_sync &) {}
 
 void client_receive_packet(entt::registry &registry, packet::edyn_packet &packet) {
     std::visit([&](auto &&inner_packet) {
@@ -655,6 +774,55 @@ void client_receive_packet(entt::registry &registry, packet::edyn_packet &packet
 bool client_owns_entity(const entt::registry &registry, entt::entity entity) {
     auto &ctx = registry.ctx().at<client_network_context>();
     return ctx.client_entity == registry.get<entity_owner>(entity).client_entity;
+}
+
+void client_asset_ready(entt::registry &registry, entt::entity asset_entity) {
+    auto &ctx = registry.ctx().at<client_network_context>();
+    packet::asset_sync packet;
+    packet.entity = ctx.entity_map.at_local(asset_entity);
+    ctx.packet_signal.publish(packet::edyn_packet{std::move(packet)});
+}
+
+void client_link_asset(entt::registry &registry, entt::entity asset_entity,
+                       const std::map<entt::id_type, entt::entity> &emap) {
+    auto &ctx = registry.ctx().at<client_network_context>();
+    const auto &asset = registry.get<asset_ref>(asset_entity);
+
+    entt::entity owner_entity = entt::null;
+
+    if (const auto *owner = registry.try_get<entity_owner>(asset_entity)) {
+        owner_entity = owner->client_entity;
+    }
+
+    // Set as importing entities to avoid handling these as "created entities".
+    const auto importing_entities_prev = ctx.importing_entities;
+    ctx.importing_entities = true;
+    auto emap_packet = packet::update_entity_map{};
+
+    for (auto [asset_id, remote_entity] : asset.entity_map) {
+        auto local_entity = emap.at(asset_id);
+        ctx.entity_map.insert(remote_entity, local_entity);
+        emap_packet.pairs.emplace_back(remote_entity, local_entity);
+
+        // Must tag it as networked.
+        registry.emplace<networked_tag>(local_entity);
+
+        // Assign discontinuity to dynamic rigid bodies.
+        if (registry.any_of<dynamic_tag>(local_entity)) {
+            registry.emplace<discontinuity>(local_entity);
+        }
+
+        // Assign the same owner.
+        if (owner_entity != entt::null) {
+            registry.emplace<entity_owner>(local_entity, owner_entity);
+        }
+    }
+
+    registry.emplace<asset_linked_tag>(asset_entity);
+    ctx.importing_entities = importing_entities_prev;
+
+    emap_packet.timestamp = performance_time();
+    ctx.packet_signal.publish(packet::edyn_packet{std::move(emap_packet)});
 }
 
 }

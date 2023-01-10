@@ -64,13 +64,13 @@ void update_aabbs_of_interest_seq(entt::registry &registry) {
         // Calculate which entities have entered and exited the AABB of interest.
         for (auto entity : aabboi.entities) {
             if (!contained_entities.contains(entity)) {
-                aabboi.destroy_entities.push_back(entity);
+                aabboi.entities_exited.push_back(entity);
             }
         }
 
         for (auto entity : contained_entities) {
             if (!aabboi.entities.contains(entity)) {
-                aabboi.create_entities.push_back(entity);
+                aabboi.entities_entered.push_back(entity);
             }
         }
 
@@ -147,13 +147,13 @@ void process_aabb_of_interest_result(entt::registry &registry, query_aabb_id_typ
     // Calculate which entities have entered and exited the AABB of interest.
     for (auto entity : aabboi.entities) {
         if (!contained_entities.contains(entity)) {
-            aabboi.destroy_entities.push_back(entity);
+            aabboi.entities_exited.push_back(entity);
         }
     }
 
     for (auto entity : contained_entities) {
         if (!aabboi.entities.contains(entity)) {
-            aabboi.create_entities.push_back(entity);
+            aabboi.entities_entered.push_back(entity);
         }
     }
 

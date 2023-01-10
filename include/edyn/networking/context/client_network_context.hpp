@@ -67,6 +67,17 @@ struct client_network_context {
         return entt::sink{extrapolation_timeout_signal};
     }
 
+    using entity_entered_func_t = void(entt::entity);
+    entt::sigh<entity_entered_func_t> entity_entered_signal;
+    auto entity_entered_sink() {
+        return entt::sink{entity_entered_signal};
+    }
+
+    entt::sigh<void(entt::entity)> instantiate_asset_signal;
+    auto instantiate_asset_sink() {
+        return entt::sink{instantiate_asset_signal};
+    }
+
     make_extrapolation_modified_comp_func_t *make_extrapolation_modified_comp;
 
     std::shared_ptr<client_snapshot_importer> snapshot_importer;

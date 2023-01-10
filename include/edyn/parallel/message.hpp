@@ -9,6 +9,8 @@
 #include "edyn/math/vector3.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
+#include "edyn/networking/extrapolation/extrapolation_modified_comp.hpp"
+#include "edyn/networking/util/input_state_history.hpp"
 #include "edyn/networking/util/pool_snapshot.hpp"
 #include "edyn/parallel/message_dispatcher.hpp"
 #include "edyn/core/entity_pair.hpp"
@@ -90,6 +92,11 @@ struct query_aabb_response {
     std::vector<entt::entity> procedural_entities;
     std::vector<entt::entity> non_procedural_entities;
     std::vector<entt::entity> island_entities;
+};
+
+struct set_extrapolator_context_settings {
+    std::shared_ptr<input_state_history> input_history;
+    make_extrapolation_modified_comp_func_t *make_extrapolation_modified_comp;
 };
 
 }

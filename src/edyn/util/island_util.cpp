@@ -18,35 +18,45 @@ void wake_up_island(entt::registry &registry, entt::entity island_entity) {
     }
 }
 
-void wake_up_island_residents(entt::registry &registry,
-                              const std::vector<entt::entity> &entities) {
+template<typename It>
+void wake_up_island_residents_range(entt::registry &registry, It first, It last) {
     auto resident_view = registry.view<island_resident>();
-    auto multi_resident_view = registry.view<multi_island_resident>();
+    auto island_entities = entt::sparse_set{};
 
-    for (auto entity : entities) {
+    for (; first != last; ++first) {
+        auto entity = *first;
         if (resident_view.contains(entity)) {
             auto [resident] = resident_view.get(entity);
 
-            if (resident.island_entity != entt::null) {
-                wake_up_island(registry, resident.island_entity);
-            }
-        } else {
-            auto [resident] = multi_resident_view.get(entity);
-
-            for (auto island_entity : resident.island_entities) {
-                wake_up_island(registry, island_entity);
+            if (resident.island_entity != entt::null && !island_entities.contains(resident.island_entity)) {
+                island_entities.emplace(resident.island_entity);
             }
         }
+    }
+
+    for (auto island_entity : island_entities) {
+        wake_up_island(registry, island_entity);
     }
 }
 
 void wake_up_island_residents(entt::registry &registry,
-                              const std::vector<entt::entity> &entities,
-                              const entity_map &emap) {
-    auto resident_view = registry.view<island_resident>();
-    auto multi_resident_view = registry.view<multi_island_resident>();
+                              const std::vector<entt::entity> &entities) {
+    wake_up_island_residents_range(registry, entities.begin(), entities.end());
+}
 
-    for (auto remote_entity : entities) {
+void wake_up_island_residents(entt::registry &registry,
+                              const entt::sparse_set &entities) {
+    wake_up_island_residents_range(registry, entities.begin(), entities.end());
+}
+
+template<typename It>
+void wake_up_island_residents_range_emap(entt::registry &registry, It first, It last, const entity_map &emap) {
+    auto resident_view = registry.view<island_resident>();
+    auto island_entities = entt::sparse_set{};
+
+    for (; first != last; ++first) {
+        auto remote_entity = *first;
+
         if (!emap.contains(remote_entity)) {
             continue;
         }
@@ -56,17 +66,27 @@ void wake_up_island_residents(entt::registry &registry,
         if (resident_view.contains(local_entity)) {
             auto [resident] = resident_view.get(local_entity);
 
-            if (resident.island_entity != entt::null) {
-                wake_up_island(registry, resident.island_entity);
-            }
-        } else {
-            auto [resident] = multi_resident_view.get(local_entity);
-
-            for (auto island_entity : resident.island_entities) {
-                wake_up_island(registry, island_entity);
+            if (resident.island_entity != entt::null && !island_entities.contains(resident.island_entity)) {
+                island_entities.emplace(resident.island_entity);
             }
         }
     }
+
+    for (auto island_entity : island_entities) {
+        wake_up_island(registry, island_entity);
+    }
+}
+
+void wake_up_island_residents(entt::registry &registry,
+                              const std::vector<entt::entity> &entities,
+                              const entity_map &emap) {
+    wake_up_island_residents_range_emap(registry, entities.begin(), entities.end(), emap);
+}
+
+void wake_up_island_residents(entt::registry &registry,
+                              const entt::sparse_set &entities,
+                              const entity_map &emap) {
+    wake_up_island_residents_range_emap(registry, entities.begin(), entities.end(), emap);
 }
 
 }

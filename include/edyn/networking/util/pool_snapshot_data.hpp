@@ -17,6 +17,7 @@
 namespace edyn {
 
 struct pool_snapshot_data {
+    // Snapshot is not expected to have more than 256 entities.
     using index_type = uint8_t;
     std::vector<index_type> entity_indices;
 
@@ -45,6 +46,7 @@ struct pool_snapshot_data_impl : public pool_snapshot_data {
     std::vector<Component> components;
 
     void convert_remloc(const entt::registry &registry, const entity_map &emap) override {
+        // TODO: should be no-op if component type has no child entities.
         if constexpr(!is_empty_type) {
             for (auto &comp : components) {
                 internal::map_child_entity(registry, emap, comp);

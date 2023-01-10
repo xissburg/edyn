@@ -18,6 +18,7 @@
 #include "edyn/comp/collision_exclusion.hpp"
 #include "edyn/comp/roll_direction.hpp"
 #include "edyn/networking/comp/action_history.hpp"
+#include "edyn/networking/comp/asset_ref.hpp"
 #include "edyn/shapes/sphere_shape.hpp"
 #include "edyn/shapes/cylinder_shape.hpp"
 #include "edyn/shapes/capsule_shape.hpp"
@@ -74,7 +75,8 @@ static const auto networked_components = std::tuple_cat(std::tuple<
     plane_shape,
     shape_index,
     entity_owner,
-    action_history
+    action_history,
+    asset_ref
 >{});
 
 using networked_components_t = std::decay_t<decltype(networked_components)>;

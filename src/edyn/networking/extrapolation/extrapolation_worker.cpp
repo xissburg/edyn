@@ -47,7 +47,8 @@ extrapolation_worker::extrapolation_worker(const settings &settings,
         extrapolation_request,
         msg::set_settings,
         msg::set_registry_operation_context,
-        msg::set_material_table>("extrapolation_worker"))
+        msg::set_material_table,
+        msg::set_extrapolator_context_settings>("extrapolation_worker"))
 {
     m_registry.ctx().emplace<contact_manifold_map>(m_registry);
     m_registry.ctx().emplace<broadphase>(m_registry);
@@ -61,6 +62,7 @@ extrapolation_worker::extrapolation_worker(const settings &settings,
     m_message_queue.sink<msg::set_settings>().connect<&extrapolation_worker::on_set_settings>(*this);
     m_message_queue.sink<msg::set_registry_operation_context>().connect<&extrapolation_worker::on_set_reg_op_ctx>(*this);
     m_message_queue.sink<msg::set_material_table>().connect<&extrapolation_worker::on_set_material_table>(*this);
+    m_message_queue.sink<msg::set_extrapolator_context_settings>().connect<&extrapolation_worker::on_set_extrapolator_context_settings>(*this);
     m_message_queue.push_sink().connect<&extrapolation_worker::on_push_message>(*this);
 }
 
@@ -97,6 +99,14 @@ void extrapolation_worker::set_registry_operation_context(const registry_operati
     dispatcher.send<msg::set_registry_operation_context>(m_message_queue.identifier, {"unknown"}, reg_op_ctx);
 }
 
+void extrapolation_worker::set_context_settings(std::shared_ptr<input_state_history> input_history,
+                                                make_extrapolation_modified_comp_func_t *make_extrapolation_modified_comp) {
+    EDYN_ASSERT(make_extrapolation_modified_comp != nullptr);
+    auto &dispatcher = message_dispatcher::global();
+    dispatcher.send<msg::set_extrapolator_context_settings>(m_message_queue.identifier, {"unknown"},
+                                                            input_history, make_extrapolation_modified_comp);
+}
+
 void extrapolation_worker::on_extrapolation_request(message<extrapolation_request> &msg) {
     m_destination_queue = msg.sender;
     m_request = std::move(msg.content);
@@ -115,6 +125,11 @@ void extrapolation_worker::on_set_material_table(message<msg::set_material_table
     m_registry.ctx().at<material_mix_table>() = msg.content.table;
 }
 
+void extrapolation_worker::on_set_extrapolator_context_settings(message<msg::set_extrapolator_context_settings> &msg) {
+    m_input_history = msg.content.input_history;
+    m_make_extrapolation_modified_comp = msg.content.make_extrapolation_modified_comp;
+}
+
 void extrapolation_worker::on_push_message() {
     m_has_messages.store(true, std::memory_order_release);
     m_cv.notify_one();
@@ -122,15 +137,15 @@ void extrapolation_worker::on_push_message() {
 
 void extrapolation_worker::apply_history() {
     auto &settings = m_registry.ctx().at<edyn::settings>();
-    auto start_time = m_current_time - settings.fixed_dt;
-    m_input_history->import_each(start_time, settings.fixed_dt, m_registry, m_entity_map);
+    auto since_time = m_current_time - settings.fixed_dt;
+    m_input_history->import_each(since_time, settings.fixed_dt, m_registry, m_entity_map);
 }
 
 void extrapolation_worker::init_extrapolation() {
-    m_start_time = performance_time();
-    m_current_time = m_start_time;
+    m_init_time = performance_time();
+    m_current_time = m_request.start_time;
     m_step_count = 0;
-    m_island_manager.set_last_time(m_start_time);
+    m_island_manager.set_last_time(m_current_time);
     m_terminated_early = false;
 
     // Import entities and components.
@@ -166,7 +181,7 @@ void extrapolation_worker::init_extrapolation() {
     m_registry.view<null_constraint>().each(insert_graph_edge);
 
     // Create islands.
-    m_island_manager.update(m_start_time);
+    m_island_manager.update(m_current_time);
 
     // Initialize shapes.
     m_poly_initializer.init_new_shapes();
@@ -200,6 +215,14 @@ void extrapolation_worker::init_extrapolation() {
     }
 
     m_modified_comp = (*m_make_extrapolation_modified_comp)(m_registry, relevant_entities, owned_entities);
+
+    // All components present in the remote snapshot must be marked as modified
+    // because if they do not change during extrapolation, their state won't be
+    // included in the final result, since only components that changed are
+    // reported back (via `m_modified_comp` which monitors and records changes)
+    // to avoid having to include everything. This would lead to the latest
+    // remote state of these components not being applied into the local simulation.
+    m_modified_comp->mark_snapshot(m_registry, m_request.snapshot, m_entity_map);
 }
 
 void extrapolation_worker::finish_extrapolation() {
@@ -252,7 +275,7 @@ void extrapolation_worker::finish_extrapolation() {
 bool extrapolation_worker::should_step() {
     auto time = performance_time();
 
-    if (time - m_start_time > m_request.execution_time_limit) {
+    if (time - m_init_time > m_request.execution_time_limit) {
         // Timeout.
         m_terminated_early = true;
         return false;

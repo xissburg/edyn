@@ -64,7 +64,7 @@ class server_snapshot_importer_impl : public server_snapshot_importer {
     template<typename Component>
     bool is_owned_by_client(const entt::registry &registry, entt::entity client_entity, entt::entity entity) {
         // If the entity is not fully owned by the client, the update must
-        // not be applied, because in this case the server is in control of
+        // not be imported, because in this case the server is in control of
         // the procedural state. Input components are one exception because
         // they must always be applied.
         if constexpr(std::is_base_of_v<network_input, Component> ||
@@ -328,7 +328,7 @@ public:
 
     void merge_action_history(entt::registry &registry, packet::registry_snapshot &snap, double time_delta) override {
         auto pool_it = std::find_if(snap.pools.begin(), snap.pools.end(), [](auto &&pool) {
-            auto action_history_index = index_of_v<unsigned, action_history, Components...>;
+            auto action_history_index = index_of_v<component_index_type, action_history, Components...>;
             return pool.component_index == action_history_index;
         });
 
@@ -338,7 +338,7 @@ public:
 
         auto *history_pool = static_cast<pool_snapshot_data_impl<action_history> *>(pool_it->ptr.get());
 
-        for (unsigned i = 0; i < history_pool->components.size(); ++i) {
+        for (size_t i = 0; i < history_pool->components.size(); ++i) {
             auto idx = history_pool->entity_indices[i];
             auto entity = snap.entities[idx];
             auto &history = history_pool->components[i];

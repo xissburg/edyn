@@ -7,6 +7,7 @@
 #include <utility>
 #include "edyn/networking/comp/action_history.hpp"
 #include "edyn/networking/comp/network_input.hpp"
+#include "edyn/networking/packet/registry_snapshot.hpp"
 #include "edyn/replication/registry_operation_builder.hpp"
 #include "edyn/util/tuple_util.hpp"
 
@@ -31,6 +32,12 @@ public:
 
     virtual void export_to_builder(registry_operation_builder &builder) = 0;
 
+    // Mark all components in snapshot as modified to ensure they'll be included
+    // in the call to `export_to_builder` even if they do not change during
+    // extrapolation.
+    virtual void mark_snapshot(entt::registry &registry, const packet::registry_snapshot &snapshot,
+                               const entity_map &emap) = 0;
+
 protected:
     entt::registry *m_registry;
     entt::sparse_set m_relevant_entities;
@@ -41,7 +48,8 @@ protected:
 template<typename... Components>
 class extrapolation_modified_comp_impl : public extrapolation_modified_comp {
     struct modified_components {
-        std::array<bool, sizeof...(Components)> bits {};
+        std::array<uint16_t, sizeof...(Components)> indices;
+        uint16_t count {};
     };
 
     template<typename Component>
@@ -49,7 +57,18 @@ class extrapolation_modified_comp_impl : public extrapolation_modified_comp {
         static const auto index = index_of_v<unsigned, Component, Components...>;
 
         if (auto *modified = registry.try_get<modified_components>(entity)) {
-            modified->bits[index] = true;
+            bool found = false;
+
+            for (unsigned i = 0; i < modified->count; ++i) {
+                if (modified->indices[i] == index) {
+                    found = true;
+                    break;
+                }
+            }
+
+            if (!found) {
+                modified->indices[modified->count++] = index;
+            }
         }
     }
 
@@ -71,10 +90,36 @@ public:
     }
 
     void export_to_builder(registry_operation_builder &builder) override {
+        const auto components_tuple = std::tuple<Components...>{};
+
         for (auto [entity, modified] : m_registry->view<modified_components>().each()) {
-            unsigned i = 0;
-            // Do not include input components that belong to an owned entity.
-            (((modified.bits[i] && (!m_owned_entities.contains(entity) || !m_is_network_input[i]) ? builder.replace<Components>(entity) : void(0)), ++i), ...);
+            const auto owned_entity = m_owned_entities.contains(entity);
+
+            for (unsigned i = 0; i < modified.count; ++i) {
+                auto comp_idx = modified.indices[i];
+
+                // Do not include input components that belong to an owned entity.
+                if (owned_entity && m_is_network_input[comp_idx]) {
+                    continue;
+                }
+
+                visit_tuple(components_tuple, comp_idx, [&builder, entity = entity](auto &&c) {
+                    using CompType = std::decay_t<decltype(c)>;
+                    builder.replace<CompType>(entity);
+                });
+            }
+        }
+    }
+
+    void mark_snapshot(entt::registry &registry, const packet::registry_snapshot &snapshot,
+                       const entity_map &emap) override {
+        for (auto &pool : snapshot.pools) {
+            for (auto entity_index : pool.ptr->entity_indices) {
+                auto remote_entity = snapshot.entities[entity_index];
+                auto local_entity = emap.at(remote_entity);
+                auto &modified = registry.get_or_emplace<modified_components>(local_entity);
+                modified.indices[modified.count++] = pool.component_index;
+            }
         }
     }
 

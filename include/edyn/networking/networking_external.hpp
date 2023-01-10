@@ -47,6 +47,8 @@ void register_networked_components(entt::registry &registry, std::tuple<Actions.
             return std::unique_ptr<extrapolation_modified_comp>(
                 new extrapolation_modified_comp_impl(registry, relevant_entities, owned_entities, all));
         };
+
+        ctx->extrapolator->set_context_settings(ctx->input_history, ctx->make_extrapolation_modified_comp);
     }
 
     if (auto *ctx = registry.ctx().find<server_network_context>()) {
