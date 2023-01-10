@@ -52,7 +52,7 @@ struct clock_sync_data {
     // Number of clock synchronizations performed.
     unsigned count {0};
 
-    // Length of time between clock sychronizations, i.e. inverse of how often
+    // Length of time between clock synchronizations, i.e. inverse of how often
     // clock syncs should be performed.
     double period {20.0 * 60.0};
 
