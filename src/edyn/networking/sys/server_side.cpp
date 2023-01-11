@@ -52,9 +52,9 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
         ctx.snapshot_importer->import_input_local(registry, client_entity, snapshot);
 
         auto &stepper = registry.ctx().at<stepper_async>();
-        stepper.send_message_to_worker<msg::apply_network_pools>(std::move(snapshot.entities), std::move(snapshot.pools));
+        stepper.send_message_to_worker<msg::apply_network_pools>(std::move(snapshot.entities), std::move(snapshot.pools), false);
     } else {
-        snap_to_pool_snapshot(registry, snapshot.entities, snapshot.pools);
+        snap_to_pool_snapshot(registry, snapshot.entities, snapshot.pools, false);
         wake_up_island_residents(registry, snapshot.entities);
     }
 }

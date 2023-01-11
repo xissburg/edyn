@@ -61,6 +61,7 @@ struct update_entities {
 struct apply_network_pools {
     std::vector<entt::entity> entities;
     std::vector<pool_snapshot> pools;
+    bool should_accumulate_discontinuities;
 };
 
 struct raycast_request {

@@ -44,7 +44,8 @@
 
 namespace edyn {
 
-static void snap_to_registry_snapshot(entt::registry &registry, packet::registry_snapshot &snapshot);
+static void snap_to_registry_snapshot(entt::registry &registry, packet::registry_snapshot &snapshot,
+                                      bool should_accumulate_discontinuities);
 
 void on_construct_networked_entity(entt::registry &registry, entt::entity entity) {
     auto &ctx = registry.ctx().at<client_network_context>();
@@ -505,7 +506,7 @@ static void process_packet(entt::registry &registry, packet::entity_entered &pac
         if (registry.all_of<asset_linked_tag>(local_entity)) {
             // Override with latest state.
             info.convert_remloc(registry, ctx.entity_map);
-            snap_to_registry_snapshot(registry, info);
+            snap_to_registry_snapshot(registry, info, false);
         }
     }
 
@@ -556,7 +557,8 @@ static void insert_input_to_state_history(entt::registry &registry,
     }
 }
 
-static void snap_to_registry_snapshot(entt::registry &registry, packet::registry_snapshot &snapshot) {
+static void snap_to_registry_snapshot(entt::registry &registry, packet::registry_snapshot &snapshot,
+                                      bool should_accumulate_discontinuities) {
     if (snapshot.pools.empty()) {
         return;
     }
@@ -565,11 +567,13 @@ static void snap_to_registry_snapshot(entt::registry &registry, packet::registry
 
     if (settings.execution_mode == edyn::execution_mode::asynchronous) {
         auto &stepper = registry.ctx().at<stepper_async>();
-        stepper.send_message_to_worker<msg::apply_network_pools>(std::move(snapshot.entities), std::move(snapshot.pools));
+        stepper.send_message_to_worker<msg::apply_network_pools>(std::move(snapshot.entities),
+                                                                 std::move(snapshot.pools),
+                                                                 should_accumulate_discontinuities);
     } else {
         auto &ctx = registry.ctx().at<client_network_context>();
         ctx.snapshot_exporter->set_observer_enabled(false);
-        snap_to_pool_snapshot(registry, snapshot.entities, snapshot.pools);
+        snap_to_pool_snapshot(registry, snapshot.entities, snapshot.pools, should_accumulate_discontinuities);
         ctx.snapshot_exporter->set_observer_enabled(true);
 
         wake_up_island_residents(registry, snapshot.entities);
@@ -621,7 +625,7 @@ static void process_packet(entt::registry &registry, packet::registry_snapshot &
     // If extrapolation is not enabled or not needed, snap to this state and
     // add the differences to the discontinuity components.
     if (!needs_extrapolation || !client_settings.extrapolation_enabled) {
-        snap_to_registry_snapshot(registry, snapshot);
+        snap_to_registry_snapshot(registry, snapshot, true);
         return;
     }
 
@@ -644,7 +648,7 @@ static void process_packet(entt::registry &registry, packet::registry_snapshot &
     if (node_indices.empty()) {
         // There are no connecting nodes among all entities involved, i.e.
         // procedural entities. Then just snap.
-        snap_to_registry_snapshot(registry, snapshot);
+        snap_to_registry_snapshot(registry, snapshot, true);
         return;
     }
 
@@ -746,7 +750,7 @@ static void process_packet(entt::registry &registry, packet::entity_response &re
 
     // Override synchronized state.
     res.convert_remloc(registry, ctx.entity_map);
-    snap_to_registry_snapshot(registry, res);
+    snap_to_registry_snapshot(registry, res, false);
 }
 
 static void process_packet(entt::registry &registry, packet::asset_sync_response &res) {
@@ -758,7 +762,7 @@ static void process_packet(entt::registry &registry, packet::asset_sync_response
 
     // Override with synchronized state.
     res.convert_remloc(registry, ctx.entity_map);
-    snap_to_registry_snapshot(registry, res);
+    snap_to_registry_snapshot(registry, res, false);
 }
 
 static void process_packet(entt::registry &, const packet::set_aabb_of_interest &) {}

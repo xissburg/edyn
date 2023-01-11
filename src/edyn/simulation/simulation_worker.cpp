@@ -526,8 +526,9 @@ void simulation_worker::on_extrapolation_result(message<extrapolation_result> &m
 
 void simulation_worker::on_apply_network_pools(message<msg::apply_network_pools> &msg) {
     EDYN_ASSERT(!msg.content.pools.empty());
-    snap_to_pool_snapshot(m_registry, m_entity_map, msg.content.entities, msg.content.pools);
-    wake_up_island_residents(m_registry, msg.content.entities, m_entity_map);
+    auto &snap = msg.content;
+    snap_to_pool_snapshot(m_registry, m_entity_map, snap.entities, snap.pools, snap.should_accumulate_discontinuities);
+    wake_up_island_residents(m_registry, snap.entities, m_entity_map);
 }
 
 }
