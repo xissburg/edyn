@@ -160,6 +160,12 @@ void extrapolation_worker::init_extrapolation() {
         auto procedural = procedural_view.contains(entity);
         auto node_index = graph.insert_node(entity, !procedural);
         m_registry.emplace<graph_node>(entity, node_index);
+
+        if (!procedural) {
+            // `multi_island_resident` is not a shared component thus add it
+            // manually here.
+            m_registry.emplace<multi_island_resident>(entity);
+        }
     };
 
     std::apply([&](auto ... t) {

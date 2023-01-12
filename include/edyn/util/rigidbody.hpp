@@ -179,6 +179,8 @@ vector3 get_rigidbody_origin(const entt::registry &, entt::entity);
  */
 vector3 get_rigidbody_present_origin(const entt::registry &, entt::entity);
 
+void wake_up_entity(entt::registry &, entt::entity);
+
 }
 
 #endif // EDYN_UTIL_RIGIDBODY_HPP

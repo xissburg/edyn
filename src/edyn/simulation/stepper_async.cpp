@@ -21,6 +21,7 @@
 #include "edyn/core/entity_graph.hpp"
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/comp/graph_edge.hpp"
+#include "edyn/util/island_util.hpp"
 #include "edyn/util/vector_util.hpp"
 #include "edyn/replication/registry_operation.hpp"
 #include "edyn/context/settings.hpp"
@@ -44,11 +45,10 @@ stepper_async::stepper_async(entt::registry &registry)
                registry.ctx().at<material_mix_table>())
     , m_timestamp(performance_time())
 {
-    m_connections.push_back(registry.on_construct<graph_node>().connect<&stepper_async::on_construct_graph_node>(*this));
+    m_connections.push_back(registry.on_construct<graph_node>().connect<&stepper_async::on_construct_shared>(*this));
     m_connections.push_back(registry.on_destroy<graph_node>().connect<&stepper_async::on_destroy_graph_node>(*this));
-    m_connections.push_back(registry.on_construct<graph_edge>().connect<&stepper_async::on_construct_graph_edge>(*this));
+    m_connections.push_back(registry.on_construct<graph_edge>().connect<&stepper_async::on_construct_shared>(*this));
     m_connections.push_back(registry.on_destroy<graph_edge>().connect<&stepper_async::on_destroy_graph_edge>(*this));
-    m_connections.push_back(registry.on_construct<island_tag>().connect<&entt::registry::emplace<island>>());
 
     m_message_queue_handle.sink<msg::step_update>().connect<&stepper_async::on_step_update>(*this);
     m_message_queue_handle.sink<msg::raycast_response>().connect<&stepper_async::on_raycast_response>(*this);
@@ -61,12 +61,8 @@ stepper_async::stepper_async(entt::registry &registry)
     m_worker.start();
 }
 
-void stepper_async::on_construct_graph_node(entt::registry &registry, entt::entity entity) {
-    registry.emplace<shared_tag>(entity);
-}
-
-void stepper_async::on_construct_graph_edge(entt::registry &registry, entt::entity entity) {
-    registry.emplace<shared_tag>(entity);
+void stepper_async::on_construct_shared(entt::registry &registry, entt::entity entity) {
+    m_op_observer->observe(entity);
 }
 
 void stepper_async::on_destroy_graph_node(entt::registry &registry, entt::entity entity) {
@@ -80,6 +76,7 @@ void stepper_async::on_destroy_graph_node(entt::registry &registry, entt::entity
     graph.visit_edges(node.node_index, [&](auto edge_index) {
         auto edge_entity = graph.edge_entity(edge_index);
         registry.destroy(edge_entity);
+        m_op_observer->unobserve(edge_entity);
 
         if (!m_importing) {
             if (m_entity_map.contains_local(edge_entity)) {
@@ -92,6 +89,7 @@ void stepper_async::on_destroy_graph_node(entt::registry &registry, entt::entity
 
     graph.remove_all_edges(node.node_index);
     graph.remove_node(node.node_index);
+    m_op_observer->unobserve(entity);
 
     if (!m_importing) {
         // When importing delta, the entity is removed from the entity map as part
@@ -106,6 +104,7 @@ void stepper_async::on_destroy_graph_edge(entt::registry &registry, entt::entity
     auto &edge = registry.get<graph_edge>(entity);
     auto &graph = registry.ctx().at<entity_graph>();
     graph.remove_edge(edge.edge_index);
+    m_op_observer->unobserve(entity);
 
     if (!m_importing) {
         if (m_entity_map.contains_local(entity)) {
@@ -127,12 +126,12 @@ void stepper_async::on_step_update(message<msg::step_update> &msg) {
     ops.execute(registry, m_entity_map);
 
     // Insert entity mappings for new entities into the current op.
-    ops.create_for_each([&](entt::entity remote_entity) {
+    for (auto remote_entity : ops.create_entities) {
         if (m_entity_map.contains(remote_entity)) {
             auto local_entity = m_entity_map.at(remote_entity);
             m_op_builder->add_entity_mapping(local_entity, remote_entity);
         }
-    });
+    }
 
     m_timestamp = msg.content.timestamp;
 
@@ -141,15 +140,29 @@ void stepper_async::on_step_update(message<msg::step_update> &msg) {
     // Insert nodes in the graph for each new rigid body.
     auto &graph = registry.ctx().at<entity_graph>();
     auto insert_node = [&](entt::entity remote_entity) {
+        if (!m_entity_map.contains(remote_entity)) {
+            return;
+        }
+
         auto local_entity = m_entity_map.at(remote_entity);
         auto non_connecting = !registry.any_of<procedural_tag>(local_entity);
         auto node_index = graph.insert_node(local_entity, non_connecting);
         registry.emplace<graph_node>(local_entity, node_index);
+
+        if (non_connecting) {
+            // `multi_island_resident` is not a shared component thus add it
+            // manually here.
+            registry.emplace<multi_island_resident>(local_entity);
+        }
     };
     ops.emplace_for_each<rigidbody_tag, external_tag>(insert_node);
 
     // Insert edges in the graph for constraints.
     auto insert_edge = [&](entt::entity remote_entity, const auto &con) {
+        if (!m_entity_map.contains(remote_entity)) {
+            return;
+        }
+
         auto local_entity = m_entity_map.at(remote_entity);
 
         // There could be multiple constraints (of different types) assigned to
@@ -256,6 +269,12 @@ void stepper_async::material_table_changed() {
 
 void stepper_async::set_center_of_mass(entt::entity entity, const vector3 &com) {
     send_message_to_worker<msg::set_com>(entity, com);
+}
+
+void stepper_async::wake_up_entity(entt::entity entity) {
+    auto msg = std::vector<entt::entity>{};
+    msg.push_back(entity);
+    send_message_to_worker<msg::wake_up_residents>(std::move(msg));
 }
 
 raycast_id_type stepper_async::raycast(vector3 p0, vector3 p1,

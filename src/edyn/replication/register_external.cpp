@@ -26,13 +26,19 @@ void remove_external_components(entt::registry &registry) {
 
 void tag_external_entity(entt::registry &registry, entt::entity entity, bool procedural) {
     if (procedural) {
-        registry.emplace<edyn::procedural_tag>(entity);
+        registry.emplace<procedural_tag>(entity);
     }
 
-    registry.emplace<edyn::external_tag>(entity);
+    registry.emplace<external_tag>(entity);
     auto non_connecting = !procedural;
-    auto node_index = registry.ctx().at<edyn::entity_graph>().insert_node(entity, non_connecting);
-    registry.emplace<edyn::graph_node>(entity, node_index);
+    auto node_index = registry.ctx().at<entity_graph>().insert_node(entity, non_connecting);
+    registry.emplace<graph_node>(entity, node_index);
+
+    if (procedural) {
+        registry.emplace<island_resident>(entity);
+    } else {
+        registry.emplace<multi_island_resident>(entity);
+    }
 }
 
 }

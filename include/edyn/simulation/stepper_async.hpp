@@ -42,8 +42,7 @@ public:
     stepper_async operator=(stepper_async const&) = delete;
     stepper_async(entt::registry &);
 
-    void on_construct_graph_node(entt::registry &, entt::entity);
-    void on_construct_graph_edge(entt::registry &, entt::entity);
+    void on_construct_shared(entt::registry &, entt::entity);
 
     void on_destroy_graph_node(entt::registry &, entt::entity);
     void on_destroy_graph_edge(entt::registry &, entt::entity);
@@ -58,6 +57,7 @@ public:
     void step_simulation();
 
     void set_center_of_mass(entt::entity entity, const vector3 &com);
+    void wake_up_entity(entt::entity entity);
 
     // Call when settings have changed in the registry's context. It will
     // propagate changes to island workers.

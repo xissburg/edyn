@@ -30,17 +30,10 @@ island_manager::island_manager(entt::registry &registry)
 
 void island_manager::on_construct_graph_node(entt::registry &registry, entt::entity entity) {
     m_new_graph_nodes.push_back(entity);
-
-    if (registry.any_of<procedural_tag>(entity)) {
-        registry.emplace<island_resident>(entity);
-    } else {
-        registry.emplace<multi_island_resident>(entity);
-    }
 }
 
 void island_manager::on_construct_graph_edge(entt::registry &registry, entt::entity entity) {
     m_new_graph_edges.push_back(entity);
-    registry.emplace<island_resident>(entity);
 }
 
 void island_manager::on_destroy_graph_node(entt::registry &registry, entt::entity entity) {
@@ -71,7 +64,7 @@ void island_manager::on_destroy_graph_edge(entt::registry &registry, entt::entit
 }
 
 void island_manager::on_destroy_island_resident(entt::registry &registry, entt::entity entity) {
-    auto &resident = registry.get<island_resident>(entity);
+    const auto &resident = registry.get<island_resident>(entity);
 
     if (resident.island_entity == entt::null) {
         return;
@@ -96,10 +89,11 @@ void island_manager::on_destroy_island_resident(entt::registry &registry, entt::
 }
 
 void island_manager::on_destroy_multi_island_resident(entt::registry &registry, entt::entity entity) {
-    auto &resident = registry.get<multi_island_resident>(entity);
+    auto &resident = registry.get<const multi_island_resident>(entity);
+    auto island_view = registry.view<edyn::island>();
 
     for (auto island_entity : resident.island_entities) {
-        auto &island = registry.get<edyn::island>(island_entity);
+        auto [island] = island_view.get(island_entity);
         island.nodes.erase(entity);
 
         // Non-procedural entities do not form islands thus there's no need to
@@ -155,7 +149,7 @@ void island_manager::init_new_nodes_and_edges() {
     std::vector<entt::entity> connected_nodes;
     std::vector<entt::entity> connected_edges;
     std::vector<entt::entity> island_entities;
-    auto resident_view = m_registry->view<island_resident>();
+    auto resident_view = m_registry->view<const island_resident>();
     auto procedural_view = m_registry->view<procedural_tag>();
 
     graph.reach(
@@ -214,7 +208,7 @@ void island_manager::init_new_nodes_and_edges() {
             // Visit neighbor if it contains an edge that is not in an island yet.
             graph.visit_edges(node_index, [&](auto edge_index) {
                 auto edge_entity = graph.edge_entity(edge_index);
-                if (resident_view.get<island_resident>(edge_entity).island_entity == entt::null) {
+                if (std::get<0>(resident_view.get(edge_entity)).island_entity == entt::null) {
                     continue_visiting = true;
                 }
             });
@@ -253,17 +247,18 @@ entt::entity island_manager::create_island() {
 }
 
 void island_manager::insert_to_island(entt::entity island_entity,
-                                     const std::vector<entt::entity> &nodes,
-                                     const std::vector<entt::entity> &edges) {
+                                      const std::vector<entt::entity> &nodes,
+                                      const std::vector<entt::entity> &edges) {
     auto resident_view = m_registry->view<island_resident>();
     auto multi_resident_view = m_registry->view<multi_island_resident>();
     auto &island = m_registry->get<edyn::island>(island_entity);
 
     for (auto entity : nodes) {
         if (resident_view.contains(entity)) {
-            auto [resident] = resident_view.get(entity);
-            resident.island_entity = island_entity;
             island.nodes.emplace(entity);
+            m_registry->patch<island_resident>(entity, [island_entity](island_resident &resident) {
+                resident.island_entity = island_entity;
+            });
         } else {
             auto [resident] = multi_resident_view.get(entity);
 
@@ -280,8 +275,9 @@ void island_manager::insert_to_island(entt::entity island_entity,
     }
 
     for (auto entity : edges) {
-        auto [resident] = resident_view.get(entity);
-        resident.island_entity = island_entity;
+        m_registry->patch<island_resident>(entity, [island_entity](island_resident &resident) {
+            resident.island_entity = island_entity;
+        });
         m_registry->remove<sleeping_tag>(entity);
     }
 
@@ -291,8 +287,8 @@ void island_manager::insert_to_island(entt::entity island_entity,
 }
 
 void island_manager::merge_islands(const std::vector<entt::entity> &island_entities,
-                                  const std::vector<entt::entity> &new_nodes,
-                                  const std::vector<entt::entity> &new_edges) {
+                                   const std::vector<entt::entity> &new_nodes,
+                                   const std::vector<entt::entity> &new_edges) {
     EDYN_ASSERT(island_entities.size() > 1);
 
     // Pick biggest island and move the other entities into it.
@@ -462,11 +458,12 @@ void island_manager::split_islands() {
             auto is_first_node = true;
 
             for (auto node_entity : island_new.nodes) {
-                bool is_procedural = resident_view.contains(node_entity);
+                bool is_procedural = procedural_view.contains(node_entity);
 
                 if (is_procedural) {
-                    auto [resident] = resident_view.get(node_entity);
-                    resident.island_entity = island_entity_new;
+                    m_registry->patch<island_resident>(node_entity, [island_entity_new](island_resident &resident) {
+                        resident.island_entity = island_entity_new;
+                    });
                 } else {
                     auto [resident] = multi_resident_view.get(node_entity);
                     resident.island_entities.emplace(island_entity_new);
@@ -494,8 +491,9 @@ void island_manager::split_islands() {
             }
 
             for (auto edge_entity : island_new.edges) {
-                auto [resident] = resident_view.get(edge_entity);
-                resident.island_entity = island_entity_new;
+                m_registry->patch<island_resident>(edge_entity, [island_entity_new](island_resident &resident) {
+                    resident.island_entity = island_entity_new;
+                });
             }
 
             remove_sleeping_tag_from_island(*m_registry, island_entity_new, island_new);

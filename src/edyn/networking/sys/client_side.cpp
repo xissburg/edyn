@@ -134,6 +134,10 @@ void init_network_client(entt::registry &registry) {
     auto &settings = registry.ctx().at<edyn::settings>();
     settings.network_settings = client_network_settings{};
 
+    if (auto *stepper = registry.ctx().find<stepper_async>()) {
+        stepper->settings_changed();
+    }
+
     // If not running in asynchronous mode, discontinuity calculation is done
     // in the main thread thus it's necessary to assign the previous transform
     // component.
@@ -299,6 +303,7 @@ void create_graph_edge(entt::registry &registry, entt::entity entity) {
     auto node_index1 = registry.get<graph_node>(comp.body[1]).node_index;
     auto edge_index = registry.ctx().at<entity_graph>().insert_edge(entity, node_index0, node_index1);
     registry.emplace<graph_edge>(entity, edge_index);
+    registry.emplace<island_resident>(entity);
 }
 
 template<typename... Ts>
@@ -390,9 +395,15 @@ static void process_packet(entt::registry &registry, const packet::create_entity
         // Assign graph node to rigid bodies and external entities.
         if (registry.any_of<rigidbody_tag, external_tag>(entity) &&
             !registry.all_of<graph_node>(entity)) {
-            auto non_connecting = !registry.any_of<procedural_tag>(entity);
-            auto node_index = registry.ctx().at<entity_graph>().insert_node(entity, non_connecting);
+            auto is_procedural = registry.any_of<procedural_tag>(entity);
+            auto node_index = registry.ctx().at<entity_graph>().insert_node(entity, !is_procedural);
             registry.emplace<graph_node>(entity, node_index);
+
+            if (is_procedural) {
+                registry.emplace<island_resident>(entity);
+            } else {
+                registry.emplace<multi_island_resident>(entity);
+            }
         }
     }
 

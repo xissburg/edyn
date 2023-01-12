@@ -69,6 +69,7 @@ simulation_worker::simulation_worker(const settings &settings,
         msg::set_material_table,
         msg::update_entities,
         msg::apply_network_pools,
+        msg::wake_up_residents,
         msg::raycast_request,
         msg::query_aabb_request,
         msg::query_aabb_of_interest_request,
@@ -107,6 +108,7 @@ void simulation_worker::init() {
     m_message_queue.sink<msg::query_aabb_request>().connect<&simulation_worker::on_query_aabb_request>(*this);
     m_message_queue.sink<msg::query_aabb_of_interest_request>().connect<&simulation_worker::on_query_aabb_of_interest_request>(*this);
     m_message_queue.sink<msg::apply_network_pools>().connect<&simulation_worker::on_apply_network_pools>(*this);
+    m_message_queue.sink<msg::wake_up_residents>().connect<&simulation_worker::on_wake_up_residents>(*this);
 
     auto &settings = m_registry.ctx().at<edyn::settings>();
 
@@ -120,16 +122,25 @@ void simulation_worker::init() {
 }
 
 void simulation_worker::on_construct_shared_entity(entt::registry &registry, entt::entity entity) {
-    registry.emplace<shared_tag>(entity);
+    m_op_observer->observe(entity);
 }
 
 void simulation_worker::on_destroy_shared_entity(entt::registry &registry, entt::entity entity) {
+    m_op_observer->unobserve(entity);
+
     if (m_entity_map.contains_local(entity)) {
         m_entity_map.erase_local(entity);
     }
 }
 
-static void import_reg_ops(entt::registry &registry, entity_map &emap, const registry_operation &ops) {
+void simulation_worker::on_update_entities(message<msg::update_entities> &msg) {
+    auto &ops = msg.content.ops;
+    auto &registry = m_registry;
+    auto &emap = m_entity_map;
+
+    // Import components from main registry.
+    m_importing = true;
+    m_op_observer->set_active(false);
     ops.execute(registry, emap);
 
     auto &graph = registry.ctx().at<entity_graph>();
@@ -144,6 +155,12 @@ static void import_reg_ops(entt::registry &registry, entity_map &emap, const reg
         auto procedural = procedural_view.contains(local_entity);
         auto node_index = graph.insert_node(local_entity, !procedural);
         registry.emplace<graph_node>(local_entity, node_index);
+
+        if (!procedural) {
+            // `multi_island_resident` is not a shared component thus add it
+            // manually here.
+            registry.emplace<multi_island_resident>(local_entity);
+        }
     });
 
     auto insert_edge = [&](entt::entity remote_entity, const auto &con) {
@@ -211,14 +228,6 @@ static void import_reg_ops(entt::registry &registry, entity_map &emap, const reg
             registry.emplace<previous_orientation>(local_entity);
         });
     }
-}
-
-void simulation_worker::on_update_entities(message<msg::update_entities> &msg) {
-    // Import components from main registry.
-    m_importing = true;
-    m_op_observer->set_active(false);
-
-    import_reg_ops(m_registry, m_entity_map, msg.content.ops);
 
     m_importing = false;
     m_op_observer->set_active(true);
@@ -407,7 +416,14 @@ void simulation_worker::on_step_simulation(message<msg::step_simulation> &) {
 }
 
 void simulation_worker::on_set_settings(message<msg::set_settings> &msg) {
-    m_registry.ctx().at<settings>() = msg.content.settings;
+    const auto &settings = msg.content.settings;
+    m_registry.ctx().at<edyn::settings>() = settings;
+
+    if (std::holds_alternative<client_network_settings>(settings.network_settings)) {
+        m_message_queue.sink<extrapolation_result>().connect<&simulation_worker::on_extrapolation_result>(*this);
+    } else {
+        m_message_queue.sink<extrapolation_result>().disconnect<&simulation_worker::on_extrapolation_result>(*this);
+    }
 }
 
 void simulation_worker::on_set_reg_op_ctx(message<msg::set_registry_operation_context> &msg) {
@@ -529,6 +545,10 @@ void simulation_worker::on_apply_network_pools(message<msg::apply_network_pools>
     auto &snap = msg.content;
     snap_to_pool_snapshot(m_registry, m_entity_map, snap.entities, snap.pools, snap.should_accumulate_discontinuities);
     wake_up_island_residents(m_registry, snap.entities, m_entity_map);
+}
+
+void simulation_worker::on_wake_up_residents(message<msg::wake_up_residents> &msg) {
+    wake_up_island_residents(m_registry, msg.content.residents, m_entity_map);
 }
 
 }

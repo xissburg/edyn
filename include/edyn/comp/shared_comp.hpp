@@ -62,6 +62,7 @@ using shared_components_t = decltype(std::tuple_cat(std::tuple<
     disabled_tag,
     external_tag,
     shape_index,
+    island_resident,
     rigidbody_tag,
     constraint_tag,
     island_tag,

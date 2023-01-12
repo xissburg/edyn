@@ -64,6 +64,10 @@ struct apply_network_pools {
     bool should_accumulate_discontinuities;
 };
 
+struct wake_up_residents {
+    std::vector<entt::entity> residents;
+};
+
 struct raycast_request {
     unsigned int id;
     vector3 p0, p1;

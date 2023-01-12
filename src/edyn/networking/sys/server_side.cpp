@@ -68,6 +68,7 @@ void create_graph_edge(entt::registry &registry, entt::entity entity) {
     auto node_index1 = registry.get<graph_node>(comp.body[1]).node_index;
     auto edge_index = registry.ctx().at<entity_graph>().insert_edge(entity, node_index0, node_index1);
     registry.emplace<graph_edge>(entity, edge_index);
+    registry.emplace<island_resident>(entity);
 }
 
 template<typename... Ts>
@@ -158,9 +159,15 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
 
         if (registry.any_of<rigidbody_tag, external_tag>(local_entity) &&
             !registry.all_of<graph_node>(local_entity)) {
-            auto non_connecting = !registry.any_of<procedural_tag>(local_entity);
-            auto node_index = registry.ctx().at<entity_graph>().insert_node(local_entity, non_connecting);
+            auto is_procedural = registry.any_of<procedural_tag>(local_entity);
+            auto node_index = registry.ctx().at<entity_graph>().insert_node(local_entity, !is_procedural);
             registry.emplace<graph_node>(local_entity, node_index);
+
+            if (is_procedural) {
+                registry.emplace<island_resident>(local_entity);
+            } else {
+                registry.emplace<multi_island_resident>(local_entity);
+            }
         }
     }
 

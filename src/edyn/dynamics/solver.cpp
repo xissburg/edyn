@@ -9,7 +9,6 @@
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/dynamics/island_solver.hpp"
-#include "edyn/config/execution_mode.hpp"
 #include "edyn/constraints/constraint_body.hpp"
 #include "edyn/dynamics/island_constraint_entities.hpp"
 #include "edyn/dynamics/row_cache.hpp"

@@ -39,6 +39,9 @@ static void init_meta() {
 
     entt::meta<entity_owner>().type()
         .data<&entity_owner::client_entity, entt::as_ref_t>("client_entity"_hs);
+
+    entt::meta<island_resident>().type()
+        .data<&island_resident::island_entity, entt::as_ref_t>("island_entity"_hs);
 }
 
 void attach(entt::registry &registry, const init_config &config) {
