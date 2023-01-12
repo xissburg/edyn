@@ -247,7 +247,7 @@ void extrapolation_worker::finish_extrapolation() {
 
     m_modified_comp->export_to_builder(*builder);
 
-    auto body_view = m_registry.view<position, orientation, linvel, angvel>();
+    auto body_view = m_registry.view<position, orientation, linvel, angvel, dynamic_tag>();
     builder->replace<position>(body_view.begin(), body_view.end());
     builder->replace<orientation>(body_view.begin(), body_view.end());
     builder->replace<linvel>(body_view.begin(), body_view.end());
