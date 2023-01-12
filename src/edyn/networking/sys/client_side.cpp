@@ -44,9 +44,6 @@
 
 namespace edyn {
 
-static void snap_to_registry_snapshot(entt::registry &registry, packet::registry_snapshot &snapshot,
-                                      bool should_accumulate_discontinuities);
-
 void on_construct_networked_entity(entt::registry &registry, entt::entity entity) {
     auto &ctx = registry.ctx().at<client_network_context>();
 
@@ -516,8 +513,9 @@ static void process_packet(entt::registry &registry, packet::entity_entered &pac
 
         if (registry.all_of<asset_linked_tag>(local_entity)) {
             // Override with latest state.
-            info.convert_remloc(registry, ctx.entity_map);
-            snap_to_registry_snapshot(registry, info, false);
+            ctx.snapshot_exporter->set_observer_enabled(false);
+            snap_to_pool_snapshot(registry, ctx.entity_map, info.entities, info.pools, false);
+            ctx.snapshot_exporter->set_observer_enabled(true);
         }
     }
 
@@ -760,8 +758,9 @@ static void process_packet(entt::registry &registry, packet::entity_response &re
     auto &ctx = registry.ctx().at<client_network_context>();
 
     // Override synchronized state.
-    res.convert_remloc(registry, ctx.entity_map);
-    snap_to_registry_snapshot(registry, res, false);
+    ctx.snapshot_exporter->set_observer_enabled(false);
+    snap_to_pool_snapshot(registry, ctx.entity_map, res.entities, res.pools, false);
+    ctx.snapshot_exporter->set_observer_enabled(true);
 }
 
 static void process_packet(entt::registry &registry, packet::asset_sync_response &res) {
@@ -772,8 +771,9 @@ static void process_packet(entt::registry &registry, packet::asset_sync_response
     ctx.instantiate_asset_signal.publish(local_entity);
 
     // Override with synchronized state.
-    res.convert_remloc(registry, ctx.entity_map);
-    snap_to_registry_snapshot(registry, res, false);
+    ctx.snapshot_exporter->set_observer_enabled(false);
+    snap_to_pool_snapshot(registry, ctx.entity_map, res.entities, res.pools, false);
+    ctx.snapshot_exporter->set_observer_enabled(true);
 }
 
 static void process_packet(entt::registry &, const packet::set_aabb_of_interest &) {}

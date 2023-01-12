@@ -16,6 +16,7 @@ template<typename It>
 entt::sparse_set collect_islands_from_residents(entt::registry &registry, It first, It last, const entity_map *emap = nullptr) {
     auto resident_view = registry.view<island_resident>();
     auto multi_resident_view = registry.view<multi_island_resident>();
+
     auto island_entities = entt::sparse_set{};
 
     for (; first != last; ++first) {
