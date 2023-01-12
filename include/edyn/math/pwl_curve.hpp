@@ -16,8 +16,10 @@ public:
     void clear();
     scalar get(scalar x) const;
     std::pair<scalar, scalar> get(size_t i) const;
+    std::pair<scalar, scalar> get_min_max() const;
     std::size_t size() const { return points.size(); }
     void resize(size_t new_size) { points.resize(new_size); }
+    void remove(size_t i) { points.erase(points.begin() + i); }
     std::pair<scalar, scalar>& operator[](size_t i) { return points[i]; }
     const std::pair<scalar, scalar>& operator[](size_t i) const { return points[i]; }
     auto begin() const { return points.cbegin(); };

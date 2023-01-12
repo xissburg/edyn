@@ -85,6 +85,9 @@ void remove_external_components(entt::registry &registry);
  */
 void tag_external_entity(entt::registry &registry, entt::entity entity, bool procedural = true);
 
+void add_child(entt::registry &registry, entt::entity parent, entt::entity child);
+void remove_child(entt::registry &registry, entt::entity parent, entt::entity child);
+
 }
 
 #endif // EDYN_REPLICATION_REGISTER_EXTERNAL_HPP

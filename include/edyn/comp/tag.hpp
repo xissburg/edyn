@@ -81,6 +81,8 @@ struct external_tag {};
  */
 struct shared_tag {};
 
+struct child_tag {};
+
 }
 
 #endif // EDYN_COMP_TAG_HPP

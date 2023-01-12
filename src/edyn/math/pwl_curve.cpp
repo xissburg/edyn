@@ -1,5 +1,6 @@
 #include "edyn/math/pwl_curve.hpp"
 #include "edyn/config/config.h"
+#include <limits>
 
 namespace edyn {
 
@@ -39,6 +40,18 @@ scalar pwl_curve::get(scalar x) const {
 
 std::pair<scalar, scalar> pwl_curve::get(size_t i) const {
     return points[i];
+}
+
+std::pair<scalar, scalar> pwl_curve::get_min_max() const {
+    auto min = std::numeric_limits<scalar>::max();
+    auto max = -min;
+
+    for (auto [x, y] : points) {
+        min = std::min(min, y);
+        max = std::max(max, y);
+    }
+
+    return {min, max};
 }
 
 }

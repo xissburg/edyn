@@ -21,14 +21,19 @@ struct spin_angle_constraint : public constraint_base {
     scalar m_stiffness {1e5};
     scalar m_damping {1e2};
     scalar m_offset_origin {0};
+    scalar m_friction_torque {1};
+    bool m_engaged {true};
 
     struct {
         scalar spring {};
         scalar damping {};
+        scalar friction {};
     } applied_impulse {};
 
+    void set_engaged(bool, const entt::registry &);
     void set_ratio(scalar, const entt::registry &);
     scalar calculate_offset(const entt::registry &) const;
+    scalar relative_velocity(const entt::registry &) const;
 
     void prepare(
         const entt::registry &, entt::entity,
@@ -45,6 +50,8 @@ void serialize(Archive &archive, spin_angle_constraint &con) {
     archive(con.m_stiffness);
     archive(con.m_damping);
     archive(con.m_offset_origin);
+    archive(con.m_friction_torque);
+    archive(con.m_engaged);
 }
 
 }
