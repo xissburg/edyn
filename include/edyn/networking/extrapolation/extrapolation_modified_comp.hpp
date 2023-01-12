@@ -72,6 +72,13 @@ class extrapolation_modified_comp_impl : public extrapolation_modified_comp {
         }
     }
 
+    template<typename Component>
+    void observe_update(entt::registry &registry) {
+        if constexpr(!std::is_empty_v<Component>) {
+            m_connections.push_back(registry.on_update<Component>().template connect<&extrapolation_modified_comp_impl<Components...>::template on_update<Component>>(*this));
+        }
+    }
+
 public:
     extrapolation_modified_comp_impl(entt::registry &registry,
                                      entt::sparse_set &relevant_entities,
@@ -83,7 +90,7 @@ public:
             registry.emplace<modified_components>(entity);
         }
 
-        (m_connections.push_back(registry.on_update<Components>().template connect<&extrapolation_modified_comp_impl<Components...>::template on_update<Components>>(*this)), ...);
+        (observe_update<Components>(registry), ...);
 
         unsigned i = 0;
         ((m_is_network_input[i++] = std::disjunction_v<std::is_base_of<network_input, Components>, std::is_same<action_history, Components>>), ...);
