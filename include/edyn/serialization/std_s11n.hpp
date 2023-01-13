@@ -3,6 +3,7 @@
 
 #include <array>
 #include <limits>
+#include <map>
 #include <vector>
 #include <cstdint>
 #include <variant>
@@ -163,6 +164,29 @@ size_t serialization_sizeof(const std::optional<T> &opt) {
     }
 
     return sizeof(bool);
+}
+
+template<typename Archive, typename K, typename V>
+void serialize(Archive &archive, std::map<K, V> &map) {
+    using size_type = uint16_t;
+    size_type size = std::min(map.size(), static_cast<size_t>(std::numeric_limits<size_type>::max()));
+    archive(size);
+
+    if constexpr(Archive::is_input::value) {
+        auto pair = std::pair<K, V>{};
+        for (size_type i = 0; i < size; ++i) {
+            archive(pair);
+            map.emplace(pair);
+        }
+    } else {
+        for (auto &pair : map) {
+            // Safe to const_cast since it's an output archive thus will only
+            // read from arguments.
+            auto &first = const_cast<K &>(pair.first);
+            archive(first);
+            archive(pair.second);
+        }
+    }
 }
 
 }

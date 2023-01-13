@@ -85,7 +85,22 @@ void remove_external_components(entt::registry &registry);
  */
 void tag_external_entity(entt::registry &registry, entt::entity entity, bool procedural = true);
 
+/**
+ * @brief Add entity as child of another so that it will follow it around, i.e.
+ * when replicating entities in the simulation worker in asynchronous mode and
+ * in networked entities.
+ * @param registry Data source.
+ * @param parent Parent entity.
+ * @param child Child entity.
+ */
 void add_child(entt::registry &registry, entt::entity parent, entt::entity child);
+
+/**
+ * @brief Remove child from parent. Must've been added earlier via `add_child`.
+ * @param registry Data source.
+ * @param parent Parent entity.
+ * @param child Child entity.
+ */
 void remove_child(entt::registry &registry, entt::entity parent, entt::entity child);
 
 }

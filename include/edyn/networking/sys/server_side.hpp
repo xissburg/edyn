@@ -84,19 +84,6 @@ void server_set_allow_full_ownership(entt::registry &, entt::entity client_entit
  */
 void server_set_client_round_trip_time(entt::registry &, entt::entity client_entity, double rtt);
 
-/**
- * @brief Notify client of created entities. Usually called after the server
- * creates entities for the client. It's unnecessary otherwise, since the
- * server uses the AABB of interest to notify clients of entities that have
- * entered or left their AABB of interest.
- * @param registry Data source.
- * @param client_entity The client to be notified.
- * @param entities The new entities.
- */
-void server_notify_created_entities(entt::registry &registry,
-                                    entt::entity client_entity,
-                                    const std::vector<entt::entity> &entities);
-
 }
 
 #endif // EDYN_NETWORKING_SERVER_SIDE_HPP

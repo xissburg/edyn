@@ -5,6 +5,7 @@
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/transform.hpp"
 #include "edyn/math/vector3.hpp"
+#include "edyn/util/island_util.hpp"
 #include "edyn/util/rigidbody.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/aabb.hpp"
@@ -168,6 +169,12 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
     auto non_connecting = def.kind != rigidbody_kind::rb_dynamic;
     auto node_index = registry.ctx().at<entity_graph>().insert_node(entity, non_connecting);
     registry.emplace<graph_node>(entity, node_index);
+
+    if (def.kind == rigidbody_kind::rb_dynamic) {
+        registry.emplace<island_resident>(entity);
+    } else {
+        registry.emplace<multi_island_resident>(entity);
+    }
 
     // Always do this last to signal the completion of the construction of this
     // rigid body.
@@ -362,6 +369,14 @@ vector3 get_rigidbody_present_origin(const entt::registry &registry, entt::entit
     auto [com, pos, orn] = registry.get<center_of_mass, present_position, present_orientation>(entity);
     auto origin = to_world_space(-com, pos, orn);
     return origin;
+}
+
+void wake_up_entity(entt::registry &registry, entt::entity entity) {
+    if (auto *stepper = registry.ctx().find<stepper_async>()) {
+        stepper->wake_up_entity(entity);
+    } else {
+        wake_up_island_resident(registry, entity);
+    }
 }
 
 }

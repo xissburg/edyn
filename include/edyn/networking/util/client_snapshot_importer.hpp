@@ -3,7 +3,6 @@
 
 #include <entt/entity/registry.hpp>
 #include "edyn/comp/merge_component.hpp"
-#include "edyn/networking/sys/client_side.hpp"
 #include "edyn/networking/packet/registry_snapshot.hpp"
 
 namespace edyn {

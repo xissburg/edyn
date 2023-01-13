@@ -55,6 +55,7 @@ public:
     void on_query_aabb_of_interest_request(message<msg::query_aabb_of_interest_request> &);
     void on_apply_network_pools(message<msg::apply_network_pools> &);
     void on_extrapolation_result(message<extrapolation_result> &);
+    void on_wake_up_residents(message<msg::wake_up_residents> &);
 
     void import_contact_manifolds(const std::vector<contact_manifold> &manifolds);
 
@@ -78,6 +79,7 @@ private:
         msg::set_material_table,
         msg::update_entities,
         msg::apply_network_pools,
+        msg::wake_up_residents,
         msg::raycast_request,
         msg::query_aabb_request,
         msg::query_aabb_of_interest_request,

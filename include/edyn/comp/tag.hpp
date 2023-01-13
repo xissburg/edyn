@@ -75,14 +75,6 @@ struct rolling_tag {};
  */
 struct external_tag {};
 
-/**
- * Assigned to entities that are shared with the simulation worker when running
- * in asynchronous execution mode.
- */
-struct shared_tag {};
-
-struct child_tag {};
-
 }
 
 #endif // EDYN_COMP_TAG_HPP

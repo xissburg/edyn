@@ -10,17 +10,12 @@
 namespace edyn {
 
 struct extrapolation_result {
-    std::vector<entt::entity> entities;
     registry_operation ops;
     std::vector<contact_manifold> manifolds;
     bool terminated_early {false};
     double timestamp;
 
     void remap(entity_map &emap) {
-        for (auto &entity : entities) {
-            entity = emap.at(entity);
-        }
-
         ops.remap(emap);
 
         auto remove_it = std::remove_if(manifolds.begin(), manifolds.end(), [&](contact_manifold &manifold) {

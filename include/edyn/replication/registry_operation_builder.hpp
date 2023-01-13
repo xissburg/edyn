@@ -80,6 +80,10 @@ public:
 
     template<typename Component, typename It>
     void emplace(It first, It last, bool check = false) {
+        if (first == last) {
+            return;
+        }
+
         auto &op = find_or_create_emplace_operation<Component>();
         auto view = registry->view<Component>();
 
@@ -128,6 +132,10 @@ public:
 
     template<typename Component, typename It>
     void replace(It first, It last, bool check = false) {
+        if (first == last) {
+            return;
+        }
+
         auto &op = find_or_create_replace_operation<Component>();
         auto view = registry->view<Component>();
 
@@ -183,6 +191,10 @@ public:
 
     template<typename Component, typename It>
     void remove(It first, It last) {
+        if (first == last) {
+            return;
+        }
+
         auto &op = find_or_create_remove_operation<Component>();
         op.entities.insert(op.entities.end(), first, last);
     }

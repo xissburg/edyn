@@ -69,16 +69,17 @@ using shared_components_t = decltype(std::tuple_cat(std::tuple<
     disabled_tag,
     external_tag,
     shape_index,
+    island_resident,
     rigidbody_tag,
     constraint_tag,
     island_tag,
     rolling_tag,
     roll_direction,
     discontinuity,
-    null_constraint,
     discontinuity_spin,
     child_list,
-    parent_comp
+    parent_comp,
+    null_constraint
 >{}, constraints_tuple, shapes_tuple)); // Concatenate with all shapes and constraints at the end.
 
 }

@@ -3,12 +3,8 @@
 
 #include "edyn/math/scalar.hpp"
 #include "edyn/networking/packet/edyn_packet.hpp"
-#include "edyn/networking/sys/client_side.hpp"
-#include "edyn/networking/sys/server_side.hpp"
-#include "edyn/networking/context/client_network_context.hpp"
-#include "edyn/networking/context/server_network_context.hpp"
-#include "edyn/networking/comp/remote_client.hpp"
 #include "edyn/networking/networking_external.hpp"
+#include "edyn/networking/util/asset_util.hpp"
 #include <entt/entity/fwd.hpp>
 
 namespace edyn {
@@ -100,7 +96,7 @@ scalar get_network_client_discontinuity_decay_rate(entt::registry &);
 
 /**
  * In case the timestamp of a registry snapshot lies right after the time an
- * action happenend, it is possible that the action wasn't still applied in the
+ * action happened, it is possible that the action wasn't still applied in the
  * server side at the time the snapshot was generated. Perhaps the action was
  * applied at the same time the snapshot was generated and then its effects
  * were only visible in the next update, which will cause a glitch on client-side
@@ -161,6 +157,40 @@ network_client_extrapolation_timeout_sink(entt::registry &);
  */
 entt::sink<entt::sigh<void(entt::entity, const packet::edyn_packet &)>>
 network_server_packet_sink(entt::registry &);
+
+/**
+ * @brief Notify client about an entity entering its AABB of interest.
+ * The entity contains an `edyn::asset_ref` component which holds the id of
+ * the asset to be loaded.
+ * @remark If the asset is ready, it must be instantiated immediately and then
+ * linked. If not, the asset must be loaded and when it is ready, the
+ * `edyn::client_asset_ready` function must be called and only when
+ * `edyn::network_client_instantiate_asset_sink` is triggered, the asset must
+ * be instantiated and linked. The reason being that the remote state must be
+ * applied immediately after instantiation, so when Edyn is notified that the
+ * asset is ready, it will ask the server to send a snapshot containing the
+ * latest state of the asset, and when the response is received, it triggers a
+ * signal to ask for the asset to be instantiated.
+ * @param registry Data source.
+ * @return Sink which is triggered when a new entity enters the client's AABB
+ * of interest.
+ */
+entt::sink<entt::sigh<void(entt::entity)>>
+network_client_entity_entered_sink(entt::registry &);
+
+/**
+ * @brief Ask client to instantiate an asset. Invoked when the initial asset
+ * state is received and the asset is ready to be instantiated with the correct
+ * initial state.
+ * @remark This is triggered after a call to `edyn::client_asset_ready` once
+ * the server sends back a snapshot containing the latest asset state.
+ * @param registry Data source.
+ * @return Sink which is triggered when a new snapshot is received from server
+ * thus making it possible to instantiate the asset with the correct initial
+ * state.
+ */
+entt::sink<entt::sigh<void(entt::entity)>>
+network_client_instantiate_asset_sink(entt::registry &);
 
 }
 

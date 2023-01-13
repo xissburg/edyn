@@ -14,14 +14,11 @@ public:
         : m_builder(&builder)
         , m_active(true)
     {
-        auto &registry = builder.get_registry();
-        m_connections.push_back(registry.on_construct<shared_tag>().connect<&registry_operation_observer::on_construct_shared>(*this));
-        m_connections.push_back(registry.on_destroy<shared_tag>().connect<&registry_operation_observer::on_destroy_shared>(*this));
     }
 
     virtual ~registry_operation_observer() {}
 
-    void on_construct_shared(entt::registry &registry, entt::entity entity) {
+    void observe(entt::entity entity) {
         m_observed_entities.emplace(entity);
 
         if (m_active) {
@@ -30,7 +27,7 @@ public:
         }
     }
 
-    void on_destroy_shared(entt::registry &registry, entt::entity entity) {
+    void unobserve(entt::entity entity) {
         m_observed_entities.erase(entity);
 
         if (m_active) {

@@ -1,6 +1,7 @@
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_manifold_events.hpp"
+#include "edyn/comp/island.hpp"
 #include "edyn/comp/material.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/graph_edge.hpp"
@@ -38,7 +39,7 @@ namespace internal {
         auto node_index1 = registry.get<graph_node>(body1).node_index;
         auto edge_index = registry.ctx().at<entity_graph>().insert_edge(entity, node_index0, node_index1);
         registry.emplace<graph_edge>(entity, edge_index);
-
+        registry.emplace<island_resident>(entity);
         registry.emplace<constraint_tag>(entity);
 
         return true;

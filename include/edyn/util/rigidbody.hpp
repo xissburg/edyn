@@ -185,6 +185,13 @@ vector3 get_rigidbody_origin(const entt::registry &, entt::entity);
  */
 vector3 get_rigidbody_present_origin(const entt::registry &, entt::entity);
 
+/**
+ * @brief Wake up entity. This will wake up all entities in its island.
+ * @param registry Data source.
+ * @param entity Rigid body entity.
+ */
+void wake_up_entity(entt::registry &, entt::entity);
+
 }
 
 #endif // EDYN_UTIL_RIGIDBODY_HPP

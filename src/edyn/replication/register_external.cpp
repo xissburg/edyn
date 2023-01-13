@@ -34,6 +34,12 @@ void tag_external_entity(entt::registry &registry, entt::entity entity, bool pro
     auto non_connecting = !procedural;
     auto node_index = registry.ctx().at<entity_graph>().insert_node(entity, non_connecting);
     registry.emplace<graph_node>(entity, node_index);
+
+    if (procedural) {
+        registry.emplace<island_resident>(entity);
+    } else {
+        registry.emplace<multi_island_resident>(entity);
+    }
 }
 
 void add_child(entt::registry &registry, entt::entity parent, entt::entity child) {

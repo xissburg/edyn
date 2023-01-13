@@ -57,6 +57,7 @@ public:
     void step_simulation();
 
     void set_center_of_mass(entt::entity entity, const vector3 &com);
+    void wake_up_entity(entt::entity entity);
 
     // Call when settings have changed in the registry's context. It will
     // propagate changes to island workers.

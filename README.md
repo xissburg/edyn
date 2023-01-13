@@ -1,4 +1,4 @@
-![EdynLogo](https://xissburg.com/images/EdynLogo.svg)
+![EdynLogo](https://user-images.githubusercontent.com/762769/211650462-3ad6dab2-5e47-4b62-993c-ac7fc7650cde.svg)
 
 _Edyn_ (pronunciation: "eh-dyin'") stands for _Entity Dynamics_ and it is a real-time physics engine organized as an ECS (Entity-Component System) using the amazing [EnTT](https://github.com/skypjack/entt) library. The main goals of this library is to be multi-threaded and to support networked and distributed physics simulation of large dynamic worlds.
 

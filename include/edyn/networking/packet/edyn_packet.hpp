@@ -1,6 +1,11 @@
 #ifndef EDYN_NETWORKING_PACKET_EDYN_PACKET_HPP
 #define EDYN_NETWORKING_PACKET_EDYN_PACKET_HPP
 
+#include "edyn/networking/packet/asset_sync.hpp"
+#include "edyn/networking/packet/entity_entered.hpp"
+#include "edyn/networking/packet/entity_exited.hpp"
+#include "edyn/networking/packet/entity_response.hpp"
+#include "edyn/networking/packet/query_entity.hpp"
 #include "edyn/networking/packet/registry_snapshot.hpp"
 #include "edyn/networking/packet/create_entity.hpp"
 #include "edyn/networking/packet/destroy_entity.hpp"
@@ -31,7 +36,13 @@ struct edyn_packet {
         time_request,
         time_response,
         server_settings,
-        set_aabb_of_interest
+        set_aabb_of_interest,
+        query_entity,
+        entity_response,
+        entity_entered,
+        entity_exited,
+        asset_sync,
+        asset_sync_response
     > var;
 };
 
@@ -59,7 +70,7 @@ namespace edyn {
 
 /**
  * @brief Determine whether a packet should be sent reliably, thus having its
- * delivery guaranteed. Otherwise, packet loss is acceptable and reliabily is
+ * delivery guaranteed. Otherwise, packet loss is acceptable and reliability is
  * not necessary.
  * @param packet The Edyn packet.
  * @return True if the packet delivery must be guaranteed.

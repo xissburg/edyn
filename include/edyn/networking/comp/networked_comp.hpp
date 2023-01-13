@@ -20,6 +20,8 @@
 #include "edyn/comp/collision_exclusion.hpp"
 #include "edyn/comp/roll_direction.hpp"
 #include "edyn/comp/tire_material.hpp"
+#include "edyn/networking/comp/action_history.hpp"
+#include "edyn/networking/comp/asset_ref.hpp"
 #include "edyn/shapes/sphere_shape.hpp"
 #include "edyn/shapes/cylinder_shape.hpp"
 #include "edyn/shapes/capsule_shape.hpp"
@@ -89,6 +91,7 @@ static const auto networked_components = std::tuple_cat(std::tuple<
     shape_index,
     entity_owner,
     action_history,
+    asset_ref,
     child_list,
     parent_comp
 >{});

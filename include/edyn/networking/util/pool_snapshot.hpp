@@ -6,15 +6,16 @@
 #include <vector>
 #include <entt/entity/fwd.hpp>
 #include "edyn/networking/util/pool_snapshot_data.hpp"
+#include "edyn/networking/util/component_index_type.hpp"
 
 namespace edyn {
 
 struct pool_snapshot {
-    unsigned component_index;
+    component_index_type component_index;
     std::shared_ptr<pool_snapshot_data> ptr;
 };
 
-extern std::unique_ptr<pool_snapshot_data>(*g_make_pool_snapshot_data)(unsigned);
+extern std::unique_ptr<pool_snapshot_data>(*g_make_pool_snapshot_data)(component_index_type);
 
 template<typename Archive>
 void serialize(Archive &archive, pool_snapshot &pool) {
@@ -35,7 +36,7 @@ void serialize(Archive &archive, pool_snapshot &pool) {
 
 template<typename... Components>
 auto create_make_pool_snapshot_data_function([[maybe_unused]] std::tuple<Components...>) {
-    return [](unsigned component_index) {
+    return [](component_index_type component_index) {
         std::tuple<Components...> components;
         auto ptr = std::unique_ptr<pool_snapshot_data>{};
         visit_tuple(components, component_index, [&](auto &&c) {

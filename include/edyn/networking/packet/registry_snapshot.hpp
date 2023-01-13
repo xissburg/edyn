@@ -44,7 +44,7 @@ void serialize(Archive &archive, registry_snapshot &snapshot) {
 // Registry snapshot utility functions.
 namespace edyn::internal {
     template<typename Component>
-    pool_snapshot_data_impl<Component> * get_pool(std::vector<pool_snapshot> &pools, unsigned component_index) {
+    pool_snapshot_data_impl<Component> * get_pool(std::vector<pool_snapshot> &pools, component_index_type component_index) {
         using pool_snapshot_data_t = pool_snapshot_data_impl<Component>;
 
         auto pool = std::find_if(pools.begin(), pools.end(),
@@ -53,7 +53,7 @@ namespace edyn::internal {
                                  });
 
         if (pool == pools.end()) {
-            pools.push_back(pool_snapshot{unsigned(component_index)});
+            pools.push_back(pool_snapshot{component_index});
             pool = pools.end();
             std::advance(pool, -1);
             pool->ptr.reset(new pool_snapshot_data_t);
@@ -65,13 +65,13 @@ namespace edyn::internal {
 
     template<typename Component>
     void snapshot_insert_entity(const entt::registry &registry, entt::entity entity,
-                                packet::registry_snapshot &snap, unsigned component_index) {
+                                packet::registry_snapshot &snap, component_index_type component_index) {
         get_pool<Component>(snap.pools, component_index)->insert_single(registry, entity, snap.entities);
     }
 
     template<typename Component, typename It>
     void snapshot_insert_entities(const entt::registry &registry, It first, It last,
-                                  packet::registry_snapshot &snap, unsigned component_index) {
+                                  packet::registry_snapshot &snap, component_index_type component_index) {
         get_pool<Component>(snap.pools, component_index)->insert(registry, first, last, snap.entities);
     }
 }

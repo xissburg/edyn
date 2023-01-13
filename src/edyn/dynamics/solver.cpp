@@ -123,6 +123,8 @@ void invoke_prepare_constraint(entt::registry &registry, entt::entity entity, C 
     if constexpr(std::disjunction_v<std::is_same<std::decay_t<C>, contact_constraint>,
                                     std::is_same<std::decay_t<C>, contact_patch_constraint>>) {
         auto &manifold = manifold_view.template get<contact_manifold>(entity);
+        EDYN_ASSERT(manifold.body[0] == con.body[0]);
+        EDYN_ASSERT(manifold.body[1] == con.body[1]);
         con.prepare(registry, entity, manifold, cache, dt, bodyA, bodyB);
     } else if constexpr(std::disjunction_v<std::is_same<std::decay_t<C>, antiroll_constraint>,
                                            std::is_same<std::decay_t<C>, differential_constraint>>) {
