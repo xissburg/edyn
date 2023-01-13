@@ -75,8 +75,6 @@ struct rolling_tag {};
  */
 struct external_tag {};
 
-struct child_tag {};
-
 }
 
 #endif // EDYN_COMP_TAG_HPP
