@@ -5,6 +5,7 @@
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/collision/dynamic_tree.hpp"
 #include "edyn/collision/query_aabb.hpp"
+#include "edyn/comp/child_list.hpp"
 #include "edyn/comp/inertia.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/tag.hpp"
@@ -49,6 +50,7 @@ stepper_async::stepper_async(entt::registry &registry)
     m_connections.push_back(registry.on_destroy<graph_node>().connect<&stepper_async::on_destroy_graph_node>(*this));
     m_connections.push_back(registry.on_construct<graph_edge>().connect<&stepper_async::on_construct_shared>(*this));
     m_connections.push_back(registry.on_destroy<graph_edge>().connect<&stepper_async::on_destroy_graph_edge>(*this));
+    m_connections.push_back(registry.on_construct<child_list>().connect<&stepper_async::on_construct_shared>(*this));
 
     m_message_queue_handle.sink<msg::step_update>().connect<&stepper_async::on_step_update>(*this);
     m_message_queue_handle.sink<msg::raycast_response>().connect<&stepper_async::on_raycast_response>(*this);

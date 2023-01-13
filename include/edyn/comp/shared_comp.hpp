@@ -2,6 +2,7 @@
 #define EDYN_SHARED_COMP_HPP
 
 #include "edyn/comp/aabb.hpp"
+#include "edyn/comp/child_list.hpp"
 #include "edyn/comp/gravity.hpp"
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/angvel.hpp"
@@ -67,8 +68,11 @@ using shared_components_t = decltype(std::tuple_cat(std::tuple<
     constraint_tag,
     island_tag,
     rolling_tag,
+    child_tag,
     roll_direction,
     discontinuity,
+    child_list,
+    parent_comp,
     null_constraint
 >{}, constraints_tuple, shapes_tuple)); // Concatenate with all shapes and constraints at the end.
 

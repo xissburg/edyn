@@ -349,7 +349,6 @@ void island_manager::split_islands() {
 
     auto island_view = m_registry->view<island, island_AABB>();
     auto node_view = m_registry->view<graph_node>();
-    auto resident_view = m_registry->view<island_resident>();
     auto multi_resident_view = m_registry->view<multi_island_resident>();
     auto aabb_view = m_registry->view<AABB>();
     auto procedural_view = m_registry->view<procedural_tag>();

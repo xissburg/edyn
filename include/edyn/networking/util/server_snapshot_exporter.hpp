@@ -8,6 +8,7 @@
 #include <vector>
 #include "edyn/comp/action_list.hpp"
 #include "edyn/comp/angvel.hpp"
+#include "edyn/comp/child_list.hpp"
 #include "edyn/comp/graph_edge.hpp"
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/comp/linvel.hpp"
@@ -84,6 +85,28 @@ class server_snapshot_exporter_impl : public server_snapshot_exporter {
         }
     }
 
+    void export_modified_entity(const entt::registry &registry, entt::entity entity,
+                                const modified_components &modified,
+                                packet::registry_snapshot &snap,
+                                bool owned_by_destination_client) const {
+        static const auto components_tuple = std::tuple<Components...>{};
+
+        for (unsigned i = 0; i < modified.count; ++i) {
+            auto comp_index = modified.entry[i].index;
+            visit_tuple(components_tuple, comp_index, [&](auto &&c) {
+                using CompType = std::decay_t<decltype(c)>;
+                constexpr auto is_input = std::is_base_of_v<network_input, CompType>;
+                constexpr auto is_action = std::is_same_v<CompType, action_history>;
+
+                // Must not send action history nor should send input
+                // state of entities owned by destination client.
+                if (!(is_action || (owned_by_destination_client && is_input))) {
+                    internal::snapshot_insert_entity<CompType>(registry, entity, snap, comp_index);
+                }
+            });
+        }
+    }
+
 public:
     server_snapshot_exporter_impl(entt::registry &registry,
                                   [[maybe_unused]] std::tuple<Components...>)
@@ -123,8 +146,10 @@ public:
         auto edge_view = registry.view<graph_edge>();
         auto owner_view = registry.view<const entity_owner>();
         auto modified_view = registry.view<const modified_components>();
+        auto parent_view = registry.view<parent_comp>();
+        auto child_view = registry.view<child_list>();
+
         bool allow_ownership = registry.get<remote_client>(dest_client_entity).allow_full_ownership;
-        static const auto components_tuple = std::tuple<Components...>{};
 
         // Do not include input components of entities owned by destination
         // client as to not override client input on the client-side.
@@ -138,8 +163,10 @@ public:
             }
 
             auto [modified] = modified_view.get(entity);
+            const auto is_parent = parent_view.contains(entity);
 
-            if (modified.count == 0) {
+            // Parent could have a modified child.
+            if (modified.count == 0 && !is_parent) {
                 continue;
             }
 
@@ -193,19 +220,22 @@ public:
             const auto owned_by_destination_client = owner_view.contains(entity) &&
                 std::get<0>(owner_view.get(entity)).client_entity == dest_client_entity;
 
-            for (unsigned i = 0; i < modified.count; ++i) {
-                auto comp_index = modified.entry[i].index;
-                visit_tuple(components_tuple, comp_index, [&](auto &&c) {
-                    using CompType = std::decay_t<decltype(c)>;
-                    constexpr auto is_input = std::is_base_of_v<network_input, CompType>;
-                    constexpr auto is_action = std::is_same_v<CompType, action_history>;
+            export_modified_entity(registry, entity, modified, snap, owned_by_destination_client);
 
-                    // Must not send action history nor should send input
-                    // state of entities owned by destination client.
-                    if (!(is_action || (owned_by_destination_client && is_input))) {
-                        internal::snapshot_insert_entity<CompType>(registry, entity, snap, comp_index);
+            // Include child entities
+            if (is_parent) {
+                auto [parent] = parent_view.get(entity);
+                auto child_entity = parent.child;
+
+                while (child_entity != entt::null) {
+                    if (modified_view.contains(child_entity)) {
+                        auto [child_modified] = modified_view.get(child_entity);
+                        export_modified_entity(registry, child_entity, child_modified, snap, owned_by_destination_client);
                     }
-                });
+
+                    auto [child] = child_view.get(child_entity);
+                    child_entity = child.next;
+                }
             }
         }
     }

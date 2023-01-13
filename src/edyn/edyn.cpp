@@ -4,6 +4,7 @@
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_manifold_map.hpp"
 #include "edyn/collision/narrowphase.hpp"
+#include "edyn/comp/child_list.hpp"
 #include "edyn/comp/collision_exclusion.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/config/execution_mode.hpp"
@@ -35,13 +36,20 @@ static void init_meta() {
         (entt::meta<decltype(c)>().type().template data<&decltype(c)::body, entt::as_ref_t>("body"_hs), ...);
     }, constraints_tuple);
 
-    entt::meta<null_constraint>().type().template data<&null_constraint::body, entt::as_ref_t>("body"_hs);
+    entt::meta<null_constraint>().type().data<&null_constraint::body, entt::as_ref_t>("body"_hs);
 
     entt::meta<entity_owner>().type()
         .data<&entity_owner::client_entity, entt::as_ref_t>("client_entity"_hs);
 
     entt::meta<island_resident>().type()
         .data<&island_resident::island_entity, entt::as_ref_t>("island_entity"_hs);
+
+    entt::meta<parent_comp>().type()
+        .data<&parent_comp::child, entt::as_ref_t>("child"_hs);
+
+    entt::meta<child_list>().type()
+        .data<&child_list::parent, entt::as_ref_t>("parent"_hs)
+        .data<&child_list::next, entt::as_ref_t>("next"_hs);
 }
 
 void attach(entt::registry &registry, const init_config &config) {

@@ -4,6 +4,7 @@
 #include <entt/entity/registry.hpp>
 #include <type_traits>
 #include "edyn/comp/action_list.hpp"
+#include "edyn/comp/child_list.hpp"
 #include "edyn/comp/graph_edge.hpp"
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/comp/merge_component.hpp"
@@ -61,66 +62,62 @@ protected:
 template<typename... Components>
 class server_snapshot_importer_impl : public server_snapshot_importer {
 
-    template<typename Component>
-    bool is_owned_by_client(const entt::registry &registry, entt::entity client_entity, entt::entity entity) {
-        // If the entity is not fully owned by the client, the update must
-        // not be imported, because in this case the server is in control of
-        // the procedural state. Input components are one exception because
-        // they must always be applied.
-        if constexpr(std::is_base_of_v<network_input, Component> ||
-                     std::is_same_v<action_history, Component>) {
-            if (auto *owner = registry.try_get<entity_owner>(entity);
-                owner && owner->client_entity == client_entity)
-            {
-                return true;
-            }
+    enum class reach_status : uint8_t {
+        unknown = 0,
+        single_client,
+        multiple_clients
+    };
+
+    bool is_only_reachable_client(const entt::registry &registry, entt::entity client_entity, entt::entity entity) {
+        // Traverse the graph starting at the given entity and check if
+        // `client_entity` is the only client reachable from it.
+        auto &graph = registry.ctx().at<entity_graph>();
+        auto node_view = registry.view<graph_node>();
+        auto edge_view = registry.view<graph_edge>();
+        auto owner_view = registry.view<entity_owner>();
+        auto child_view = registry.view<child_list>();
+
+        entity_graph::index_type node_index;
+        bool dest_client_reachable = false;
+        bool other_client_reachable = false;
+
+        if (edge_view.contains(entity)) {
+            auto [edge] = edge_view.get(entity);
+            node_index = graph.edge_node_indices(edge.edge_index)[0];
+        } else if (node_view.contains(entity)) {
+            auto [node] = node_view.get(entity);
+            node_index = node.node_index;
         } else {
-            // Traverse the graph starting at the given entity and check if
-            // `client_entity` is the only client reachable from it.
-            auto &graph = registry.ctx().at<entity_graph>();
-            auto node_view = registry.view<graph_node>();
-            auto edge_view = registry.view<graph_edge>();
-            auto owner_view = registry.view<entity_owner>();
-
-            entity_graph::index_type node_index;
-            bool dest_client_reachable = false;
-            bool other_client_reachable = false;
-
-            if (edge_view.contains(entity)) {
-                auto [edge] = edge_view.get(entity);
-                node_index = graph.edge_node_indices(edge.edge_index)[0];
-            } else {
-                auto [node] = node_view.get(entity);
-                node_index = node.node_index;
-            }
-
-            graph.traverse(node_index, [&](auto node_index) {
-                auto neighbor = graph.node_entity(node_index);
-
-                if (owner_view.contains(neighbor)) {
-                    auto [owner] = owner_view.get(neighbor);
-
-                    if (owner.client_entity == client_entity) {
-                        dest_client_reachable = true;
-                    } else if (owner.client_entity != entt::null) {
-                        other_client_reachable = true;
-                    }
-                }
-            });
-
-            // The client temporarily owns the entity if it's the only client
-            // reachable through the graph.
-            return dest_client_reachable && !other_client_reachable;
+            // Must be a child of a node.
+            auto [child] = child_view.get(entity);
+            auto [node] = node_view.get(child.parent);
+            node_index = node.node_index;
         }
 
-        return false;
+        graph.traverse(node_index, [&](auto node_index) {
+            auto neighbor = graph.node_entity(node_index);
+
+            if (owner_view.contains(neighbor)) {
+                auto [owner] = owner_view.get(neighbor);
+
+                if (owner.client_entity == client_entity) {
+                    dest_client_reachable = true;
+                } else if (owner.client_entity != entt::null) {
+                    other_client_reachable = true;
+                }
+            }
+        });
+
+        // The client temporarily owns the entity if it's the only client
+        // reachable through the graph.
+        return dest_client_reachable && !other_client_reachable;
     }
 
     template<typename Component>
     void import_components(entt::registry &registry, entt::entity client_entity,
                            const std::vector<entt::entity> &pool_entities,
                            const pool_snapshot_data_impl<Component> &pool,
-                           bool check_ownership) {
+                           bool check_ownership, std::vector<reach_status> &reach_cache) {
         auto &client = registry.get<remote_client>(client_entity);
 
         for (size_t i = 0; i < pool.entity_indices.size(); ++i) {
@@ -138,8 +135,28 @@ class server_snapshot_importer_impl : public server_snapshot_importer {
                 continue;
             }
 
-            if (check_ownership && !is_owned_by_client<Component>(registry, client_entity, local_entity)) {
-                continue;
+            if (check_ownership) {
+                // If input or action history, ignore if the entity is not owned
+                // by this client.
+                if constexpr(std::is_base_of_v<network_input, Component> ||
+                             std::is_same_v<action_history, Component>) {
+                    if (auto *owner = registry.try_get<entity_owner>(local_entity);
+                        !owner || owner->client_entity != client_entity)
+                    {
+                        continue;
+                    }
+                } else {
+                    if (reach_cache[entity_index] == reach_status::unknown) {
+                        reach_cache[entity_index] =
+                            is_only_reachable_client(registry, client_entity, local_entity) ?
+                                reach_status::single_client : reach_status::multiple_clients;
+                    }
+
+                    if (reach_cache[entity_index] == reach_status::multiple_clients) {
+                        // Ignore if entity is in island with more than one client.
+                        continue;
+                    }
+                }
             }
 
             if constexpr(std::is_empty_v<Component>) {
@@ -204,7 +221,7 @@ class server_snapshot_importer_impl : public server_snapshot_importer {
     void transform_components_to_local(const entt::registry &registry, entt::entity client_entity,
                                        const std::vector<entt::entity> &pool_entities,
                                        pool_snapshot_data_impl<Component> &pool,
-                                       bool check_ownership) {
+                                       bool check_ownership, std::vector<reach_status> &reach_cache) {
         auto &client = registry.get<remote_client>(client_entity);
 
         auto remove = [&](size_t i) {
@@ -223,9 +240,30 @@ class server_snapshot_importer_impl : public server_snapshot_importer {
                 continue;
             }
 
-            if (check_ownership && !is_owned_by_client<Component>(registry, client_entity, entity)) {
-                remove(i);
-                continue;
+            if (check_ownership) {
+                // If input or action history, ignore if the entity is not owned
+                // by this client.
+                if constexpr(std::is_base_of_v<network_input, Component> ||
+                             std::is_same_v<action_history, Component>) {
+                    if (auto *owner = registry.try_get<entity_owner>(entity);
+                        !owner || owner->client_entity != client_entity)
+                    {
+                        remove(i);
+                        continue;
+                    }
+                } else {
+                    if (reach_cache[entity_index] == reach_status::unknown) {
+                        reach_cache[entity_index] =
+                            is_only_reachable_client(registry, client_entity, entity) ?
+                                reach_status::single_client : reach_status::multiple_clients;
+                    }
+
+                    if (reach_cache[entity_index] == reach_status::multiple_clients) {
+                        // Ignore if entity is in island with more than one client.
+                        remove(i);
+                        continue;
+                    }
+                }
             }
 
             auto &comp = pool.components[i];
@@ -284,12 +322,17 @@ public:
     void import(entt::registry &registry, entt::entity client_entity,
                 const packet::registry_snapshot &snap, bool check_ownership) override {
         const std::tuple<Components...> all_components;
+        std::vector<reach_status> reach_cache;
+
+        if (check_ownership) {
+            reach_cache.assign(snap.entities.size(), reach_status::unknown);
+        }
 
         for (auto &pool : snap.pools) {
             visit_tuple(all_components, pool.component_index, [&](auto &&c) {
                 using CompType = std::decay_t<decltype(c)>;
                 auto *typed_pool = static_cast<pool_snapshot_data_impl<CompType> *>(pool.ptr.get());
-                import_components(registry, client_entity, snap.entities, *typed_pool, check_ownership);
+                import_components(registry, client_entity, snap.entities, *typed_pool, check_ownership, reach_cache);
             });
         }
     }
@@ -313,6 +356,11 @@ public:
     void transform_to_local(const entt::registry &registry, entt::entity client_entity,
                             packet::registry_snapshot &snap, bool check_ownership) override {
         const std::tuple<Components...> all_components;
+        std::vector<reach_status> reach_cache;
+
+        if (check_ownership) {
+            reach_cache.assign(snap.entities.size(), reach_status::unknown);
+        }
 
         for (auto &pool : snap.pools) {
             visit_tuple(all_components, pool.component_index, [&](auto &&c) {
@@ -320,7 +368,7 @@ public:
 
                 if constexpr(!std::is_empty_v<CompType>) {
                     auto *typed_pool = static_cast<pool_snapshot_data_impl<CompType> *>(pool.ptr.get());
-                    transform_components_to_local(registry, client_entity, snap.entities, *typed_pool, check_ownership);
+                    transform_components_to_local(registry, client_entity, snap.entities, *typed_pool, check_ownership, reach_cache);
                 }
             });
         }

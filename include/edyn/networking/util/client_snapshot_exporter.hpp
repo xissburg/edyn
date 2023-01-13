@@ -4,6 +4,7 @@
 #include <entt/entity/fwd.hpp>
 #include <type_traits>
 #include "edyn/comp/action_list.hpp"
+#include "edyn/comp/child_list.hpp"
 #include "edyn/comp/graph_edge.hpp"
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/comp/tag.hpp"
@@ -117,6 +118,36 @@ class client_snapshot_exporter_impl : public client_snapshot_exporter {
         }
     }
 
+    void export_modified(const entt::registry &registry, entt::entity entity,
+                         const modified_components &modified,
+                         packet::registry_snapshot &snap) const {
+        static const auto components_tuple = std::tuple<Components...>{};
+
+        for (unsigned i = 0; i < modified.count; ++i) {
+            auto comp_index = modified.entry[i].index;
+            visit_tuple(components_tuple, comp_index, [&](auto &&c) {
+                using CompType = std::decay_t<decltype(c)>;
+                internal::snapshot_insert_entity<CompType>(registry, entity, snap, comp_index);
+            });
+        }
+    }
+
+    void export_modified_inputs(const entt::registry &registry, entt::entity entity,
+                                const modified_components &modified,
+                                packet::registry_snapshot &snap) const {
+        static const auto components_tuple = std::tuple<Components...>{};
+
+        for (unsigned i = 0; i < modified.count; ++i) {
+            auto comp_index = modified.entry[i].index;
+            visit_tuple(components_tuple, comp_index, [&](auto &&c) {
+                using CompType = std::decay_t<decltype(c)>;
+                if constexpr(std::is_base_of_v<network_input, CompType>) {
+                    internal::snapshot_insert_entity<CompType>(registry, entity, snap, comp_index);
+                }
+            });
+        }
+    }
+
 public:
     template<typename... Actions>
     client_snapshot_exporter_impl(entt::registry &registry,
@@ -157,7 +188,8 @@ public:
                          const entt::sparse_set &owned_entities, bool allow_full_ownership) const override {
         auto &registry = *m_registry;
         auto modified_view = registry.view<modified_components>();
-        static const auto components_tuple = std::tuple<Components...>{};
+        auto parent_view = registry.view<parent_comp>();
+        auto child_view = registry.view<child_list>();
 
         if (allow_full_ownership) {
             // Include all networked entities in the islands that contain an entity
@@ -239,12 +271,23 @@ public:
                         bump_component<position, orientation, linvel, angvel>(modified);
                     }
 
-                    for (unsigned i = 0; i < modified.count; ++i) {
-                        auto comp_index = modified.entry[i].index;
-                        visit_tuple(components_tuple, comp_index, [&](auto &&c) {
-                            using CompType = std::decay_t<decltype(c)>;
-                            internal::snapshot_insert_entity<CompType>(registry, entity, snap, comp_index);
-                        });
+                    export_modified(registry, entity, modified, snap);
+
+                    // Export child entities.
+                    if (parent_view.contains(entity)) {
+                        auto [parent] = parent_view.get(entity);
+                        auto child_entity = parent.child;
+
+                        while (child_entity != entt::null) {
+                            auto [child] = child_view.get(child_entity);
+
+                            if (modified_view.contains(child_entity)) {
+                                auto [child_modified] = modified_view.get(child_entity);
+                                export_modified(registry, child_entity, child_modified, snap);
+                            }
+
+                            child_entity = child.next;
+                        }
                     }
                 }
             }
@@ -253,16 +296,7 @@ public:
             // input component are included.
             for (auto entity : owned_entities) {
                 auto [modified] = modified_view.get(entity);
-
-                for (unsigned i = 0; i < modified.count; ++i) {
-                    auto comp_index = modified.entry[i].index;
-                    visit_tuple(components_tuple, comp_index, [&](auto &&c) {
-                        using CompType = std::decay_t<decltype(c)>;
-                        if constexpr(std::is_base_of_v<network_input, CompType>) {
-                            internal::snapshot_insert_entity<CompType>(registry, entity, snap, comp_index);
-                        }
-                    });
-                }
+                export_modified_inputs(registry, entity, modified, snap);
             }
         }
 
