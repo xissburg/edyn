@@ -79,6 +79,11 @@ constexpr vector3 operator*(const vector3 &v, const vector3 &w) noexcept {
     return {v.x * w.x, v.y * w.y, v.z * w.z};
 }
 
+// Divide vectors component-wise.
+constexpr vector3 operator/(const vector3 &v, const vector3 &w) noexcept {
+    return {v.x / w.x, v.y / w.y, v.z / w.z};
+}
+
 // Multiply vector by scalar.
 constexpr vector3 operator*(const vector3& v, scalar s) noexcept {
     return {v.x * s, v.y * s, v.z * s};
@@ -121,6 +126,14 @@ constexpr vector3& operator*=(vector3 &v, const vector3 &w) noexcept {
     v.x *= w.x;
     v.y *= w.y;
     v.z *= w.z;
+    return v;
+}
+
+// Divide vectors component-wise and assign to the first.
+constexpr vector3& operator/=(vector3 &v, const vector3 &w) noexcept {
+    v.x /= w.x;
+    v.y /= w.y;
+    v.z /= w.z;
     return v;
 }
 

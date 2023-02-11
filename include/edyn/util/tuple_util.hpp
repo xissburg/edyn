@@ -2,6 +2,7 @@
 #define EDYN_UTIL_TUPLE_UTIL_HPP
 
 #include <tuple>
+#include <array>
 #include <utility>
 #include <variant>
 
@@ -84,10 +85,18 @@ constexpr auto tuple_to_variant(std::tuple<Ts...>) {
 }
 
 namespace detail {
-    template<typename VisitorType, typename TupleType, typename T>
+    template<typename VisitorType, typename TupleType, std::size_t Index>
     constexpr auto make_visit_tuple_function() {
         return [](TupleType &tuple, VisitorType visitor) {
-            visitor(std::get<T>(tuple));
+            visitor(std::get<Index>(tuple));
+        };
+    }
+
+    template<typename VisitorType, typename TupleType, std::size_t... Indices>
+    constexpr auto make_visit_tuple_functions(std::index_sequence<Indices...>) {
+        using VisitFuncType = void(*)(TupleType &, VisitorType);
+        return std::array<VisitFuncType, sizeof...(Indices)>{
+            {make_visit_tuple_function<VisitorType, TupleType, Indices>()...}
         };
     }
 
@@ -97,10 +106,9 @@ namespace detail {
         using VisitFuncType = void(*)(TupleType &, VisitorType);
         std::array<VisitFuncType, sizeof...(Ts)> functions;
 
-        constexpr visit_tuple_function_array() : functions{} {
-            unsigned i = 0;
-            ((functions[i++] = make_visit_tuple_function<VisitorType, TupleType, Ts>()), ...);
-        }
+        constexpr visit_tuple_function_array()
+            : functions(make_visit_tuple_functions<VisitorType, TupleType>(std::make_index_sequence<sizeof...(Ts)>{}))
+        {}
     };
 
     template<typename VisitorType, typename... Ts>
@@ -108,10 +116,19 @@ namespace detail {
         static constexpr auto array = visit_tuple_function_array<VisitorType, Ts...>();
     };
 
-    template<typename VisitorType, typename TupleType, typename T>
+    // Const version.
+    template<typename VisitorType, typename TupleType, std::size_t Index>
     constexpr auto make_visit_const_tuple_function() {
         return [](const TupleType &tuple, VisitorType visitor) {
-            visitor(std::get<T>(tuple));
+            visitor(std::get<Index>(tuple));
+        };
+    }
+
+    template<typename VisitorType, typename TupleType, std::size_t... Indices>
+    constexpr auto make_visit_const_tuple_functions(std::index_sequence<Indices...>) {
+        using VisitFuncType = void(*)(const TupleType &, VisitorType);
+        return std::array<VisitFuncType, sizeof...(Indices)>{
+            {make_visit_const_tuple_function<VisitorType, TupleType, Indices>()...}
         };
     }
 
@@ -121,10 +138,9 @@ namespace detail {
         using VisitFuncType = void(*)(const TupleType &, VisitorType);
         std::array<VisitFuncType, sizeof...(Ts)> functions;
 
-        constexpr visit_const_tuple_function_array() : functions{} {
-            unsigned i = 0;
-            ((functions[i++] = make_visit_const_tuple_function<VisitorType, TupleType, Ts>()), ...);
-        }
+        constexpr visit_const_tuple_function_array()
+            : functions(make_visit_const_tuple_functions<VisitorType, TupleType>(std::make_index_sequence<sizeof...(Ts)>{}))
+        {}
     };
 
     template<typename VisitorType, typename... Ts>
