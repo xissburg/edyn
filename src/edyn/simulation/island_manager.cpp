@@ -426,6 +426,10 @@ void island_manager::split_islands() {
         }
 
         source_island = std::move(islands[biggest_idx]);
+        // swap with last and pop.
+        islands[biggest_idx] = std::move(islands.back());
+        islands.pop_back();
+
         remove_sleeping_tag_from_island(*m_registry, source_island_entity, source_island);
 
         /* Update island AABB. */ {
@@ -445,10 +449,6 @@ void island_manager::split_islands() {
                 }
             }
         }
-
-        // swap with last and pop.
-        islands[biggest_idx] = std::move(islands.back());
-        islands.pop_back();
 
         for (auto &other_island : islands) {
             auto island_entity_new = m_registry->create();
