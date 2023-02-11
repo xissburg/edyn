@@ -41,6 +41,9 @@ inline constexpr matrix3x3 matrix3x3_identity {{vector3_x, vector3_y, vector3_z}
 // Zero matrix.
 inline constexpr matrix3x3 matrix3x3_zero {{vector3_zero, vector3_zero, vector3_zero}};
 
+// Matrix with all ones.
+inline constexpr matrix3x3 matrix3x3_one {{vector3_one, vector3_one, vector3_one}};
+
 // Add two matrices.
 constexpr matrix3x3 operator+(const matrix3x3 &m, const matrix3x3 &n) noexcept {
     return {m.row[0] + n.row[0], m.row[1] + n.row[1], m.row[2] + n.row[2]};
@@ -280,6 +283,54 @@ inline vector3 get_euler_angles_xyz(const matrix3x3 &m) noexcept {
             0
         };
     }
+}
+
+inline edyn::matrix3x3 rotation_matrix_x(scalar angle) {
+    auto c = std::cos(angle);
+    auto s = std::sin(angle);
+
+    return {
+        vector3{1, 0, 0},
+        vector3{0, c, -s},
+        vector3{0, s, c}
+    };
+}
+
+inline edyn::matrix3x3 rotation_matrix_y(scalar angle) {
+    auto c = std::cos(angle);
+    auto s = std::sin(angle);
+
+    return {
+        vector3{c, 0, s},
+        vector3{0, 1, 0},
+        vector3{-s, 0, c}
+    };
+}
+
+inline edyn::matrix3x3 rotation_matrix_z(scalar angle) {
+    auto c = std::cos(angle);
+    auto s = std::sin(angle);
+
+    return {
+        vector3{c, -s, 0},
+        vector3{s, c, 0},
+        vector3{0, 0, 1}
+    };
+}
+
+inline edyn::matrix3x3 rotation_matrix_xyz(scalar angle_x, scalar angle_y, scalar angle_z) {
+    auto cx = std::cos(angle_x);
+    auto sx = std::sin(angle_x);
+    auto cy = std::cos(angle_y);
+    auto sy = std::sin(angle_y);
+    auto cz = std::cos(angle_z);
+    auto sz = std::sin(angle_z);
+
+    return {
+        vector3{cy*cz            , -cy*sz          , sy    },
+        vector3{cz*sx*sy + cx*sz , cx*cz - sx*sy*sz, -cy*sx},
+        vector3{-cx*cz*sy + sx*sz, cz*sx + cx*sy*sz, cx*cy }
+    };
 }
 
 }
