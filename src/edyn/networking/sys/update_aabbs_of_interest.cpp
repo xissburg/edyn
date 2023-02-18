@@ -124,20 +124,20 @@ void process_aabb_of_interest_result(entt::registry &registry, query_aabb_id_typ
             auto node_entity = graph.node_entity(node_index);
             to_visit.remove(node_entity);
 
-            if (!contained_entities.contains(node_entity) && networked_view.contains(entity)) {
+            if (!contained_entities.contains(node_entity) && networked_view.contains(node_entity)) {
                 contained_entities.emplace(node_entity);
             }
         }, [&](auto edge_index) {
             auto edge_entity = graph.edge_entity(edge_index);
 
-            if (!contained_entities.contains(edge_entity) && networked_view.contains(entity) && !manifold_view.contains(edge_entity)) {
+            if (!contained_entities.contains(edge_entity) && networked_view.contains(edge_entity) && !manifold_view.contains(edge_entity)) {
                 contained_entities.emplace(edge_entity);
             }
         });
     }
 
     for (auto entity : result.non_procedural_entities) {
-        if (!contained_entities.contains(entity)) {
+        if (!contained_entities.contains(entity) && networked_view.contains(entity)) {
             contained_entities.emplace(entity);
         }
     }
