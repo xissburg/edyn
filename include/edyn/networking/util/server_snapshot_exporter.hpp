@@ -123,6 +123,7 @@ public:
     void export_all(packet::registry_snapshot &snap, It first, It last) const {
         for (; first != last; ++first) {
             auto entity = *first;
+            EDYN_ASSERT((m_registry->all_of<networked_tag>(entity)));
             unsigned i = 0;
             (((m_registry->all_of<Components>(entity) ?
                 internal::snapshot_insert_entity<Components>(*m_registry, entity, snap, i) : void(0)), ++i), ...);
