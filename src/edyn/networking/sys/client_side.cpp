@@ -798,8 +798,8 @@ void client_asset_ready(entt::registry &registry, entt::entity asset_entity) {
     ctx.packet_signal.publish(packet::edyn_packet{std::move(packet)});
 }
 
-void client_link_asset(entt::registry &registry, entt::entity asset_entity,
-                       const std::map<entt::id_type, entt::entity> &emap) {
+template<typename EntityMapFunc>
+void client_link_asset_impl(entt::registry &registry, entt::entity asset_entity, EntityMapFunc emap) {
     auto &ctx = registry.ctx().at<client_network_context>();
     const auto &asset = registry.get<asset_ref>(asset_entity);
 
@@ -815,7 +815,7 @@ void client_link_asset(entt::registry &registry, entt::entity asset_entity,
     auto emap_packet = packet::update_entity_map{};
 
     for (auto [asset_id, remote_entity] : asset.entity_map) {
-        auto local_entity = emap.at(asset_id);
+        auto local_entity = emap(asset_id);
         ctx.entity_map.insert(remote_entity, local_entity);
         emap_packet.pairs.emplace_back(remote_entity, local_entity);
 
@@ -838,6 +838,22 @@ void client_link_asset(entt::registry &registry, entt::entity asset_entity,
 
     emap_packet.timestamp = performance_time();
     ctx.packet_signal.publish(packet::edyn_packet{std::move(emap_packet)});
+}
+
+void client_link_asset(entt::registry &registry, entt::entity asset_entity,
+                       const std::map<entt::id_type, entt::entity> &emap) {
+    client_link_asset_impl(registry, asset_entity,
+        [&emap](entt::id_type asset_id) {
+            return emap.at(asset_id);
+        });
+}
+
+void client_link_asset(entt::registry &registry, entt::entity asset_entity,
+                       const std::unordered_map<entt::id_type, entt::entity> &emap) {
+    client_link_asset_impl(registry, asset_entity,
+        [&emap](entt::id_type asset_id) {
+            return emap.at(asset_id);
+        });
 }
 
 }
