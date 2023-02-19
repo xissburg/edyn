@@ -86,6 +86,16 @@ public:
         }
     }
 
+    template<typename T>
+    void operator()(const T& t) {
+        if constexpr(std::is_fundamental_v<T>) {
+            write_bytes(t);
+        } else if constexpr(!std::is_empty_v<T>) {
+            auto &ct = const_cast<T &>(t);
+            serialize(*this, ct);
+        }
+    }
+
     template<typename... Ts>
     void operator()(Ts&... t) {
         (operator()(t), ...);
@@ -93,7 +103,7 @@ public:
 
 protected:
     template<typename T>
-    void write_bytes(T &t) {
+    void write_bytes(const T &t) {
         auto idx = m_buffer->size();
         m_buffer->resize(idx + sizeof(T));
         auto *dest = reinterpret_cast<T*>(&(*m_buffer)[idx]);
