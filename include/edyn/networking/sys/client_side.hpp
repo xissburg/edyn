@@ -1,6 +1,8 @@
 #ifndef EDYN_NETWORKING_CLIENT_SIDE_HPP
 #define EDYN_NETWORKING_CLIENT_SIDE_HPP
 
+#include <map>
+#include <unordered_map>
 #include <entt/entity/fwd.hpp>
 #include "edyn/networking/context/client_network_context.hpp"
 #include "edyn/networking/packet/edyn_packet.hpp"
@@ -67,6 +69,9 @@ void client_asset_ready(entt::registry &registry, entt::entity entity);
  */
 void client_link_asset(entt::registry &registry, entt::entity entity,
                        const std::map<entt::id_type, entt::entity> &emap);
+
+void client_link_asset(entt::registry &registry, entt::entity entity,
+                       const std::unordered_map<entt::id_type, entt::entity> &emap);
 
 }
 
