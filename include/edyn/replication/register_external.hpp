@@ -45,7 +45,7 @@ void register_external_components(entt::registry &registry, std::tuple<Actions..
     if constexpr(sizeof...(Actions) > 0) {
         auto &settings = registry.ctx().at<edyn::settings>();
         settings.clear_actions_func = [](entt::registry &registry) {
-            (registry.clear<action_list<Actions>>(), ...);
+            (registry.view<action_list<Actions>>().each([](auto &&list) { list.actions.clear(); }), ...);
         };
     }
 
