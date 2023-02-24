@@ -15,6 +15,7 @@
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/position.hpp"
+#include "edyn/comp/spin.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/config/config.h"
 #include "edyn/core/entity_graph.hpp"
@@ -278,6 +279,7 @@ public:
 
         auto modified_view = m_registry->view<modified_components>();
         auto dynamic_view = m_registry->view<dynamic_tag>(exclude_sleeping_disabled);
+        auto spin_view = m_registry->view<spin, spin_angle, dynamic_tag>(exclude_sleeping_disabled);
 
         for (auto [entity, modified] : modified_view.each()) {
             modified.decay(elapsed_ms);
@@ -288,6 +290,10 @@ public:
             // signals every time.
             if (dynamic_view.contains(entity)) {
                 bump_component<position, orientation, linvel, angvel>(modified);
+            }
+
+            if (spin_view.contains(entity)) {
+                bump_component<spin, spin_angle>(modified);
             }
         }
     }
