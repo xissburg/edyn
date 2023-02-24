@@ -12,6 +12,8 @@ inline void accumulate_discontinuities(entt::registry &registry) {
     auto discontinuity_view = registry.view<previous_position, position, previous_orientation, orientation, discontinuity>();
 
     for (auto [entity, p_pos, pos, p_orn, orn, discontinuity] : discontinuity_view.each()) {
+        // TODO: if error is too large, past a threshold, do not accumulate.
+        // Zero it out instead. That is, just snap into the new transform.
         discontinuity.position_offset += p_pos - pos;
         discontinuity.orientation_offset *= p_orn * conjugate(orn);
     }

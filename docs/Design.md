@@ -332,9 +332,9 @@ Entity-component data is shared via registry snapshots which are packets that st
 
 ## Assets
 
-In a real application rigid bodies are usually part of a group, e.g. a rag doll or a multi-body vehicle. The group most likely represents something greater than just a bunch of rigid bodies and constraints. It might be associated with a graphical representation (e.g. mesh, textures, skeleton, animations...), sound effects and logic. That means rigid bodies that are part of a group or have additional elements associated with it, must be handled as a unit. This is called an _asset_ which is represented by a globally unique id.
+In a real application, rigid bodies are usually part of a group, e.g. a rag doll or a multi-body vehicle. The group most likely represents something greater than just a bunch of rigid bodies and constraints. It might be associated with a graphical representation (e.g. mesh, textures, skeleton, animations...), sound effects and logic. That means rigid bodies that are part of a group or have additional elements associated with them, must be handled as a unit. This is called an _asset_ which is represented by a globally unique id.
 
-Each asset can be instantiated in its own way, by creating entities and assigning whatever components to them. Each entity to be created must have an internal id which is globally unique and identical in all machines. This id will be used to map internal ids to entity ids of rigid bodies and constraints that already exist in the other end when replicating assets in remote clients.
+Each asset can be instantiated in its own way, by creating entities and assigning whatever components to them. Relevant entities must have an internal id which is unique within the asset and identical in all machines. This id will be used to map internal ids to entity ids of rigid bodies and constraints that already exist in the other end when replicating assets in remote clients.
 
 All entities in an asset are expected to be a single connected component in the entity graph.
 

@@ -6,6 +6,7 @@
 #include <numeric>
 #include <type_traits>
 #include <vector>
+#include <utility>
 #include "edyn/comp/action_list.hpp"
 #include "edyn/comp/angvel.hpp"
 #include "edyn/comp/child_list.hpp"
@@ -87,8 +88,7 @@ class server_snapshot_exporter_impl : public server_snapshot_exporter {
 
     void export_modified_entity(const entt::registry &registry, entt::entity entity,
                                 const modified_components &modified,
-                                packet::registry_snapshot &snap,
-                                bool owned_by_destination_client) const {
+                                packet::registry_snapshot &snap) const {
         static const auto components_tuple = std::tuple<Components...>{};
 
         for (unsigned i = 0; i < modified.count; ++i) {
@@ -99,12 +99,34 @@ class server_snapshot_exporter_impl : public server_snapshot_exporter {
                 constexpr auto is_action = std::is_same_v<CompType, action_history>;
 
                 // Must not send action history nor should send input
-                // state of entities owned by destination client.
-                if (!(is_action || (owned_by_destination_client && is_input))) {
+                // state back to clients.
+                if constexpr(!is_action && !is_input) {
                     internal::snapshot_insert_entity<CompType>(registry, entity, snap, comp_index);
                 }
             });
         }
+    }
+
+    template<typename Component, typename It>
+    void export_single(packet::registry_snapshot &snap, It first, It last, size_t index) const {
+        constexpr auto is_input = std::is_base_of_v<network_input, Component>;
+        constexpr auto is_action = std::is_same_v<Component, action_history>;
+
+        // Inputs and actions must not be shared among clients.
+        if constexpr(!is_action && !is_input) {
+            for (; first != last; ++first) {
+                auto entity = *first;
+
+                if (m_registry->all_of<Component>(entity)) {
+                    internal::snapshot_insert_entity<Component>(*m_registry, entity, snap, index);
+                }
+            }
+        }
+    }
+
+    template<typename It, size_t... Indexes>
+    void export_all_indices(packet::registry_snapshot &snap, It first, It last, std::index_sequence<Indexes...>) const {
+        (export_single<Components>(snap, first, last, Indexes), ...);
     }
 
 public:
@@ -121,13 +143,8 @@ public:
 
     template<typename It>
     void export_all(packet::registry_snapshot &snap, It first, It last) const {
-        for (; first != last; ++first) {
-            auto entity = *first;
-            EDYN_ASSERT((m_registry->all_of<networked_tag>(entity)));
-            unsigned i = 0;
-            (((m_registry->all_of<Components>(entity) ?
-                internal::snapshot_insert_entity<Components>(*m_registry, entity, snap, i) : void(0)), ++i), ...);
-        }
+        constexpr auto indices = std::make_index_sequence<sizeof...(Components)>();
+        export_all_indices(snap, first, last, indices);
     }
 
     void export_all(packet::registry_snapshot &snap, const std::vector<entt::entity> &entities) const override {
@@ -218,10 +235,7 @@ public:
                 continue;
             }
 
-            const auto owned_by_destination_client = owner_view.contains(entity) &&
-                std::get<0>(owner_view.get(entity)).client_entity == dest_client_entity;
-
-            export_modified_entity(registry, entity, modified, snap, owned_by_destination_client);
+            export_modified_entity(registry, entity, modified, snap);
 
             // Include child entities
             if (is_parent) {
@@ -231,7 +245,7 @@ public:
                 while (child_entity != entt::null) {
                     if (modified_view.contains(child_entity)) {
                         auto [child_modified] = modified_view.get(child_entity);
-                        export_modified_entity(registry, child_entity, child_modified, snap, owned_by_destination_client);
+                        export_modified_entity(registry, child_entity, child_modified, snap);
                     }
 
                     auto [child] = child_view.get(child_entity);
@@ -263,7 +277,7 @@ public:
         m_last_time = time;
 
         auto modified_view = m_registry->view<modified_components>();
-        auto body_view = m_registry->view<position, orientation, linvel, angvel, dynamic_tag>(exclude_sleeping_disabled);
+        auto dynamic_view = m_registry->view<dynamic_tag>(exclude_sleeping_disabled);
 
         for (auto [entity, modified] : modified_view.each()) {
             modified.decay(elapsed_ms);
@@ -272,7 +286,7 @@ public:
             // as modified because these components change in every step of the simulation
             // and have their value assigned directly to avoid triggering the `on_update`
             // signals every time.
-            if (body_view.contains(entity)) {
+            if (dynamic_view.contains(entity)) {
                 bump_component<position, orientation, linvel, angvel>(modified);
             }
         }

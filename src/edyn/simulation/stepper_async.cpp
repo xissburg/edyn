@@ -242,6 +242,11 @@ void stepper_async::sync() {
 void stepper_async::update() {
     m_message_queue_handle.update();
     sync();
+
+    auto &settings = m_registry->ctx().at<edyn::settings>();
+    if (settings.clear_actions_func) {
+        (*settings.clear_actions_func)(*m_registry);
+    }
 }
 
 void stepper_async::set_paused(bool paused) {

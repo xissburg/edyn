@@ -371,6 +371,12 @@ vector3 get_rigidbody_present_origin(const entt::registry &registry, entt::entit
     return origin;
 }
 
+void rigidbody_update_origin(entt::registry &registry, entt::entity entity) {
+    auto [com, pos, orn] = registry.get<center_of_mass, position, orientation>(entity);
+    auto origin = to_world_space(-com, pos, orn);
+    registry.replace<edyn::origin>(entity, origin);
+}
+
 void wake_up_entity(entt::registry &registry, entt::entity entity) {
     if (auto *stepper = registry.ctx().find<stepper_async>()) {
         stepper->wake_up_entity(entity);

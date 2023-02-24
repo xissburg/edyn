@@ -70,6 +70,7 @@ void client_asset_ready(entt::registry &registry, entt::entity entity);
 void client_link_asset(entt::registry &registry, entt::entity entity,
                        const std::map<entt::id_type, entt::entity> &emap);
 
+/*! @copydoc client_link_asset */
 void client_link_asset(entt::registry &registry, entt::entity entity,
                        const std::unordered_map<entt::id_type, entt::entity> &emap);
 

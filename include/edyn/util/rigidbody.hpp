@@ -186,6 +186,15 @@ vector3 get_rigidbody_origin(const entt::registry &, entt::entity);
 vector3 get_rigidbody_present_origin(const entt::registry &, entt::entity);
 
 /**
+ * @brief Recalculate origin after position and/or orientation change.
+ * @remark Body must have a non-zero center of mass offset, i.e. presence of a
+ * `edyn::origin` component is assumed.
+ * @param registry Data source.
+ * @param entity Rigid body entity.
+ */
+void rigidbody_update_origin(entt::registry &, entt::entity);
+
+/**
  * @brief Wake up entity. This will wake up all entities in its island.
  * @param registry Data source.
  * @param entity Rigid body entity.
