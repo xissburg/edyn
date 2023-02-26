@@ -19,7 +19,7 @@ struct constraint_row_prep_cache;
  */
 struct spin_constraint : public constraint_base {
     scalar m_max_torque {};
-    bool m_motor {false};
+    scalar m_target_spin {};
     bool m_use_spinA {true};
     bool m_use_spinB {true};
 
@@ -37,7 +37,7 @@ template<typename Archive>
 void serialize(Archive &archive, spin_constraint &con) {
     archive(con.body);
     archive(con.m_max_torque);
-    archive(con.m_motor);
+    archive(con.m_target_spin);
     archive(con.m_use_spinA);
     archive(con.m_use_spinB);
     archive(con.applied_impulse);

@@ -33,9 +33,7 @@ void spin_constraint::prepare(const entt::registry &registry, entt::entity entit
     row.spin_axis[0] = axisA;
     row.spin_axis[1] = axisB;
 
-    if (m_motor) {
-        cache.get_options().error = -large_scalar;
-    }
+    cache.get_options().error = m_target_spin;
 }
 
 void spin_constraint::store_applied_impulses(const std::vector<scalar> &impulses) {
