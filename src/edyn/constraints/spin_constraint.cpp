@@ -10,6 +10,7 @@
 #include "edyn/comp/delta_angvel.hpp"
 #include "edyn/comp/mass.hpp"
 #include "edyn/comp/inertia.hpp"
+#include "edyn/math/constants.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include <entt/entity/registry.hpp>
 
@@ -31,6 +32,10 @@ void spin_constraint::prepare(const entt::registry &registry, entt::entity entit
     row.use_spin[1] = m_use_spinB;
     row.spin_axis[0] = axisA;
     row.spin_axis[1] = axisB;
+
+    if (m_motor) {
+        cache.get_options().error = -large_scalar;
+    }
 }
 
 void spin_constraint::store_applied_impulses(const std::vector<scalar> &impulses) {
