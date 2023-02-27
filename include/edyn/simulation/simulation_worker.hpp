@@ -59,6 +59,10 @@ public:
 
     void import_contact_manifolds(const std::vector<contact_manifold> &manifolds);
 
+    double get_simulation_timestamp() const {
+        return m_last_time - m_accumulated_time;
+    }
+
     void start();
     void stop();
 

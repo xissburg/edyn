@@ -16,7 +16,6 @@
 #include "edyn/networking/context/client_network_context.hpp"
 #include "edyn/simulation/stepper_async.hpp"
 #include "edyn/simulation/stepper_sequential.hpp"
-#include "edyn/sys/update_presentation.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
 #include <entt/meta/factory.hpp>
 #include <entt/core/hashed_string.hpp>
@@ -170,13 +169,6 @@ void update(entt::registry &registry) {
         registry.ctx().at<stepper_async>().update();
     } else if (registry.ctx().contains<stepper_sequential>()) {
         registry.ctx().at<stepper_sequential>().update();
-    }
-
-    if (is_paused(registry)) {
-        snap_presentation(registry);
-    } else {
-        auto time = performance_time();
-        update_presentation(registry, time);
     }
 }
 
