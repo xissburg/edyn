@@ -102,7 +102,8 @@ private:
     > m_message_queue_handle;
 
     bool m_importing {false};
-    double m_timestamp {};
+    double m_sim_time {};
+    bool m_paused {false};
 
     raycast_id_type m_next_raycast_id {};
     std::map<raycast_id_type, worker_raycast_context> m_raycast_ctx;

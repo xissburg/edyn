@@ -24,8 +24,8 @@ public:
         return m_paused;
     }
 
-    double get_timestamp() const {
-        return m_last_time;
+    double get_simulation_timestamp() const {
+        return m_last_time - m_accumulated_time;
     }
 
     auto & get_island_manager() {

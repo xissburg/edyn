@@ -9,32 +9,28 @@
 #include "edyn/comp/tag.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/networking/comp/discontinuity.hpp"
-#include "edyn/time/simulation_time.hpp"
 #include <entt/entity/registry.hpp>
 
 namespace edyn {
 
-void update_presentation(entt::registry &registry, double time) {
+void update_presentation(entt::registry &registry, double sim_time, double time) {
+    EDYN_ASSERT(!(time < sim_time));
     auto exclude = entt::exclude<sleeping_tag, disabled_tag>;
     auto linear_view = registry.view<position, linvel, present_position, procedural_tag>(exclude);
     auto angular_view = registry.view<orientation, angvel, present_orientation, procedural_tag>(exclude);
     auto spin_view = registry.view<spin_angle, spin, present_spin_angle, procedural_tag>(exclude);
-    auto fixed_dt = registry.ctx().at<settings>().fixed_dt;
-    auto sim_time = get_simulation_timestamp(registry);
-    EDYN_ASSERT(!(time < sim_time));
+    const double fixed_dt = registry.ctx().at<settings>().fixed_dt;
+    const auto dt = std::min(time - sim_time - fixed_dt, fixed_dt);
 
-    linear_view.each([&](position &pos, linvel &vel, present_position &pre) {
-        auto dt = std::min(scalar(time - fixed_dt - sim_time), fixed_dt);
+    linear_view.each([dt](position &pos, linvel &vel, present_position &pre) {
         pre = pos + vel * dt;
     });
 
-    angular_view.each([&](orientation &orn, angvel &vel, present_orientation &pre) {
-        auto dt = std::min(scalar(time - fixed_dt - sim_time), fixed_dt);
+    angular_view.each([dt](orientation &orn, angvel &vel, present_orientation &pre) {
         pre = integrate(orn, vel, dt);
     });
 
     spin_view.each([&] (spin_angle &angle, spin &spin, present_spin_angle &pre) {
-        auto dt = std::min(scalar(time - fixed_dt - sim_time), fixed_dt);
         pre.s = angle.s + spin.s * dt;
     });
 
@@ -56,9 +52,7 @@ void snap_presentation(entt::registry &registry) {
         p_orn = orn;
     });
 
-    registry.view<spin_angle, present_spin_angle>()
-        .each([] (spin_angle &angle, present_spin_angle &p_angle)
-    {
+    registry.view<spin_angle, present_spin_angle>().each([](spin_angle &angle, present_spin_angle &p_angle) {
         p_angle.s = angle.s;
     });
 }

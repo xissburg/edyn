@@ -18,6 +18,7 @@
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/constraints/contact_constraint.hpp"
 #include "edyn/simulation/simulation_worker.hpp"
+#include "edyn/sys/update_presentation.hpp"
 #include "edyn/time/time.hpp"
 #include "edyn/core/entity_graph.hpp"
 #include "edyn/comp/graph_node.hpp"
@@ -44,7 +45,7 @@ stepper_async::stepper_async(entt::registry &registry)
     , m_worker(registry.ctx().at<settings>(),
                registry.ctx().at<registry_operation_context>(),
                registry.ctx().at<material_mix_table>())
-    , m_timestamp(performance_time())
+    , m_sim_time(performance_time())
 {
     m_connections.push_back(registry.on_construct<graph_node>().connect<&stepper_async::on_construct_shared>(*this));
     m_connections.push_back(registry.on_destroy<graph_node>().connect<&stepper_async::on_destroy_graph_node>(*this));
@@ -116,7 +117,7 @@ void stepper_async::on_destroy_graph_edge(entt::registry &registry, entt::entity
 }
 
 double stepper_async::get_simulation_timestamp() const {
-    return m_timestamp;
+    return m_sim_time;
 }
 
 void stepper_async::on_step_update(message<msg::step_update> &msg) {
@@ -135,7 +136,7 @@ void stepper_async::on_step_update(message<msg::step_update> &msg) {
         }
     }
 
-    m_timestamp = msg.content.timestamp;
+    m_sim_time = msg.content.timestamp;
 
     auto node_view = registry.view<graph_node>();
 
@@ -247,9 +248,16 @@ void stepper_async::update() {
     if (settings.clear_actions_func) {
         (*settings.clear_actions_func)(*m_registry);
     }
+
+    if (m_paused) {
+        snap_presentation(*m_registry);
+    } else {
+        update_presentation(*m_registry, get_simulation_timestamp(), performance_time());
+    }
 }
 
 void stepper_async::set_paused(bool paused) {
+    m_paused = paused;
     send_message_to_worker<msg::set_paused>(paused);
 }
 
