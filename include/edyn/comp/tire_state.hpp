@@ -2,6 +2,7 @@
 #define EDYN_COMP_TIRE_STATE_HPP
 
 #include <array>
+#include <entt/entity/entity.hpp>
 #include <vector>
 #include <cstdint>
 #include <entt/fwd.hpp>
@@ -83,7 +84,8 @@ struct tire_contact_state {
 };
 
 struct tire_state {
-    entt::entity other_entity;
+    entt::entity other_entity {entt::null};
+    entt::entity patch_entity {entt::null};
     scalar inflation_pressure {200000};
     size_t num_contacts;
     std::array<tire_contact_state, max_contacts> contact_state;

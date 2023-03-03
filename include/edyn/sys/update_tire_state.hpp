@@ -23,7 +23,7 @@ void update_tire_state(entt::registry &registry, scalar dt) {
     auto tr_view = registry.view<position, orientation>();
     auto vel_view = registry.view<linvel, angvel>();
     auto spin_view = registry.view<spin>();
-    auto con_view = registry.view<contact_patch_constraint>();
+    auto patch_view = registry.view<contact_patch_constraint>();
     auto &graph = registry.ctx().at<entity_graph>();
 
     for (auto [entity, node, ts] : ts_view.each()) {
@@ -35,18 +35,19 @@ void update_tire_state(entt::registry &registry, scalar dt) {
         auto &angvelA = vel_view.get<angvel>(entity);
         auto spinvelA = quaternion_x(ornA) * spin_view.get<spin>(entity).s;
 
-        graph.visit_edges(node.node_index, [&] (auto edge_index) {
+        graph.visit_edges(node.node_index, [&](auto edge_index) {
             auto edge_entity = graph.edge_entity(edge_index);
 
-            if (!con_view.contains(edge_entity)) {
+            if (!patch_view.contains(edge_entity)) {
                 return;
             }
 
-            auto [con] = con_view.get(edge_entity);
+            auto [con] = patch_view.get(edge_entity);
 
             EDYN_ASSERT(registry.all_of<tire_state>(con.body[0]));
 
             ts.other_entity = con.body[1];
+            ts.patch_entity = edge_entity;
             ts.num_contacts = con.num_patches;
 
             if (ts.num_contacts == 0) {
