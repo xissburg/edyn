@@ -1,6 +1,7 @@
 #include "edyn/shapes/convex_mesh.hpp"
 #include "edyn/sys/update_rotated_meshes.hpp"
 #include "edyn/util/shape_util.hpp"
+#include "edyn/config/constants.hpp"
 
 namespace edyn {
 
@@ -64,12 +65,9 @@ void convex_mesh::calculate_normals() {
             auto i3 = indices[first + (j + 1) % count];
             auto &v2 = vertices[i2];
             auto &v3 = vertices[i3];
-
             auto normal = cross(v1 - v0, v3 - v2);
-            auto normal_len_sqr = length_sqr(normal);
 
-            if (normal_len_sqr > EDYN_EPSILON) {
-                normal /= std::sqrt(normal_len_sqr);
+            if (try_normalize(normal)) {
                 normals.push_back(normal);
                 break;
             }
@@ -112,7 +110,7 @@ void convex_mesh::calculate_relevant_normals() {
     for (size_t face_idx = 0; face_idx < normals.size(); ++face_idx) {
         auto &normal = normals[face_idx];
         auto found_it = std::find_if(relevant_normals.begin(), relevant_normals.end(), [normal](auto &&relevant) {
-            return !(dot(normal, relevant) < scalar(1) - EDYN_EPSILON);
+            return !(dot(normal, relevant) < scalar(1) - convex_mesh_relevant_direction_tolerance);
         });
 
         if (found_it == relevant_normals.end()) {
@@ -135,7 +133,7 @@ void convex_mesh::calculate_relevant_edges() {
         auto edge = normalize(v1 - v0);
 
         auto found_it = std::find_if(relevant_edges.begin(), relevant_edges.end(), [edge](auto &&relevant) {
-            return !(std::abs(dot(edge, relevant)) < scalar(1) - EDYN_EPSILON);
+            return !(std::abs(dot(edge, relevant)) < scalar(1) - convex_mesh_relevant_direction_tolerance);
         });
 
         if (found_it == relevant_edges.end()) {
@@ -160,7 +158,7 @@ void convex_mesh::validate() const {
             auto ij = indices[first + j];
             auto &vj = vertices[ij];
 
-            EDYN_ASSERT(std::abs(dot(vj - v0, normal)) < edyn::scalar(0.001));
+            EDYN_ASSERT(std::abs(dot(vj - v0, normal)) < convex_mesh_validation_parallel_tolerance);
         }
     }
 
@@ -173,7 +171,7 @@ void convex_mesh::validate() const {
 
         // All vertices must lie behind the plane parallel to the face.
         for (auto &vj : vertices) {
-            EDYN_ASSERT(dot(vj - v0, normal) < edyn::scalar(0.001));
+            EDYN_ASSERT(dot(vj - v0, normal) < convex_mesh_validation_parallel_tolerance);
         }
     }
 #endif

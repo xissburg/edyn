@@ -65,6 +65,20 @@ inline constexpr auto contact_position_correction_rate = scalar(0.2);
  */
 inline constexpr auto contact_position_solver_min_error = scalar(-0.005);
 
+/**
+ * On initialization of a `convex_mesh` unique face normals and edge directions
+ * are calculated to decrease the number of separating axis to be tested during
+ * collision detection. If the cosine of the angle between two directions is
+ * greater than one minus this value, they're considered similar and only one
+ * will be used during SAT.
+ */
+inline constexpr auto convex_mesh_relevant_direction_tolerance = scalar(0.0006);
+
+/**
+ * Tolerance value used when validating convexity of meshes.
+ */
+inline constexpr auto convex_mesh_validation_parallel_tolerance = scalar(0.005);
+
 }
 
 #endif // EDYN_CONFIG_CONSTANTS_HPP
