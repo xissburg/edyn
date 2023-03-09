@@ -51,7 +51,7 @@ public:
     void on_raycast_response(message<msg::raycast_response> &);
     void on_query_aabb_response(message<msg::query_aabb_response> &);
 
-    void update();
+    void update(double time);
 
     void set_paused(bool);
     void step_simulation();

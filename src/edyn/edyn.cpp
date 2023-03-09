@@ -17,6 +17,7 @@
 #include "edyn/simulation/stepper_async.hpp"
 #include "edyn/simulation/stepper_sequential.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
+#include "edyn/time/time.hpp"
 #include <entt/meta/factory.hpp>
 #include <entt/core/hashed_string.hpp>
 
@@ -90,13 +91,16 @@ void attach(entt::registry &registry, const init_config &config) {
     registry.ctx().emplace<contact_manifold_map>(registry);
     registry.ctx().emplace<contact_event_emitter>(registry);
     registry.ctx().emplace<registry_operation_context>();
+    auto timestamp = config.timestamp ? *config.timestamp : performance_time();
 
     switch (config.execution_mode) {
     case execution_mode::sequential:
     case execution_mode::sequential_multithreaded:
         registry.ctx().emplace<broadphase>(registry);
         registry.ctx().emplace<narrowphase>(registry);
-        registry.ctx().emplace<stepper_sequential>(registry, config.execution_mode == execution_mode::sequential_multithreaded);
+        registry.ctx().emplace<stepper_sequential>(registry,
+                                                   config.execution_mode == execution_mode::sequential_multithreaded,
+                                                   timestamp);
         break;
     case execution_mode::asynchronous:
         registry.ctx().emplace<stepper_async>(registry);
@@ -162,13 +166,18 @@ void set_paused(entt::registry &registry, bool paused) {
 }
 
 void update(entt::registry &registry) {
+    auto time = performance_time();
+    update(registry, time);
+}
+
+void update(entt::registry &registry, double time) {
     // Run jobs scheduled to run in this thread.
     job_dispatcher::global().once_current_queue();
 
     if (registry.ctx().contains<stepper_async>()) {
-        registry.ctx().at<stepper_async>().update();
+        registry.ctx().at<stepper_async>().update(time);
     } else if (registry.ctx().contains<stepper_sequential>()) {
-        registry.ctx().at<stepper_sequential>().update();
+        registry.ctx().at<stepper_sequential>().update(time);
     }
 }
 
@@ -178,7 +187,18 @@ void step_simulation(entt::registry &registry) {
     if (auto *stepper = registry.ctx().find<stepper_async>()) {
         stepper->step_simulation();
     } else {
-        registry.ctx().at<stepper_sequential>().step_simulation();
+        auto time = performance_time();
+        registry.ctx().at<stepper_sequential>().step_simulation(time);
+    }
+}
+
+void step_simulation(entt::registry &registry, double time) {
+    EDYN_ASSERT(is_paused(registry));
+
+    if (auto *stepper = registry.ctx().find<stepper_async>()) {
+        stepper->step_simulation();
+    } else {
+        registry.ctx().at<stepper_sequential>().step_simulation(time);
     }
 }
 

@@ -8,24 +8,24 @@
 #include "edyn/dynamics/material_mixing.hpp"
 #include "edyn/networking/sys/decay_discontinuities.hpp"
 #include "edyn/sys/update_presentation.hpp"
-#include "edyn/time/time.hpp"
 #include <entt/entity/registry.hpp>
+#include <cstdint>
 
 namespace edyn {
 
-stepper_sequential::stepper_sequential(entt::registry &registry, bool multithreaded)
+stepper_sequential::stepper_sequential(entt::registry &registry, bool multithreaded, double time)
     : m_registry(&registry)
     , m_island_manager(registry)
     , m_poly_initializer(registry)
     , m_solver(registry)
     , m_multithreaded(multithreaded)
     , m_paused(false)
+    , m_last_time(time)
 {
-    m_last_time = performance_time();
     m_island_manager.set_last_time(m_last_time);
 }
 
-void stepper_sequential::update() {
+void stepper_sequential::update(double time) {
     if (m_paused) {
         m_island_manager.update(m_last_time);
         snap_presentation(*m_registry);
@@ -33,14 +33,13 @@ void stepper_sequential::update() {
     }
 
     auto sim_time = get_simulation_timestamp();
-    auto time = performance_time();
-    auto elapsed = time - m_last_time;
+    auto elapsed = std::max(time - m_last_time, 0.0);
     m_accumulated_time += elapsed;
 
     auto &settings = m_registry->ctx().at<edyn::settings>();
     const auto fixed_dt = settings.fixed_dt;
-    const auto num_steps = static_cast<unsigned>(std::floor(m_accumulated_time / fixed_dt));
-    m_accumulated_time -= num_steps * fixed_dt;
+    const auto num_steps = static_cast<uint64_t>(std::floor(m_accumulated_time / fixed_dt));
+    m_accumulated_time -= static_cast<double>(num_steps) * fixed_dt;
 
     auto &bphase = m_registry->ctx().at<broadphase>();
     auto &nphase = m_registry->ctx().at<narrowphase>();
@@ -80,13 +79,13 @@ void stepper_sequential::update() {
     }
 
     m_last_time = time;
-    update_presentation(*m_registry, get_simulation_timestamp(), performance_time());
+    update_presentation(*m_registry, get_simulation_timestamp(), time);
 }
 
-void stepper_sequential::step_simulation() {
+void stepper_sequential::step_simulation(double time) {
     EDYN_ASSERT(m_paused);
 
-    m_last_time = performance_time();
+    m_last_time = time;
 
     auto &bphase = m_registry->ctx().at<broadphase>();
     auto &nphase = m_registry->ctx().at<narrowphase>();
@@ -117,10 +116,6 @@ void stepper_sequential::step_simulation() {
 void stepper_sequential::set_paused(bool paused) {
     m_paused = paused;
     m_accumulated_time = 0;
-
-    if (!paused) {
-        m_last_time = performance_time();
-    }
 }
 
 }

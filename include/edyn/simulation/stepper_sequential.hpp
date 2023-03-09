@@ -14,10 +14,10 @@ namespace edyn {
  */
 class stepper_sequential {
 public:
-    stepper_sequential(entt::registry &registry, bool multithreaded);
+    stepper_sequential(entt::registry &registry, bool multithreaded, double time);
 
-    void update();
-    void step_simulation();
+    void update(double time);
+    void step_simulation(double time);
     void set_paused(bool paused);
 
     bool is_paused() const {

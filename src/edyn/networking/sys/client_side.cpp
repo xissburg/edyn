@@ -33,7 +33,6 @@
 #include "edyn/simulation/stepper_async.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/serialization/std_s11n.hpp"
-#include "edyn/simulation/stepper_sequential.hpp"
 #include "edyn/time/time.hpp"
 #include "edyn/util/island_util.hpp"
 #include "edyn/util/vector_util.hpp"
