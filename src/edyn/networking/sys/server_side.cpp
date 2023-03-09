@@ -32,7 +32,6 @@
 #include "edyn/networking/util/snap_to_pool_snapshot.hpp"
 #include "edyn/simulation/stepper_async.hpp"
 #include "edyn/parallel/message.hpp"
-#include "edyn/simulation/stepper_sequential.hpp"
 #include "edyn/time/time.hpp"
 #include "edyn/replication/entity_map.hpp"
 #include "edyn/util/island_util.hpp"

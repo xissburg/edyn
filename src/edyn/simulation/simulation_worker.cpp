@@ -298,15 +298,15 @@ void simulation_worker::update(double dt) {
 
     auto &settings = m_registry.ctx().at<edyn::settings>();
     const auto fixed_dt = settings.fixed_dt;
-    const auto num_steps = static_cast<unsigned>(std::floor(m_accumulated_time / fixed_dt));
-    m_accumulated_time -= num_steps * fixed_dt;
+    const auto num_steps = static_cast<int64_t>(std::ceil(m_accumulated_time / fixed_dt));
+    m_accumulated_time -= static_cast<double>(num_steps) * fixed_dt;
 
-    auto &bphase = m_registry.ctx().at<broadphase>();
-    auto &nphase = m_registry.ctx().at<narrowphase>();
-
-    auto total_steps = std::min(num_steps, settings.max_steps_per_update);
+    auto total_steps = std::min(num_steps, static_cast<int64_t>(settings.max_steps_per_update));
 
     m_poly_initializer.init_new_shapes();
+
+    auto &nphase = m_registry.ctx().at<narrowphase>();
+    auto &bphase = m_registry.ctx().at<broadphase>();
     bphase.init_new_aabb_entities();
 
     for (unsigned i = 0; i < total_steps; ++i) {

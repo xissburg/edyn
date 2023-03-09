@@ -28,6 +28,7 @@
 #include "constraints/constraint.hpp"
 #include "serialization/s11n.hpp"
 #include "replication/register_external.hpp"
+#include <optional>
 
 namespace edyn {
 
@@ -39,6 +40,9 @@ struct init_config {
     // `std::thread::hardware_concurrency`.
     size_t num_worker_threads {0};
     edyn::execution_mode execution_mode {edyn::execution_mode::asynchronous};
+    // If using a custom time source, assign the current time here for the
+    // engine initialization.
+    std::optional<double> timestamp;
 };
 
 /**
@@ -91,19 +95,36 @@ bool is_paused(const entt::registry &registry);
 void set_paused(entt::registry &registry, bool paused);
 
 /**
- * @brief Updates the simulation. Call it regularly.
- * The actual physics simulation runs in other threads. This function only
- * does coordination of background simulation jobs. It's expected to be a
- * lightweight call.
+ * @brief Steps the simulation forward. Call it regularly.
  * @param registry Data source.
  */
 void update(entt::registry &registry);
+
+/**
+ * @brief Same as `edyn::update(entt::registry &)` but it takes a timestamp
+ * parameter from an external time source.
+ * @remark Using a single and consistent timestamp that is sampled at the very
+ * beginning of the game loop is recommended to avoid small glitches the
+ * presentation transforms (`edyn::present_position` and
+ * `edyn::present_orientation`).
+ * @param registry Data source.
+ * @param time The current time.
+ */
+void update(entt::registry &registry, double time);
 
 /**
  * @brief Runs a single step for a paused simulation.
  * @param registry Data source.
  */
 void step_simulation(entt::registry &registry);
+
+/**
+ * @brief Runs a single step for a paused simulation when using a custom
+ * time source.
+ * @param registry Data source.
+ * @param time The current time.
+ */
+void step_simulation(entt::registry &registry, double time);
 
 execution_mode get_execution_mode(const entt::registry &registry);
 
