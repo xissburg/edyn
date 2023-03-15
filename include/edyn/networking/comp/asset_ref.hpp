@@ -1,6 +1,7 @@
 #ifndef EDYN_NETWORKING_COMP_ASSET_REF_HPP
 #define EDYN_NETWORKING_COMP_ASSET_REF_HPP
 
+#include <cstdint>
 #include <entt/entity/fwd.hpp>
 #include <map>
 
@@ -15,13 +16,14 @@ namespace edyn {
 struct asset_ref {
     // Asset id.
     entt::id_type id;
+    uint32_t version;
     // Maps internal asset ids to instantiated entities.
     std::map<entt::id_type, entt::entity> entity_map;
 };
 
 template<typename Archive>
 void serialize(Archive &archive, asset_ref &ref) {
-    archive(ref.id);
+    archive(ref.id, ref.version);
     archive(ref.entity_map);
 }
 
