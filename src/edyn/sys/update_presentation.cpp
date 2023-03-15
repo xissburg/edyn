@@ -17,7 +17,7 @@ void update_presentation(entt::registry &registry, double sim_time, double time)
     auto linear_view = registry.view<position, linvel, present_position, procedural_tag>(exclude);
     auto angular_view = registry.view<orientation, angvel, present_orientation, procedural_tag>(exclude);
     const double fixed_dt = registry.ctx().at<settings>().fixed_dt;
-    const auto dt = time - sim_time - fixed_dt;
+    const auto dt = std::min(time - sim_time - fixed_dt, fixed_dt);
 
     linear_view.each([dt](position &pos, linvel &vel, present_position &pre) {
         pre = pos + vel * dt;
