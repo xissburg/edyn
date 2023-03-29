@@ -63,7 +63,7 @@ void register_external_components(entt::registry &registry, std::tuple<Actions..
 
 template<typename... Component, typename... Actions>
 void register_external_components(entt::registry &registry,
-                                  [[maybe_unused]] std::tuple<Component...>,
+                                  [[maybe_unused]] const std::tuple<Component...> &,
                                   std::tuple<Actions...> actions = {}) {
     register_external_components<Component...>(registry, actions);
 }
@@ -84,6 +84,8 @@ void remove_external_components(entt::registry &registry);
  * @param procedural If true, the entity will reside exclusively in one island.
  */
 void tag_external_entity(entt::registry &registry, entt::entity entity, bool procedural = true);
+
+void untag_external_entity(entt::registry &registry, entt::entity entity);
 
 /**
  * @brief Add entity as child of another so that it will follow it around, i.e.

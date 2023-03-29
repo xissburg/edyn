@@ -31,8 +31,9 @@ void tag_external_entity(entt::registry &registry, entt::entity entity, bool pro
     }
 
     registry.emplace<external_tag>(entity);
+    auto &graph = registry.ctx().at<entity_graph>();
     auto non_connecting = !procedural;
-    auto node_index = registry.ctx().at<entity_graph>().insert_node(entity, non_connecting);
+    auto node_index = graph.insert_node(entity, non_connecting);
     registry.emplace<graph_node>(entity, node_index);
 
     if (procedural) {
@@ -40,6 +41,21 @@ void tag_external_entity(entt::registry &registry, entt::entity entity, bool pro
     } else {
         registry.emplace<multi_island_resident>(entity);
     }
+}
+
+void untag_external_entity(entt::registry &registry, entt::entity entity) {
+    auto &graph = registry.ctx().at<entity_graph>();
+    auto &node = registry.get<graph_node>(entity);
+
+    graph.visit_edges(node.node_index, [&](auto edge_index) {
+        auto edge_entity = graph.edge_entity(edge_index);
+        registry.destroy(edge_entity);
+    });
+
+    graph.remove_node(node.node_index);
+    registry.erase<external_tag, graph_node>(entity);
+    registry.remove<island_resident>(entity);
+    registry.remove<multi_island_resident>(entity);
 }
 
 void add_child(entt::registry &registry, entt::entity parent, entt::entity child) {
