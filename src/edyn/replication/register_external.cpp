@@ -44,18 +44,12 @@ void tag_external_entity(entt::registry &registry, entt::entity entity, bool pro
 }
 
 void untag_external_entity(entt::registry &registry, entt::entity entity) {
-    auto &graph = registry.ctx().at<entity_graph>();
-    auto &node = registry.get<graph_node>(entity);
-
-    graph.visit_edges(node.node_index, [&](auto edge_index) {
-        auto edge_entity = graph.edge_entity(edge_index);
-        registry.destroy(edge_entity);
-    });
-
-    graph.remove_node(node.node_index);
+    // The `on_destroy` observers in `stepper_async` or `stepper_seq` will
+    // remove this node from the entity graph.
     registry.erase<external_tag, graph_node>(entity);
     registry.remove<island_resident>(entity);
     registry.remove<multi_island_resident>(entity);
+    registry.remove<procedural_tag>(entity);
 }
 
 void add_child(entt::registry &registry, entt::entity parent, entt::entity child) {
