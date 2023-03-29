@@ -28,6 +28,7 @@ struct registry_operation_context;
 class simulation_worker final {
 
     void init();
+    void deinit();
     void sync();
     void run();
     void update(double);

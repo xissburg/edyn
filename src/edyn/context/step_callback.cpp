@@ -6,10 +6,7 @@
 
 namespace edyn {
 
-void set_pre_step_callback(entt::registry &registry, step_callback_t func) {
-    auto &settings = registry.ctx().at<edyn::settings>();
-    settings.pre_step_callback = func;
-
+void notify_settings(entt::registry &registry, const edyn::settings &settings) {
     if (auto *stepper = registry.ctx().find<stepper_async>()) {
         stepper->settings_changed();
     }
@@ -17,45 +14,54 @@ void set_pre_step_callback(entt::registry &registry, step_callback_t func) {
     if (auto *ctx = registry.ctx().find<client_network_context>()) {
         ctx->extrapolator->set_settings(settings);
     }
+}
+
+void set_pre_step_callback(entt::registry &registry, step_callback_t func) {
+    auto &settings = registry.ctx().at<edyn::settings>();
+    settings.pre_step_callback = func;
+    notify_settings(registry, settings);
 }
 
 void set_post_step_callback(entt::registry &registry, step_callback_t func) {
     auto &settings = registry.ctx().at<edyn::settings>();
     settings.post_step_callback = func;
-
-    if (auto *stepper = registry.ctx().find<stepper_async>()) {
-        stepper->settings_changed();
-    }
-
-    if (auto *ctx = registry.ctx().find<client_network_context>()) {
-        ctx->extrapolator->set_settings(settings);
-    }
+    notify_settings(registry, settings);
 }
 
 void remove_pre_step_callback(entt::registry &registry) {
     auto &settings = registry.ctx().at<edyn::settings>();
     settings.pre_step_callback = nullptr;
-
-    if (auto *stepper = registry.ctx().find<stepper_async>()) {
-        stepper->settings_changed();
-    }
-
-    if (auto *ctx = registry.ctx().find<client_network_context>()) {
-        ctx->extrapolator->set_settings(settings);
-    }
+    notify_settings(registry, settings);
 }
 
 void remove_post_step_callback(entt::registry &registry) {
     auto &settings = registry.ctx().at<edyn::settings>();
     settings.post_step_callback = nullptr;
+    notify_settings(registry, settings);
+}
 
-    if (auto *stepper = registry.ctx().find<stepper_async>()) {
-        stepper->settings_changed();
-    }
+void set_init_callback(entt::registry &registry, init_callback_t func) {
+    auto &settings = registry.ctx().at<edyn::settings>();
+    settings.init_callback = func;
+    notify_settings(registry, settings);
+}
 
-    if (auto *ctx = registry.ctx().find<client_network_context>()) {
-        ctx->extrapolator->set_settings(settings);
-    }
+void set_deinit_callback(entt::registry &registry, init_callback_t func) {
+    auto &settings = registry.ctx().at<edyn::settings>();
+    settings.deinit_callback = func;
+    notify_settings(registry, settings);
+}
+
+void remove_init_callback(entt::registry &registry) {
+    auto &settings = registry.ctx().at<edyn::settings>();
+    settings.init_callback = nullptr;
+    notify_settings(registry, settings);
+}
+
+void remove_deinit_callback(entt::registry &registry) {
+    auto &settings = registry.ctx().at<edyn::settings>();
+    settings.deinit_callback = nullptr;
+    notify_settings(registry, settings);
 }
 
 }

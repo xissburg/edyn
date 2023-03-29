@@ -117,8 +117,20 @@ void simulation_worker::init() {
         m_message_queue.sink<extrapolation_result>().connect<&simulation_worker::on_extrapolation_result>(*this);
     }
 
+    if (settings.init_callback) {
+        (*settings.init_callback)(m_registry);
+    }
+
     m_last_time = performance_time();
     m_island_manager.set_last_time(m_last_time);
+}
+
+void simulation_worker::deinit() {
+    auto &settings = m_registry.ctx().at<edyn::settings>();
+
+    if (settings.deinit_callback) {
+        (*settings.deinit_callback)(m_registry);
+    }
 }
 
 void simulation_worker::on_construct_shared_entity(entt::registry &registry, entt::entity entity) {
@@ -357,6 +369,8 @@ void simulation_worker::run() {
         auto delay = std::max(0.0, proportional_term * error + i_term);
         edyn::delay(delay * 1000);
     }
+
+    deinit();
 }
 
 void simulation_worker::consume_raycast_results() {
@@ -419,7 +433,13 @@ void simulation_worker::on_step_simulation(message<msg::step_simulation> &) {
 
 void simulation_worker::on_set_settings(message<msg::set_settings> &msg) {
     const auto &settings = msg.content.settings;
-    m_registry.ctx().at<edyn::settings>() = settings;
+    auto &current = m_registry.ctx().at<edyn::settings>();
+
+    if (settings.init_callback && settings.init_callback != current.init_callback) {
+        (*settings.init_callback)(m_registry);
+    }
+
+    current = settings;
 
     if (std::holds_alternative<client_network_settings>(settings.network_settings)) {
         m_message_queue.sink<extrapolation_result>().connect<&simulation_worker::on_extrapolation_result>(*this);

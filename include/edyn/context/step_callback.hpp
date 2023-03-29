@@ -6,6 +6,7 @@
 namespace edyn {
 
 using step_callback_t = void(*)(entt::registry &);
+using init_callback_t = void(*)(entt::registry &);
 
 /**
  * @brief Assigns a function to be called before each simulation step.
@@ -36,6 +37,13 @@ void set_post_step_callback(entt::registry &registry, step_callback_t func);
  */
 void remove_pre_step_callback(entt::registry &registry);
 void remove_post_step_callback(entt::registry &registry);
+
+void set_init_callback(entt::registry &registry, init_callback_t func);
+void set_deinit_callback(entt::registry &registry, init_callback_t func);
+
+void remove_init_callback(entt::registry &registry);
+void remove_deinit_callback(entt::registry &registry);
+
 
 }
 

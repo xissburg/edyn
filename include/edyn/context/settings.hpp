@@ -26,6 +26,8 @@ struct settings {
 
     edyn::execution_mode execution_mode;
 
+    init_callback_t init_callback {nullptr};
+    init_callback_t deinit_callback {nullptr};
     step_callback_t pre_step_callback {nullptr};
     step_callback_t post_step_callback {nullptr};
     should_collide_func_t should_collide_func {&should_collide_default};
