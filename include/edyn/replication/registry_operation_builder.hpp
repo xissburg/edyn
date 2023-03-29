@@ -6,6 +6,7 @@
 #include <memory>
 #include <entt/entity/registry.hpp>
 #include "edyn/replication/registry_operation.hpp"
+#include "edyn/util/vector_util.hpp"
 
 namespace edyn {
 
@@ -140,13 +141,32 @@ public:
         auto view = registry->view<Component>();
 
         if (!check) {
-            op.entities.insert(op.entities.end(), first, last);
-
             if constexpr(!std::is_empty_v<Component>) {
                 for (; first != last; ++first) {
                     auto entity = *first;
                     auto [comp] = view.get(entity);
-                    op.components.push_back(comp);
+                    bool found = false;
+
+                    for (size_t i = 0; i < op.entities.size(); ++i) {
+                        if (op.entities[i] == entity) {
+                            op.components[i] = comp;
+                            found = true;
+                            break;
+                        }
+                    }
+
+                    if (!found) {
+                        op.entities.push_back(entity);
+                        op.components.push_back(comp);
+                    }
+                }
+            } else {
+                for (; first != last; ++first) {
+                    auto entity = *first;
+                    if (!vector_contains(op.entities, entity)) {
+                        op.entities.push_back(entity);
+                        break;
+                    }
                 }
             }
         } else {
@@ -154,11 +174,25 @@ public:
                 auto entity = *first;
 
                 if (view.contains(entity)) {
-                    op.entities.push_back(entity);
+                    size_t idx = SIZE_MAX;
 
-                    if constexpr(!std::is_empty_v<Component>) {
-                        auto [comp] = view.get(entity);
-                        op.components.push_back(comp);
+                    for (size_t i = 0; i < op.entities.size(); ++i) {
+                        if (op.entities[i] == entity) {
+                            idx = i;
+                            break;
+                        }
+                    }
+
+                    if (idx == SIZE_MAX) {
+                        op.entities.push_back(entity);
+
+                        if constexpr(!std::is_empty_v<Component>) {
+                            op.components.push_back(std::get<0>(view.get(entity)));
+                        }
+                    } else {
+                        if constexpr(!std::is_empty_v<Component>) {
+                            op.components[idx] = std::get<0>(view.get(entity));
+                        }
                     }
                 }
             }
@@ -174,19 +208,46 @@ public:
     template<typename Component>
     void replace(entt::entity entity) {
         auto &op = find_or_create_replace_operation<Component>();
-        op.entities.push_back(entity);
+        size_t idx = SIZE_MAX;
 
-        if constexpr(!std::is_empty_v<Component>) {
-            auto &comp = registry->get<Component>(entity);
-            op.components.push_back(comp);
+        for (size_t i = 0; i < op.entities.size(); ++i) {
+            if (op.entities[i] == entity) {
+                idx = i;
+                break;
+            }
+        }
+
+        if (idx == SIZE_MAX) {
+            op.entities.push_back(entity);
+
+            if constexpr(!std::is_empty_v<Component>) {
+                op.components.push_back(registry->get<Component>(entity));
+            }
+        } else {
+            if constexpr(!std::is_empty_v<Component>) {
+                op.components[idx] = registry->get<Component>(entity);
+            }
         }
     }
 
     template<typename Component>
     void replace(entt::entity entity, const Component &comp) {
         auto &op = find_or_create_replace_operation<Component>();
-        op.entities.push_back(entity);
-        op.components.push_back(comp);
+        size_t idx = SIZE_MAX;
+
+        for (size_t i = 0; i < op.entities.size(); ++i) {
+            if (op.entities[i] == entity) {
+                idx = i;
+                break;
+            }
+        }
+
+        if (idx == SIZE_MAX) {
+            op.entities.push_back(entity);
+            op.components.push_back(comp);
+        } else {
+            op.components[idx] = comp;
+        }
     }
 
     template<typename Component, typename It>
