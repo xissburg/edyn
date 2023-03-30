@@ -11,28 +11,32 @@ void replace_manifold(entt::registry &registry, contact_manifold &manifold,
                       const contact_manifold_map &manifold_map) {
     EDYN_ASSERT(registry.all_of<rigidbody_tag>(manifold.body[0]));
     EDYN_ASSERT(registry.all_of<rigidbody_tag>(manifold.body[1]));
+    entt::entity manifold_entity;
 
     // Find a matching manifold and replace it...
     if (manifold_map.contains(manifold.body[0], manifold.body[1])) {
-        auto manifold_entity = manifold_map.get(manifold.body[0], manifold.body[1]);
-        auto &original_manifold = registry.get<contact_manifold>(manifold_entity);
-
-        // Must maintain bodies in the same order.
-        if (manifold.body[0] != original_manifold.body[0]) {
-            EDYN_ASSERT(manifold.body[1] == original_manifold.body[0]);
-            EDYN_ASSERT(manifold.body[0] == original_manifold.body[1]);
-            swap_manifold(manifold);
-        }
-
-        registry.replace<contact_manifold>(manifold_entity, manifold);
+        manifold_entity = manifold_map.get(manifold.body[0], manifold.body[1]);
     } else {
         // ...or create a new one and assign a new value to it.
+        // Important remark: `make_contact_manifold` does not necessarily
+        // create the `contact_manifold` with the bodies in the same order
+        // that's passed in the arguments.
         auto separation_threshold = contact_breaking_threshold * scalar(1.3);
-        auto manifold_entity = make_contact_manifold(registry,
-                                                     manifold.body[0], manifold.body[1],
-                                                     separation_threshold);
-        registry.replace<contact_manifold>(manifold_entity, manifold);
+        manifold_entity = make_contact_manifold(registry,
+                                                manifold.body[0], manifold.body[1],
+                                                separation_threshold);
     }
+
+    auto &original_manifold = registry.get<contact_manifold>(manifold_entity);
+
+    // Must maintain bodies in the same order.
+    if (manifold.body[0] != original_manifold.body[0]) {
+        EDYN_ASSERT(manifold.body[1] == original_manifold.body[0]);
+        EDYN_ASSERT(manifold.body[0] == original_manifold.body[1]);
+        swap_manifold(manifold);
+    }
+
+    registry.replace<contact_manifold>(manifold_entity, manifold);
 }
 
 void import_contact_manifolds(entt::registry &registry, const entity_map &emap,
