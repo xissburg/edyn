@@ -188,6 +188,10 @@ void extrapolation_worker::init_extrapolation() {
 
     // Create edges for constraints in entity graph.
     auto insert_graph_edge = [&](entt::entity entity, auto &&con) {
+        if (m_registry.all_of<graph_edge>(entity)) {
+            return;
+        }
+
         auto &node0 = node_view.get<graph_node>(con.body[0]);
         auto &node1 = node_view.get<graph_node>(con.body[1]);
         auto edge_index = graph.insert_edge(entity, node0.node_index, node1.node_index);
