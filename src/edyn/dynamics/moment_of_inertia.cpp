@@ -64,7 +64,8 @@ vector3 moment_of_inertia_hollow_cylinder(scalar mass, scalar len,
 
 vector3 moment_of_inertia_solid_capsule(scalar mass, scalar len, scalar radius,
                                         coordinate_axis axis) {
-    // Reference: https://xissburg.github.io/2022-09-30-calculating-moment-of-inertia-capsule
+    // Reference:
+    // https://xissburg.github.io/2022-10-01-calculating-moment-of-inertia-capsule
     auto cyl_vol = cylinder_volume(radius, len);
     auto sph_vol = sphere_volume(radius); // Volume of hemispherical caps.
     auto total_vol = cyl_vol + sph_vol;
