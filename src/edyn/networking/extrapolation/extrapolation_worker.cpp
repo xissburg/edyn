@@ -28,8 +28,8 @@
 #include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/math/transform.hpp"
 #include "edyn/time/time.hpp"
+#include <entt/entity/registry.hpp>
 #include <atomic>
-#include <entt/entity/fwd.hpp>
 
 namespace edyn {
 
@@ -68,6 +68,20 @@ extrapolation_worker::extrapolation_worker(const settings &settings,
 
 extrapolation_worker::~extrapolation_worker() {
     stop();
+}
+
+void extrapolation_worker::init() {
+    auto &settings = m_registry.ctx().at<edyn::settings>();
+    if (settings.init_callback) {
+        (*settings.init_callback)(m_registry);
+    }
+}
+
+void extrapolation_worker::deinit() {
+    auto &settings = m_registry.ctx().at<edyn::settings>();
+    if (settings.deinit_callback) {
+        (*settings.deinit_callback)(m_registry);
+    }
 }
 
 void extrapolation_worker::start() {
@@ -338,6 +352,8 @@ void extrapolation_worker::extrapolate() {
 }
 
 void extrapolation_worker::run() {
+    init();
+
     while (m_running.load(std::memory_order_relaxed)) {
         {
             std::unique_lock<std::mutex> lock(m_mutex);
@@ -354,6 +370,8 @@ void extrapolation_worker::run() {
             m_has_work = false;
         }
     }
+
+    deinit();
 }
 
 }

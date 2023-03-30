@@ -671,6 +671,9 @@ struct client_packet_signal_wrapper {
     server_network_context *ctx;
     entt::entity client_entity;
 
+    // Make this a stable component in the EnTT storage.
+    static constexpr auto in_place_delete = true;
+
     void publish(const packet::edyn_packet &packet) {
         ctx->packet_signal.publish(client_entity, packet);
     }

@@ -11,6 +11,7 @@ namespace edyn::internal {
 
 void map_child_entity_sequence(const entity_map &emap, entt::meta_sequence_container &seq);
 void set_invalid_child_entity_to_null_in_sequence(const entt::registry &registry, entt::meta_sequence_container &seq);
+void map_child_entity_associative(const entity_map &emap, entt::meta_associative_container &map);
 
 template<typename Value>
 void map_child_entity_meta(const entity_map &emap, const entt::meta_type &meta_type, Value &value) {
@@ -40,6 +41,17 @@ void map_child_entity_meta(const entity_map &emap, const entt::meta_type &meta_t
                 for (size_t i = 0; i < seq.size(); ++i) {
                     auto val = seq[i];
                     map_child_entity_meta(emap, seq[i].type(), val);
+                }
+            }
+        } else if (data.type().is_associative_container()) {
+            auto map = data.get(entt::meta_handle(value)).as_associative_container();
+
+            if (map.mapped_type() == entt::resolve<entt::entity>()) {
+                map_child_entity_associative(emap, map);
+            } else if (auto child_type = entt::resolve(map.mapped_type().id()); child_type) {
+                for (auto pair : map) {
+                    auto &val = pair.second;
+                    map_child_entity_meta(emap, pair.second.type(), val);
                 }
             }
         } else if (auto child_type = entt::resolve(data.id()); child_type) {

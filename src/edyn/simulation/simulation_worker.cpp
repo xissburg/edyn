@@ -118,8 +118,21 @@ void simulation_worker::init() {
         m_message_queue.sink<extrapolation_result>().connect<&simulation_worker::on_extrapolation_result>(*this);
     }
 
+    if (settings.init_callback) {
+        (*settings.init_callback)(m_registry);
+    }
+
     m_last_time = performance_time();
+    m_sim_time = m_last_time;
     m_island_manager.set_last_time(m_last_time);
+}
+
+void simulation_worker::deinit() {
+    auto &settings = m_registry.ctx().at<edyn::settings>();
+
+    if (settings.deinit_callback) {
+        (*settings.deinit_callback)(m_registry);
+    }
 }
 
 void simulation_worker::on_construct_shared_entity(entt::registry &registry, entt::entity entity) {
@@ -261,9 +274,8 @@ void simulation_worker::wake_up_affected_islands(const registry_operation &ops) 
 void simulation_worker::sync() {
     if (!m_op_builder->empty()) {
         auto &&ops = std::move(m_op_builder->finish());
-        auto sim_time = get_simulation_timestamp();
         message_dispatcher::global().send<msg::step_update>(
-            {"main"}, m_message_queue.identifier, std::move(ops), sim_time);
+            {"main"}, m_message_queue.identifier, std::move(ops), m_sim_time);
     }
 }
 
@@ -291,14 +303,13 @@ void simulation_worker::update(double dt) {
         return;
     }
 
-    auto sim_time = get_simulation_timestamp();
     auto time = performance_time();
     auto elapsed = time - m_last_time;
     m_accumulated_time += elapsed;
 
     auto &settings = m_registry.ctx().at<edyn::settings>();
     const auto fixed_dt = settings.fixed_dt;
-    const auto num_steps = static_cast<int64_t>(std::ceil(m_accumulated_time / fixed_dt));
+    const auto num_steps = static_cast<int64_t>(std::floor(m_accumulated_time / fixed_dt));
     m_accumulated_time -= static_cast<double>(num_steps) * fixed_dt;
 
     auto total_steps = std::min(num_steps, static_cast<int64_t>(settings.max_steps_per_update));
@@ -310,17 +321,17 @@ void simulation_worker::update(double dt) {
     bphase.init_new_aabb_entities();
 
     for (unsigned i = 0; i < total_steps; ++i) {
-        auto step_time = sim_time + fixed_dt * i;
-
         if (settings.pre_step_callback) {
             (*settings.pre_step_callback)(m_registry);
         }
 
         bphase.update(true);
-        m_island_manager.update(step_time);
+        m_island_manager.update(m_sim_time);
         nphase.update(true);
         m_solver.update(true);
         decay_discontinuities(m_registry);
+
+        m_sim_time += fixed_dt;
 
         if (settings.clear_actions_func) {
             (*settings.clear_actions_func)(m_registry);
@@ -339,6 +350,7 @@ void simulation_worker::update(double dt) {
     }
 
     m_last_time = time;
+    m_sim_time = m_last_time - m_accumulated_time;
 }
 
 void simulation_worker::run() {
@@ -364,6 +376,8 @@ void simulation_worker::run() {
         auto delay = std::max(0.0, proportional_term * error + i_term);
         edyn::delay(delay * 1000);
     }
+
+    deinit();
 }
 
 void simulation_worker::consume_raycast_results() {
@@ -396,11 +410,13 @@ void simulation_worker::on_set_paused(message<msg::set_paused> &msg) {
 
     if (!m_paused) {
         m_last_time = performance_time();
+        m_sim_time = m_last_time;
     }
 }
 
 void simulation_worker::on_step_simulation(message<msg::step_simulation> &) {
     m_last_time = performance_time();
+    m_sim_time = m_last_time;
 
     auto &bphase = m_registry.ctx().at<broadphase>();
     auto &nphase = m_registry.ctx().at<narrowphase>();
@@ -435,7 +451,13 @@ void simulation_worker::on_step_simulation(message<msg::step_simulation> &) {
 
 void simulation_worker::on_set_settings(message<msg::set_settings> &msg) {
     const auto &settings = msg.content.settings;
-    m_registry.ctx().at<edyn::settings>() = settings;
+    auto &current = m_registry.ctx().at<edyn::settings>();
+
+    if (settings.init_callback && settings.init_callback != current.init_callback) {
+        (*settings.init_callback)(m_registry);
+    }
+
+    current = settings;
 
     if (std::holds_alternative<client_network_settings>(settings.network_settings)) {
         m_message_queue.sink<extrapolation_result>().connect<&simulation_worker::on_extrapolation_result>(*this);

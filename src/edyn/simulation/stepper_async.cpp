@@ -22,6 +22,7 @@
 #include "edyn/core/entity_graph.hpp"
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/comp/graph_edge.hpp"
+#include "edyn/time/time.hpp"
 #include "edyn/util/island_util.hpp"
 #include "edyn/util/vector_util.hpp"
 #include "edyn/replication/registry_operation.hpp"
@@ -60,6 +61,8 @@ stepper_async::stepper_async(entt::registry &registry)
     m_op_observer = (*reg_op_ctx.make_reg_op_observer)(*m_op_builder);
 
     m_worker.start();
+
+    m_sim_time = performance_time();
 }
 
 void stepper_async::on_construct_shared(entt::registry &registry, entt::entity entity) {

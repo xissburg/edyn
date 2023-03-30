@@ -13,9 +13,9 @@ namespace edyn {
  * @brief Assign an entity to an asset.
  * @remark When as asset is constructed, the entities that belong to that
  * asset must be linked to the asset's internal ids.
- * @tparam Component Types of components that must synchronized when the asset
- * is instantiated. These include any component whose value could change after
- * instantiation.
+ * @tparam Component Types of components that must be synchronized when the
+ * asset is instantiated. These include any component whose value could change
+ * after instantiation.
  * @param registry Data source.
  * @param entity Entity that belongs to asset.
  * @param asset_entity Asset.

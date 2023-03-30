@@ -26,6 +26,8 @@ struct settings;
 
 class extrapolation_worker final {
 
+    void init();
+    void deinit();
     void init_extrapolation();
     bool should_step();
     void begin_step();
