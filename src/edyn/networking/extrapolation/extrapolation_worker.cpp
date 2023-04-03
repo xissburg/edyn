@@ -122,7 +122,6 @@ void extrapolation_worker::set_context_settings(std::shared_ptr<input_state_hist
 }
 
 void extrapolation_worker::on_extrapolation_request(message<extrapolation_request> &msg) {
-    m_destination_queue = msg.sender;
     m_request = std::move(msg.content);
     m_has_work = true;
 }
@@ -215,10 +214,6 @@ void extrapolation_worker::init_extrapolation() {
         pool.ptr->replace_into_registry(m_registry, m_request.snapshot.entities, m_entity_map);
     }
 
-    // Apply all inputs before the current time to start the simulation
-    // with the correct initial inputs.
-    m_input_history->import_initial_state(m_registry, m_entity_map, m_current_time);
-
     // Recalculate properties after setting initial state from server.
     update_origins(m_registry);
     update_rotated_meshes(m_registry);
@@ -290,7 +285,7 @@ void extrapolation_worker::finish_extrapolation() {
     }
 
     auto &dispatcher = message_dispatcher::global();
-    dispatcher.send<extrapolation_result>(m_destination_queue, m_message_queue.identifier, std::move(result));
+    dispatcher.send<extrapolation_result>(m_request.destination, m_message_queue.identifier, std::move(result));
 
     m_registry.clear();
     m_entity_map.clear();
@@ -305,9 +300,7 @@ bool extrapolation_worker::should_step() {
         return false;
     }
 
-    auto &settings = m_registry.ctx().at<edyn::settings>();
-
-    if (m_current_time + settings.fixed_dt > time) {
+    if (m_current_time > time) {
         // Job is done.
         return false;
     }

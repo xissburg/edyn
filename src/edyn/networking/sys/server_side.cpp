@@ -502,7 +502,7 @@ static void calculate_client_playout_delay(entt::registry &registry,
                                   server_settings.max_playout_delay);
 
     // Update playout delay if the difference is of significance.
-    if (std::abs(playout_delay - client.playout_delay) > 0.002) {
+    if (std::abs(playout_delay - client.playout_delay) > client.playout_delay * 0.06) {
         client.playout_delay = playout_delay;
 
         auto packet = edyn::packet::set_playout_delay{playout_delay};

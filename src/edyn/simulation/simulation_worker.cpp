@@ -44,9 +44,9 @@
 #include "edyn/context/registry_operation_context.hpp"
 #include "edyn/networking/extrapolation/extrapolation_result.hpp"
 #include "edyn/networking/comp/discontinuity.hpp"
+#include <entt/entity/registry.hpp>
 #include <algorithm>
 #include <atomic>
-#include <entt/entity/registry.hpp>
 
 namespace edyn {
 

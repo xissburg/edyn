@@ -157,7 +157,7 @@ void generic_constraint::prepare(
             // the angular error can be calculated.
             auto angle_axisB = edyn::rotate(conjugate(bodyA.orn) * arc_quat * bodyB.orn, frame[1].column(1));
             dof.current_angle = std::atan2(dot(angle_axisB, frame[0].column(2)),
-                                            dot(angle_axisB, frame[0].column(1)));
+                                           dot(angle_axisB, frame[0].column(1)));
             axisA = axisA_x;
             axisB = axisB_x;
         } else {

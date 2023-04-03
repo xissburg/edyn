@@ -692,6 +692,13 @@ static void process_packet(entt::registry &registry, packet::registry_snapshot &
     extrapolation_request req;
     req.start_time = snapshot_time;
 
+    if (settings.execution_mode == edyn::execution_mode::asynchronous) {
+        // Send extrapolation result directly to simulation worker.
+        req.destination = {"worker"};
+    } else {
+        req.destination = ctx.message_queue.identifier;
+    }
+
     for (auto entity : entities) {
         if (auto *owner = registry.try_get<entity_owner>(entity);
             owner && owner->client_entity == ctx.client_entity)
@@ -709,9 +716,6 @@ static void process_packet(entt::registry &registry, packet::registry_snapshot &
     req.entities = std::move(entities);
     req.snapshot = std::move(snapshot);
     req.should_remap = true;
-
-    // Assign latest value of action threshold before extrapolation.
-    ctx.input_history->action_time_threshold = client_settings.action_time_threshold;
 
     auto &dispatcher = message_dispatcher::global();
     dispatcher.send<extrapolation_request>({"extrapolation_worker"},
