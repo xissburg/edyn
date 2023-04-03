@@ -209,17 +209,6 @@ void extrapolation_worker::init_extrapolation() {
     // Initialize shapes.
     m_poly_initializer.init_new_shapes();
 
-    // Replace client component state by server state.
-    for (auto &pool : m_request.snapshot.pools) {
-        pool.ptr->replace_into_registry(m_registry, m_request.snapshot.entities, m_entity_map);
-    }
-
-    // Recalculate properties after setting initial state from server.
-    update_origins(m_registry);
-    update_rotated_meshes(m_registry);
-    update_aabbs(m_registry);
-    update_inertias(m_registry);
-
     auto relevant_entities = entt::sparse_set{};
     auto owned_entities = entt::sparse_set{};
 
@@ -233,15 +222,21 @@ void extrapolation_worker::init_extrapolation() {
         owned_entities.emplace(local_entity);
     }
 
+    // Create modified component observer before applying the server state into
+    // the registry. This ensures the entities and components in the snapshot
+    // will be marked as changed and will be included in the result later.
     m_modified_comp = (*m_make_extrapolation_modified_comp)(m_registry, relevant_entities, owned_entities);
 
-    // All components present in the remote snapshot must be marked as modified
-    // because if they do not change during extrapolation, their state won't be
-    // included in the final result, since only components that changed are
-    // reported back (via `m_modified_comp` which monitors and records changes)
-    // to avoid having to include everything. This would lead to the latest
-    // remote state of these components not being applied into the local simulation.
-    m_modified_comp->mark_snapshot(m_registry, m_request.snapshot, m_entity_map);
+    // Replace client component state by server state.
+    for (auto &pool : m_request.snapshot.pools) {
+        pool.ptr->replace_into_registry(m_registry, m_request.snapshot.entities, m_entity_map);
+    }
+
+    // Recalculate properties after setting initial state from server.
+    update_origins(m_registry);
+    update_rotated_meshes(m_registry);
+    update_aabbs(m_registry);
+    update_inertias(m_registry);
 }
 
 void extrapolation_worker::finish_extrapolation() {

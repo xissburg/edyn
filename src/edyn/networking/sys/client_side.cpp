@@ -477,6 +477,7 @@ static void process_packet(entt::registry &registry, packet::entity_entered &pac
         emap_packet.pairs.emplace_back(remote_entity, local_entity);
 
         registry.emplace<asset_ref>(local_entity, info.asset);
+        registry.emplace<networked_tag>(local_entity);
 
         // Assign owner to asset.
         auto remote_owner = info.owner;
@@ -493,11 +494,6 @@ static void process_packet(entt::registry &registry, packet::entity_entered &pac
             }
 
             registry.emplace<entity_owner>(local_entity, local_owner);
-        }
-
-        // All remote entities must have a networked tag.
-        if (!registry.all_of<networked_tag>(local_entity)) {
-            registry.emplace<networked_tag>(local_entity);
         }
 
         // Notify client that a new entity entered their AABB of interest.
