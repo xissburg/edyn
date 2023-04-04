@@ -29,7 +29,6 @@
 #include "edyn/math/transform.hpp"
 #include "edyn/time/time.hpp"
 #include <entt/entity/registry.hpp>
-#include <atomic>
 
 namespace edyn {
 
@@ -122,7 +121,6 @@ void extrapolation_worker::set_context_settings(std::shared_ptr<input_state_hist
 }
 
 void extrapolation_worker::on_extrapolation_request(message<extrapolation_request> &msg) {
-    m_destination_queue = msg.sender;
     m_request = std::move(msg.content);
     m_has_work = true;
 }
@@ -210,21 +208,6 @@ void extrapolation_worker::init_extrapolation() {
     // Initialize shapes.
     m_poly_initializer.init_new_shapes();
 
-    // Replace client component state by server state.
-    for (auto &pool : m_request.snapshot.pools) {
-        pool.ptr->replace_into_registry(m_registry, m_request.snapshot.entities, m_entity_map);
-    }
-
-    // Apply all inputs before the current time to start the simulation
-    // with the correct initial inputs.
-    m_input_history->import_initial_state(m_registry, m_entity_map, m_current_time);
-
-    // Recalculate properties after setting initial state from server.
-    update_origins(m_registry);
-    update_rotated_meshes(m_registry);
-    update_aabbs(m_registry);
-    update_inertias(m_registry);
-
     auto relevant_entities = entt::sparse_set{};
     auto owned_entities = entt::sparse_set{};
 
@@ -238,15 +221,21 @@ void extrapolation_worker::init_extrapolation() {
         owned_entities.emplace(local_entity);
     }
 
+    // Create modified component observer before applying the server state into
+    // the registry. This ensures the entities and components in the snapshot
+    // will be marked as changed and will be included in the result later.
     m_modified_comp = (*m_make_extrapolation_modified_comp)(m_registry, relevant_entities, owned_entities);
 
-    // All components present in the remote snapshot must be marked as modified
-    // because if they do not change during extrapolation, their state won't be
-    // included in the final result, since only components that changed are
-    // reported back (via `m_modified_comp` which monitors and records changes)
-    // to avoid having to include everything. This would lead to the latest
-    // remote state of these components not being applied into the local simulation.
-    m_modified_comp->mark_snapshot(m_registry, m_request.snapshot, m_entity_map);
+    // Replace client component state by server state.
+    for (auto &pool : m_request.snapshot.pools) {
+        pool.ptr->replace_into_registry(m_registry, m_request.snapshot.entities, m_entity_map);
+    }
+
+    // Recalculate properties after setting initial state from server.
+    update_origins(m_registry);
+    update_rotated_meshes(m_registry);
+    update_aabbs(m_registry);
+    update_inertias(m_registry);
 }
 
 void extrapolation_worker::finish_extrapolation() {
@@ -290,7 +279,7 @@ void extrapolation_worker::finish_extrapolation() {
     }
 
     auto &dispatcher = message_dispatcher::global();
-    dispatcher.send<extrapolation_result>(m_destination_queue, m_message_queue.identifier, std::move(result));
+    dispatcher.send<extrapolation_result>(m_request.destination, m_message_queue.identifier, std::move(result));
 
     m_registry.clear();
     m_entity_map.clear();
@@ -305,9 +294,7 @@ bool extrapolation_worker::should_step() {
         return false;
     }
 
-    auto &settings = m_registry.ctx().at<edyn::settings>();
-
-    if (m_current_time + settings.fixed_dt > time) {
+    if (m_current_time > time) {
         // Job is done.
         return false;
     }
@@ -328,7 +315,7 @@ void extrapolation_worker::finish_step() {
     auto &settings = m_registry.ctx().at<edyn::settings>();
     m_current_time += settings.fixed_dt;
 
-     // Clear actions after they've been consumed.
+    // Clear actions after they've been consumed.
     if (settings.clear_actions_func) {
         (*settings.clear_actions_func)(m_registry);
     }

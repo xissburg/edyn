@@ -84,7 +84,6 @@ private:
     std::atomic<bool> m_has_messages {false};
     bool m_has_work {false};
 
-    message_queue_identifier m_destination_queue;
     extrapolation_request m_request;
 
     double m_init_time;

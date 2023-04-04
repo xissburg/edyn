@@ -95,7 +95,7 @@ static void update_input_history(entt::registry &registry, double timestamp) {
     auto &client_settings = std::get<client_network_settings>(settings.network_settings);
     const auto client_server_time_difference =
         ctx.server_playout_delay + client_settings.round_trip_time / 2;
-    ctx.input_history->erase_until(timestamp - (client_server_time_difference * 1.1 + 0.2));
+    ctx.input_history->erase_until(timestamp - (client_server_time_difference * 1.6 + 0.4));
 }
 
 static void on_extrapolation_result(entt::registry &registry, message<extrapolation_result> &msg) {
@@ -477,6 +477,7 @@ static void process_packet(entt::registry &registry, packet::entity_entered &pac
         emap_packet.pairs.emplace_back(remote_entity, local_entity);
 
         registry.emplace<asset_ref>(local_entity, info.asset);
+        registry.emplace<networked_tag>(local_entity);
 
         // Assign owner to asset.
         auto remote_owner = info.owner;
@@ -493,11 +494,6 @@ static void process_packet(entt::registry &registry, packet::entity_entered &pac
             }
 
             registry.emplace<entity_owner>(local_entity, local_owner);
-        }
-
-        // All remote entities must have a networked tag.
-        if (!registry.all_of<networked_tag>(local_entity)) {
-            registry.emplace<networked_tag>(local_entity);
         }
 
         // Notify client that a new entity entered their AABB of interest.
@@ -692,6 +688,13 @@ static void process_packet(entt::registry &registry, packet::registry_snapshot &
     extrapolation_request req;
     req.start_time = snapshot_time;
 
+    if (settings.execution_mode == edyn::execution_mode::asynchronous) {
+        // Send extrapolation result directly to simulation worker.
+        req.destination = {"worker"};
+    } else {
+        req.destination = ctx.message_queue.identifier;
+    }
+
     for (auto entity : entities) {
         if (auto *owner = registry.try_get<entity_owner>(entity);
             owner && owner->client_entity == ctx.client_entity)
@@ -709,9 +712,6 @@ static void process_packet(entt::registry &registry, packet::registry_snapshot &
     req.entities = std::move(entities);
     req.snapshot = std::move(snapshot);
     req.should_remap = true;
-
-    // Assign latest value of action threshold before extrapolation.
-    ctx.input_history->action_time_threshold = client_settings.action_time_threshold;
 
     auto &dispatcher = message_dispatcher::global();
     dispatcher.send<extrapolation_request>({"extrapolation_worker"},

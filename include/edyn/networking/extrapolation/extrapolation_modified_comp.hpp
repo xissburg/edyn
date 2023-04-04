@@ -32,12 +32,6 @@ public:
 
     virtual void export_to_builder(registry_operation_builder &builder) = 0;
 
-    // Mark all components in snapshot as modified to ensure they'll be included
-    // in the call to `export_to_builder` even if they do not change during
-    // extrapolation.
-    virtual void mark_snapshot(entt::registry &registry, const packet::registry_snapshot &snapshot,
-                               const entity_map &emap) = 0;
-
 protected:
     entt::registry *m_registry;
     entt::sparse_set m_relevant_entities;
@@ -114,18 +108,6 @@ public:
                     using CompType = std::decay_t<decltype(c)>;
                     builder.replace<CompType>(entity);
                 });
-            }
-        }
-    }
-
-    void mark_snapshot(entt::registry &registry, const packet::registry_snapshot &snapshot,
-                       const entity_map &emap) override {
-        for (auto &pool : snapshot.pools) {
-            for (auto entity_index : pool.ptr->entity_indices) {
-                auto remote_entity = snapshot.entities[entity_index];
-                auto local_entity = emap.at(remote_entity);
-                auto &modified = registry.get_or_emplace<modified_components>(local_entity);
-                modified.indices[modified.count++] = pool.component_index;
             }
         }
     }

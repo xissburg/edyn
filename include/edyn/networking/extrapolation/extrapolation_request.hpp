@@ -1,16 +1,15 @@
 #ifndef EDYN_NETWORKING_EXTRAPOLATION_REQUEST_HPP
 #define EDYN_NETWORKING_EXTRAPOLATION_REQUEST_HPP
 
-#include "edyn/replication/entity_map.hpp"
+#include "edyn/parallel/message_queue.hpp"
 #include "edyn/networking/packet/registry_snapshot.hpp"
 #include "edyn/replication/registry_operation.hpp"
-#include <entt/entity/fwd.hpp>
 #include <entt/entity/sparse_set.hpp>
-#include <memory>
 
 namespace edyn {
 
 struct extrapolation_request {
+    message_queue_identifier destination;
     double start_time;
     entt::sparse_set entities {};
     entt::sparse_set owned_entities {};

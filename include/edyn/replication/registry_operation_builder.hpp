@@ -85,10 +85,10 @@ public:
             return;
         }
 
-        auto &op = find_or_create_emplace_operation<Component>();
         auto view = registry->view<Component>();
 
         if (!check) {
+            auto &op = find_or_create_emplace_operation<Component>();
             op.entities.insert(op.entities.end(), first, last);
 
             if constexpr(!std::is_empty_v<Component>) {
@@ -99,6 +99,25 @@ public:
                 }
             }
         } else {
+            // Make sure there is at least one entity which has the component
+            // to avoid creating an empty operation.
+            bool contains = false;
+
+            for (; first != last; ++first) {
+                auto entity = *first;
+
+                if (view.contains(entity)) {
+                    contains = true;
+                    break;
+                }
+            }
+
+            if (!contains) {
+                return;
+            }
+
+            auto &op = find_or_create_emplace_operation<Component>();
+
             for (; first != last; ++first) {
                 auto entity = *first;
 
