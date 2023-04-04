@@ -65,6 +65,17 @@ void clock_sync_process_time_response(clock_sync_data &clock_sync, const packet:
             clock_sync.count++;
         } else {
             clock_sync.state = clock_sync_state::wait_next;
+
+            // Calculate delta with samples obtained so far if this is the first sync.
+            if (clock_sync.count == 0) {
+                clock_sync.time_delta = 0;
+
+                for (unsigned i = 0; i < clock_sync.time_delta_sample_count; ++i) {
+                    clock_sync.time_delta += clock_sync.time_delta_samples[i];
+                }
+
+                clock_sync.time_delta /= clock_sync.time_delta_sample_count;
+            }
         }
     }
 }
