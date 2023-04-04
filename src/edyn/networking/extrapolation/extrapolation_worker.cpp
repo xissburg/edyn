@@ -29,7 +29,6 @@
 #include "edyn/math/transform.hpp"
 #include "edyn/time/time.hpp"
 #include <entt/entity/registry.hpp>
-#include <atomic>
 
 namespace edyn {
 
@@ -316,7 +315,7 @@ void extrapolation_worker::finish_step() {
     auto &settings = m_registry.ctx().at<edyn::settings>();
     m_current_time += settings.fixed_dt;
 
-     // Clear actions after they've been consumed.
+    // Clear actions after they've been consumed.
     if (settings.clear_actions_func) {
         (*settings.clear_actions_func)(m_registry);
     }

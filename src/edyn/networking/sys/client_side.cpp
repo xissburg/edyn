@@ -95,7 +95,7 @@ static void update_input_history(entt::registry &registry, double timestamp) {
     auto &client_settings = std::get<client_network_settings>(settings.network_settings);
     const auto client_server_time_difference =
         ctx.server_playout_delay + client_settings.round_trip_time / 2;
-    ctx.input_history->erase_until(timestamp - (client_server_time_difference * 1.1 + 0.2));
+    ctx.input_history->erase_until(timestamp - (client_server_time_difference * 1.6 + 0.4));
 }
 
 static void on_extrapolation_result(entt::registry &registry, message<extrapolation_result> &msg) {
