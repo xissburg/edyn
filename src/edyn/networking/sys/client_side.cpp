@@ -134,14 +134,6 @@ void init_network_client(entt::registry &registry) {
         stepper->settings_changed();
     }
 
-    // If not running in asynchronous mode, discontinuity calculation is done
-    // in the main thread thus it's necessary to assign the previous transform
-    // component.
-    if (settings.execution_mode != execution_mode::asynchronous) {
-        registry.on_construct<position>().connect<&entt::registry::emplace<previous_position>>();
-        registry.on_construct<orientation>().connect<&entt::registry::emplace<previous_orientation>>();
-    }
-
     auto &reg_op_ctx = registry.ctx().at<registry_operation_context>();
     auto &material_table = registry.ctx().at<material_mix_table>();
     ctx.extrapolator = std::make_unique<extrapolation_worker>(settings, reg_op_ctx, material_table,
@@ -158,14 +150,6 @@ void deinit_network_client(entt::registry &registry) {
     registry.on_destroy<networked_tag>().disconnect<&on_destroy_networked_entity>();
     registry.on_construct<entity_owner>().disconnect<&on_construct_entity_owner>();
     registry.on_destroy<entity_owner>().disconnect<&on_destroy_entity_owner>();
-
-    auto &settings = registry.ctx().at<edyn::settings>();
-    settings.network_settings = {};
-
-    if (settings.execution_mode != execution_mode::asynchronous) {
-        registry.on_construct<position>().disconnect<&entt::registry::emplace<previous_position>>();
-        registry.on_construct<orientation>().disconnect<&entt::registry::emplace<previous_orientation>>();
-    }
 }
 
 static void process_created_networked_entities(entt::registry &registry, double time) {
@@ -312,6 +296,19 @@ void maybe_create_graph_edge(entt::registry &registry, entt::entity entity, [[ma
     maybe_create_graph_edge<Ts...>(registry, entity);
 }
 
+static void assign_discontinuity_components(entt::registry &registry, entt::entity entity) {
+    registry.emplace<discontinuity>(entity);
+    registry.emplace<discontinuity_accumulator>(entity);
+
+    // Discontinuities will be accumulated in the main thread if running in
+    // sequential mode, which requires the previous transforms to be present
+    // in this registry.
+    if (registry.ctx().at<settings>().execution_mode != execution_mode::asynchronous) {
+        registry.emplace<previous_position>(entity);
+        registry.emplace<previous_orientation>(entity);
+    }
+}
+
 static void process_packet(entt::registry &registry, const packet::create_entity &packet) {
     auto &ctx = registry.ctx().at<client_network_context>();
 
@@ -380,7 +377,7 @@ static void process_packet(entt::registry &registry, const packet::create_entity
 
         // Assign discontinuity to dynamic rigid bodies.
         if (registry.any_of<dynamic_tag>(entity) && !registry.all_of<discontinuity>(entity)) {
-            registry.emplace<discontinuity>(entity);
+            assign_discontinuity_components(registry, entity);
         }
 
         // All remote entities must have a networked tag.
@@ -561,13 +558,13 @@ static void insert_input_to_state_history(entt::registry &registry,
     }
 }
 
-static void snap_to_registry_snapshot(entt::registry &registry, packet::registry_snapshot &snapshot,
-                                      bool should_accumulate_discontinuities) {
+static void snap_to_registry_snapshot(entt::registry &registry, packet::registry_snapshot &snapshot) {
     if (snapshot.pools.empty()) {
         return;
     }
 
     auto &settings = registry.ctx().at<edyn::settings>();
+    bool should_accumulate_discontinuities = true;
 
     if (settings.execution_mode == edyn::execution_mode::asynchronous) {
         auto &stepper = registry.ctx().at<stepper_async>();
@@ -629,7 +626,7 @@ static void process_packet(entt::registry &registry, packet::registry_snapshot &
     // If extrapolation is not enabled or not needed, snap to this state and
     // add the differences to the discontinuity components.
     if (!needs_extrapolation || !client_settings.extrapolation_enabled) {
-        snap_to_registry_snapshot(registry, snapshot, true);
+        snap_to_registry_snapshot(registry, snapshot);
         return;
     }
 
@@ -652,7 +649,7 @@ static void process_packet(entt::registry &registry, packet::registry_snapshot &
     if (node_indices.empty()) {
         // There are no connecting nodes among all entities involved, i.e.
         // procedural entities. Then just snap.
-        snap_to_registry_snapshot(registry, snapshot, true);
+        snap_to_registry_snapshot(registry, snapshot);
         return;
     }
 
@@ -823,7 +820,7 @@ void client_link_asset_impl(entt::registry &registry, entt::entity asset_entity,
 
         // Assign discontinuity to dynamic rigid bodies.
         if (registry.any_of<dynamic_tag>(local_entity)) {
-            registry.emplace<discontinuity>(local_entity);
+            assign_discontinuity_components(registry, local_entity);
         }
 
         // Assign the same owner.

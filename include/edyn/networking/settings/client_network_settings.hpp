@@ -10,10 +10,8 @@ struct client_network_settings {
     double round_trip_time {0};
     bool extrapolation_enabled {true};
 
-    // The discontinuity error will be multiplied by this value after every
-    // step. That means this value is sensitive to the fixed delta time since
-    // a lower delta time means higher step rate, thus faster decay.
-    scalar discontinuity_decay_rate {scalar(0.9)};
+    // Exponential decay parameter for discontinuity over time.
+    scalar discontinuity_decay_rate {scalar(6)};
 
     // All actions older than this amount are deleted in every update.
     // The entire action history is included in every registry snapshot, thus

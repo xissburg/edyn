@@ -78,7 +78,7 @@ bool get_network_client_extrapolation_enabled(entt::registry &registry) {
 }
 
 void set_network_client_discontinuity_decay_rate(entt::registry &registry, scalar rate) {
-    EDYN_ASSERT(!(rate < 0) && rate < 1);
+    EDYN_ASSERT(rate > 0);
     edit_client_settings(registry, [rate](auto &client_settings) {
         client_settings.discontinuity_decay_rate = rate;
     });

@@ -40,7 +40,7 @@ class stepper_async final {
 public:
     stepper_async(stepper_async const&) = delete;
     stepper_async operator=(stepper_async const&) = delete;
-    stepper_async(entt::registry &);
+    stepper_async(entt::registry &, double time);
 
     void on_construct_shared(entt::registry &, entt::entity);
 
@@ -102,6 +102,7 @@ private:
     > m_message_queue_handle;
 
     bool m_importing {false};
+    double m_last_time {};
     double m_sim_time {};
     bool m_paused {false};
 

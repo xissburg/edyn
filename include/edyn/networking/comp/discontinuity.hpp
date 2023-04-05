@@ -17,6 +17,13 @@ struct discontinuity {
     quaternion orientation_offset {quaternion_identity};
 };
 
+struct discontinuity_accumulator : public discontinuity {};
+
+inline void merge_component(discontinuity_accumulator &component, const discontinuity_accumulator &new_value) {
+    component.position_offset += new_value.position_offset;
+    component.orientation_offset = edyn::normalize(component.orientation_offset * new_value.orientation_offset);
+}
+
 struct previous_position : public vector3 {
     previous_position & operator=(const vector3 &v) {
         vector3::operator=(v);

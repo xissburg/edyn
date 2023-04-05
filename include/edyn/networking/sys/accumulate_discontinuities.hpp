@@ -5,18 +5,28 @@
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/networking/comp/discontinuity.hpp"
+#include "edyn/util/island_util.hpp"
 
 namespace edyn {
 
 inline void accumulate_discontinuities(entt::registry &registry) {
-    auto discontinuity_view = registry.view<previous_position, position, previous_orientation, orientation, discontinuity>();
+    auto accum_view = registry.view<previous_position, position,
+                                    previous_orientation, orientation,
+                                    discontinuity_accumulator>(exclude_sleeping_disabled);
 
-    for (auto [entity, p_pos, pos, p_orn, orn, discontinuity] : discontinuity_view.each()) {
-        // TODO: if error is too large, past a threshold, do not accumulate.
-        // Zero it out instead. That is, just snap into the new transform.
-        discontinuity.position_offset += p_pos - pos;
-        discontinuity.orientation_offset *= p_orn * conjugate(orn);
+    for (auto [entity, p_pos, pos, p_orn, orn, accum] : accum_view.each()) {
+        accum.position_offset += p_pos - pos;
+        accum.orientation_offset *= p_orn * conjugate(orn);
+        registry.patch<discontinuity_accumulator>(entity);
     }
+}
+
+inline void clear_accumulated_discontinuities_quietly(entt::registry &registry) {
+    auto accum_view = registry.view<discontinuity_accumulator>(exclude_sleeping_disabled);
+    accum_view.each([](discontinuity_accumulator &accum) {
+        accum.position_offset = edyn::vector3_zero;
+        accum.orientation_offset = edyn::quaternion_identity;
+    });
 }
 
 }

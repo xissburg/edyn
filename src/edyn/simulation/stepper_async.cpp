@@ -34,7 +34,7 @@
 
 namespace edyn {
 
-stepper_async::stepper_async(entt::registry &registry)
+stepper_async::stepper_async(entt::registry &registry, double time)
     : m_registry(&registry)
     , m_message_queue_handle(
         message_dispatcher::global().make_queue<
@@ -45,6 +45,7 @@ stepper_async::stepper_async(entt::registry &registry)
     , m_worker(registry.ctx().at<settings>(),
                registry.ctx().at<registry_operation_context>(),
                registry.ctx().at<material_mix_table>())
+    , m_last_time(time)
 {
     m_connections.push_back(registry.on_construct<graph_node>().connect<&stepper_async::on_construct_shared>(*this));
     m_connections.push_back(registry.on_destroy<graph_node>().connect<&stepper_async::on_destroy_graph_node>(*this));
@@ -253,8 +254,11 @@ void stepper_async::update(double time) {
     if (m_paused) {
         snap_presentation(*m_registry);
     } else {
-        update_presentation(*m_registry, get_simulation_timestamp(), time);
+        auto elapsed = time - m_last_time;
+        update_presentation(*m_registry, get_simulation_timestamp(), time, elapsed);
     }
+
+    m_last_time = time;
 }
 
 void stepper_async::set_paused(bool paused) {

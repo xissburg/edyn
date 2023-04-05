@@ -5,7 +5,7 @@
 
 namespace edyn {
 
-void update_presentation(entt::registry &registry, double sim_time, double time);
+void update_presentation(entt::registry &registry, double sim_time, double time, double delta_time);
 
 void snap_presentation(entt::registry &registry);
 
