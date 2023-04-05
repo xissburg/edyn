@@ -20,21 +20,22 @@ namespace edyn {
  */
 class extrapolation_modified_comp {
 public:
-    extrapolation_modified_comp(entt::registry &registry,
-                                entt::sparse_set &relevant_entities,
-                                entt::sparse_set &owned_entities)
+    extrapolation_modified_comp(entt::registry &registry)
         : m_registry(&registry)
-        , m_relevant_entities(std::move(relevant_entities))
-        , m_owned_entities(std::move(owned_entities))
     {}
 
     virtual ~extrapolation_modified_comp() = default;
 
-    virtual void export_to_builder(registry_operation_builder &builder) = 0;
+    virtual void set_observe_changes(bool observe) = 0;
+    virtual void add_entity(entt::entity entity, bool owned_by_client) = 0;
+    virtual void remove_entity(entt::entity entity) = 0;
+    virtual void clear_modified(const entt::sparse_set &entities) = 0;
+    virtual void export_to_builder(registry_operation_builder &builder, const entt::sparse_set &entities) = 0;
+    virtual void import_remote_state(const entt::sparse_set &entities) = 0;
+    virtual void export_remote_state(const entt::sparse_set &entities) = 0;
 
 protected:
     entt::registry *m_registry;
-    entt::sparse_set m_relevant_entities;
     entt::sparse_set m_owned_entities;
     std::vector<entt::scoped_connection> m_connections;
 };
@@ -75,25 +76,49 @@ class extrapolation_modified_comp_impl : public extrapolation_modified_comp {
 
 public:
     extrapolation_modified_comp_impl(entt::registry &registry,
-                                     entt::sparse_set &relevant_entities,
-                                     entt::sparse_set &owned_entities,
                                      [[maybe_unused]] std::tuple<Components...>)
-        : extrapolation_modified_comp(registry, relevant_entities, owned_entities)
+        : extrapolation_modified_comp(registry)
     {
-        for (auto entity : m_relevant_entities) {
-            registry.emplace<modified_components>(entity);
-        }
-
-        (observe_update<Components>(registry), ...);
-
         unsigned i = 0;
         ((m_is_network_input[i++] = std::disjunction_v<std::is_base_of<network_input, Components>, std::is_same<action_history, Components>>), ...);
     }
 
-    void export_to_builder(registry_operation_builder &builder) override {
-        const auto components_tuple = std::tuple<Components...>{};
+    void set_observe_changes(bool observe) override {
+        if (observe) {
+            (observe_update<Components>(*m_registry), ...);
+        } else {
+            m_connections.clear();
+        }
+    }
 
-        for (auto [entity, modified] : m_registry->view<modified_components>().each()) {
+    void add_entity(entt::entity entity, bool owned_by_client) override {
+        m_registry->emplace<modified_components>(entity);
+
+        if (owned_by_client) {
+            m_owned_entities.emplace(entity);
+        }
+    }
+
+    void remove_entity(entt::entity entity) override {
+        m_registry->erase<modified_components>();
+        m_owned_entities.remove(entity);
+    }
+
+    void clear_modified(const entt::sparse_set &entities) override {
+        auto modified_view = m_registry->view<modified_components>();
+
+        for (auto entity : entities) {
+            auto [modified] = modified_view.get(entity);
+            modified.count = 0;
+        }
+    }
+
+    void export_to_builder(registry_operation_builder &builder, const entt::sparse_set &entities) override {
+        const auto components_tuple = std::tuple<Components...>{};
+        auto modified_view = m_registry->view<modified_components>();
+
+        for (auto entity : entities) {
+            auto [modified] = modified_view.get(entity);
             const auto owned_entity = m_owned_entities.contains(entity);
 
             for (unsigned i = 0; i < modified.count; ++i) {
@@ -110,6 +135,31 @@ public:
                 });
             }
         }
+    }
+
+    template<typename Component>
+    void import_remote_state_single(const entt::sparse_set &entities) {
+        using namespace entt::literals;
+        auto storage = m_registry->storage<Component>(hash_combine("server"_hs, entt::type_hash<Component>()));
+        auto view = m_registry->view<Component>();
+
+        for (auto entity : entities) {
+            if (view.contains(entity)) {
+                auto [comp] = view.get(entity);
+                comp = storage.get(entity);
+            }
+        }
+    }
+
+    // Copy values from the "server" named storage into the main default storage,
+    // effectively overriding all components with the last seen values from server.
+    void import_remote_state(const entt::sparse_set &entities) override {
+        (import_remote_state_single<Components>(entities), ...);
+    }
+
+    // Copy values from main storage into "server" named storage.
+    void export_remote_state(const entt::sparse_set &entities) override {
+
     }
 
 private:

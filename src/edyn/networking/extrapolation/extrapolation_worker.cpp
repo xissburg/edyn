@@ -6,6 +6,7 @@
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/rotated_mesh_list.hpp"
+#include "edyn/comp/tag.hpp"
 #include "edyn/config/config.h"
 #include "edyn/constraints/contact_constraint.hpp"
 #include "edyn/context/registry_operation_context.hpp"
@@ -160,9 +161,6 @@ void extrapolation_worker::init_extrapolation() {
     m_island_manager.set_last_time(m_current_time);
     m_terminated_early = false;
 
-    // Import entities and components.
-    m_request.ops.execute(m_registry, m_entity_map);
-
     auto &graph = m_registry.ctx().at<entity_graph>();
     auto node_view = m_registry.view<graph_node>();
     auto procedural_view = m_registry.view<procedural_tag>();
@@ -208,12 +206,18 @@ void extrapolation_worker::init_extrapolation() {
     // Initialize shapes.
     m_poly_initializer.init_new_shapes();
 
-    auto relevant_entities = entt::sparse_set{};
+    auto entities = entt::sparse_set{};
     auto owned_entities = entt::sparse_set{};
 
-    for (auto remote_entity : m_request.entities) {
+    // The snapshot entities only include those that have a component that
+    // changed recently. Though the extrapolation must include all entities
+    // that belong in the same island because entities cannot be simulated in
+    // isolation from their island. An island is always simulated as one unit.
+    for (auto remote_entity : m_request.snapshot.entities) {
         auto local_entity = m_entity_map.at(remote_entity);
-        relevant_entities.emplace(local_entity);
+
+        // TODO: Include all entities reachable through the graph.
+        entities.emplace(local_entity);
     }
 
     for (auto remote_entity : m_request.owned_entities) {
@@ -221,21 +225,47 @@ void extrapolation_worker::init_extrapolation() {
         owned_entities.emplace(local_entity);
     }
 
-    // Create modified component observer before applying the server state into
-    // the registry. This ensures the entities and components in the snapshot
-    // will be marked as changed and will be included in the result later.
-    m_modified_comp = (*m_make_extrapolation_modified_comp)(m_registry, relevant_entities, owned_entities);
+    // Enable simulation for all involved entities.
+    for (auto entity : entities) {
+        m_registry.erase<disabled_tag>(entity);
+    }
 
-    // Replace client component state by server state.
+    // Apply known remote state as the initial state for extrapolation.
+    m_modified_comp->import_remote_state(entities);
+
+    // Replace client component state by latest server state. The snapshot
+    // only contains components which have changed since the last update.
     for (auto &pool : m_request.snapshot.pools) {
         pool.ptr->replace_into_registry(m_registry, m_request.snapshot.entities, m_entity_map);
     }
 
+    // Assign current state as the last known remote state which will be used
+    // as the initial state for future extrapolations involving these entities.
+    m_modified_comp->export_remote_state(entities);
+
     // Recalculate properties after setting initial state from server.
-    update_origins(m_registry);
-    update_rotated_meshes(m_registry);
-    update_aabbs(m_registry);
-    update_inertias(m_registry);
+    auto origin_view = m_registry.view<position, orientation, center_of_mass, origin>();
+
+    for (auto remote_entity : m_request.snapshot.entities) {
+        auto local_entity = m_entity_map.at(remote_entity);
+
+        if (origin_view.contains(local_entity)) {
+            auto [pos, orn, com, orig] = origin_view.get(local_entity);
+            orig = to_world_space(-com, pos, orn);
+        }
+
+        if (m_registry.any_of<AABB>(local_entity)) {
+            update_aabb(m_registry, local_entity);
+        }
+
+        if (m_registry.any_of<dynamic_tag>(local_entity)) {
+            update_inertia(m_registry, local_entity);
+        }
+
+        if (m_registry.any_of<rotated_mesh_list>(local_entity)) {
+            update_rotated_mesh(m_registry, local_entity);
+        }
+    }
 }
 
 void extrapolation_worker::finish_extrapolation() {

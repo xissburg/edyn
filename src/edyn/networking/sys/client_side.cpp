@@ -630,57 +630,6 @@ static void process_packet(entt::registry &registry, packet::registry_snapshot &
         return;
     }
 
-    // Collect all entities to be included in extrapolation, that is, all
-    // entities that are reachable from the entities contained in the snapshot.
-    auto &graph = registry.ctx().at<entity_graph>();
-    std::set<entity_graph::index_type> node_indices;
-    auto node_view = registry.view<graph_node>();
-
-    for (auto entity : snapshot.entities) {
-        if (node_view.contains(entity)) {
-            auto node_index = node_view.get<graph_node>(entity).node_index;
-
-            if (graph.is_connecting_node(node_index)) {
-                node_indices.insert(node_index);
-            }
-        }
-    }
-
-    if (node_indices.empty()) {
-        // There are no connecting nodes among all entities involved, i.e.
-        // procedural entities. Then just snap.
-        snap_to_registry_snapshot(registry, snapshot);
-        return;
-    }
-
-    // Do not include manifolds as they will not make sense in the server state
-    // because rigid bodies generally will have quite different transforms
-    // compared to the client state.
-    auto entities = entt::sparse_set{};
-    auto manifold_view = registry.view<contact_manifold>();
-
-    graph.reach(
-        node_indices.begin(), node_indices.end(),
-        [&](entt::entity entity) {
-            if (!entities.contains(entity)) {
-                entities.emplace(entity);
-            }
-        }, [&](entt::entity entity) {
-            if (!manifold_view.contains(entity) && !entities.contains(entity)) {
-                entities.emplace(entity);
-            }
-        }, [](auto) { return true; }, []() {});
-
-    // TODO: only include the necessary static entities. Could extrapolate the
-    // position by twice their velocity and calculate a sweep AABB (union of
-    // initial and extrapolated AABB) and query the non-procedural broadphase
-    // tree to obtain the relevant static and kinematic entities.
-    for (auto entity : registry.view<static_tag>()) {
-        if (!entities.contains(entity)) {
-            entities.emplace(entity);
-        }
-    }
-
     // Create input to send to extrapolation job.
     extrapolation_request req;
     req.start_time = snapshot_time;
@@ -692,7 +641,7 @@ static void process_packet(entt::registry &registry, packet::registry_snapshot &
         req.destination = ctx.message_queue.identifier;
     }
 
-    for (auto entity : entities) {
+    for (auto entity : snapshot.entities) {
         if (auto *owner = registry.try_get<entity_owner>(entity);
             owner && owner->client_entity == ctx.client_entity)
         {
@@ -700,13 +649,6 @@ static void process_packet(entt::registry &registry, packet::registry_snapshot &
         }
     }
 
-    auto &reg_op_ctx = registry.ctx().at<registry_operation_context>();
-    auto builder = (*reg_op_ctx.make_reg_op_builder)(registry);
-    builder->create(entities.begin(), entities.end());
-    builder->emplace_all(entities);
-    req.ops = std::move(builder->finish());
-
-    req.entities = std::move(entities);
     req.snapshot = std::move(snapshot);
     req.should_remap = true;
 
