@@ -132,9 +132,10 @@ public:
     template<typename Func>
     void each(double start_time, double length_of_time, Func func) const {
         std::lock_guard lock(mutex);
+        auto end_time = start_time + length_of_time;
 
         for (auto &elem : history) {
-            if (elem.timestamp > start_time + length_of_time) {
+            if (elem.timestamp > end_time) {
                 break;
             }
 

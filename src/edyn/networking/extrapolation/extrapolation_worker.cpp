@@ -303,9 +303,18 @@ bool extrapolation_worker::should_step() {
 }
 
 void extrapolation_worker::begin_step() {
+    auto &settings = m_registry.ctx().at<edyn::settings>();
+
+    // Clear all action lists before inserting new actions.
+    // This will include any actions imported via the registry operations.
+    // Very important to clear those to avoid applying fresh new actions right
+    // at the beginning of the extrapolation which would lead to large errors.
+    if (settings.clear_actions_func) {
+        (*settings.clear_actions_func)(m_registry);
+    }
+
     apply_history();
 
-    auto &settings = m_registry.ctx().at<edyn::settings>();
     if (settings.pre_step_callback) {
         (*settings.pre_step_callback)(m_registry);
     }
@@ -314,11 +323,6 @@ void extrapolation_worker::begin_step() {
 void extrapolation_worker::finish_step() {
     auto &settings = m_registry.ctx().at<edyn::settings>();
     m_current_time += settings.fixed_dt;
-
-    // Clear actions after they've been consumed.
-    if (settings.clear_actions_func) {
-        (*settings.clear_actions_func)(m_registry);
-    }
 
     if (settings.post_step_callback) {
         (*settings.post_step_callback)(m_registry);
