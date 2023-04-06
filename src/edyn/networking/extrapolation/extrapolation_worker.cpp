@@ -277,8 +277,16 @@ void extrapolation_worker::init_extrapolation() {
         }, [](auto) { return true; }, []() {});
 
     // Enable simulation for all involved entities.
+    auto resident_view = m_registry.view<island_resident>();
+
     for (auto entity : entities) {
         m_registry.erase<disabled_tag>(entity);
+        m_registry.remove<sleeping_tag>(entity);
+
+        if (resident_view.contains(entity)) {
+            auto [resident] = resident_view.get(entity);
+            m_registry.remove<sleeping_tag>(resident.island_entity);
+        }
     }
 
     // Apply last known remote state as the initial state for extrapolation.
