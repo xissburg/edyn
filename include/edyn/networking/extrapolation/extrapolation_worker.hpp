@@ -12,6 +12,7 @@
 #include "edyn/networking/extrapolation/extrapolation_result.hpp"
 #include "edyn/dynamics/solver.hpp"
 #include "edyn/replication/entity_map.hpp"
+#include "edyn/replication/registry_operation.hpp"
 #include "edyn/simulation/island_manager.hpp"
 #include "edyn/util/polyhedron_shape_initializer.hpp"
 #include "edyn/parallel/message.hpp"
@@ -56,6 +57,7 @@ public:
                               make_extrapolation_modified_comp_func_t *make_extrapolation_modified_comp);
 
     void on_extrapolation_request(message<extrapolation_request> &msg);
+    void on_registry_operation(message<registry_operation> &msg);
     void on_set_settings(message<msg::set_settings> &msg);
     void on_set_reg_op_ctx(message<msg::set_registry_operation_context> &msg);
     void on_set_material_table(message<msg::set_material_table> &msg);
@@ -74,6 +76,7 @@ private:
 
     message_queue_handle<
         extrapolation_request,
+        registry_operation,
         msg::set_settings,
         msg::set_registry_operation_context,
         msg::set_material_table,

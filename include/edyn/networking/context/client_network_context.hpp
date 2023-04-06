@@ -10,6 +10,7 @@
 #include "edyn/networking/util/clock_sync.hpp"
 #include "edyn/networking/extrapolation/extrapolation_worker.hpp"
 #include "edyn/networking/extrapolation/extrapolation_modified_comp.hpp"
+#include "edyn/replication/registry_operation.hpp"
 #include <entt/entity/fwd.hpp>
 #include <entt/entity/entity.hpp>
 #include <entt/entity/sparse_set.hpp>
@@ -32,6 +33,8 @@ struct client_network_context {
     edyn::entity_map entity_map;
     std::vector<entt::entity> created_entities;
     std::vector<entt::entity> destroyed_entities;
+    std::vector<entt::entity> client_created_entities;
+    std::vector<entt::entity> client_destroyed_entities;
     bool importing_entities {false};
 
     // Set of entities requested via `packet::entity_request`. Note that these
@@ -79,6 +82,7 @@ struct client_network_context {
     }
 
     make_extrapolation_modified_comp_func_t *make_extrapolation_modified_comp;
+    registry_operation extrapolation_operations;
 
     std::shared_ptr<client_snapshot_importer> snapshot_importer;
     std::shared_ptr<client_snapshot_exporter> snapshot_exporter;

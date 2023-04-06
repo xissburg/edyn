@@ -45,21 +45,23 @@ namespace edyn {
 
 void on_construct_networked_entity(entt::registry &registry, entt::entity entity) {
     auto &ctx = registry.ctx().at<client_network_context>();
+    ctx.created_entities.push_back(entity);
 
     if (!ctx.importing_entities) {
-        ctx.created_entities.push_back(entity);
+        ctx.client_created_entities.push_back(entity);
     }
 }
 
 void on_destroy_networked_entity(entt::registry &registry, entt::entity entity) {
     auto &ctx = registry.ctx().at<client_network_context>();
+    ctx.destroyed_entities.push_back(entity);
 
     if (!ctx.importing_entities) {
         if (ctx.entity_map.contains(entity)) {
             ctx.entity_map.erase(entity);
         }
 
-        ctx.destroyed_entities.push_back(entity);
+        ctx.client_destroyed_entities.push_back(entity);
     }
 }
 
@@ -152,19 +154,37 @@ void deinit_network_client(entt::registry &registry) {
     registry.on_destroy<entity_owner>().disconnect<&on_destroy_entity_owner>();
 }
 
-static void process_created_networked_entities(entt::registry &registry, double time) {
+static void process_created_entities(entt::registry &registry) {
+    auto &reg_op_ctx = registry.ctx().at<registry_operation_context>();
+    auto builder = (*reg_op_ctx.make_reg_op_builder)(registry);
+
     auto &ctx = registry.ctx().at<client_network_context>();
 
-    if (ctx.created_entities.empty()) {
+    for (auto entity : ctx.created_entities) {
+        builder->create(entity);
+        builder->emplace_all(entity);
+    }
+
+    auto op = builder->finish();
+    auto &dispatcher = message_dispatcher::global();
+    dispatcher.send<registry_operation>({"extrapolation_worker"},
+                                        ctx.message_queue.identifier,
+                                        std::move(op));
+}
+
+static void process_client_created_entities(entt::registry &registry, double time) {
+    auto &ctx = registry.ctx().at<client_network_context>();
+
+    if (ctx.client_created_entities.empty()) {
         return;
     }
 
     // Assign current client as owner of all created entities.
-    registry.insert(ctx.created_entities.begin(), ctx.created_entities.end(), entity_owner{ctx.client_entity});
+    registry.insert(ctx.client_created_entities.begin(), ctx.client_created_entities.end(), entity_owner{ctx.client_entity});
 
     packet::create_entity packet;
     packet.timestamp = time;
-    ctx.snapshot_exporter->export_all(packet, ctx.created_entities);
+    ctx.snapshot_exporter->export_all(packet, ctx.client_created_entities);
 
     // Sort components to ensure order of construction.
     std::sort(packet.pools.begin(), packet.pools.end(), [](auto &&lhs, auto &&rhs) {
@@ -173,19 +193,38 @@ static void process_created_networked_entities(entt::registry &registry, double 
 
     ctx.packet_signal.publish(packet::edyn_packet{std::move(packet)});
 
-    ctx.created_entities.clear();
+    ctx.client_created_entities.clear();
 }
 
-static void process_destroyed_networked_entities(entt::registry &registry, double time) {
+static void process_destroyed_entities(entt::registry &registry) {
     auto &ctx = registry.ctx().at<client_network_context>();
 
     if (ctx.destroyed_entities.empty()) {
         return;
     }
 
+    // Destroy entities in extrapolator.
+    auto &reg_op_ctx = registry.ctx().at<registry_operation_context>();
+    auto builder = (*reg_op_ctx.make_reg_op_builder)(registry);
+    builder->destroy(ctx.destroyed_entities.begin(), ctx.destroyed_entities.end());
+    auto op = builder->finish();
+
+    auto &dispatcher = message_dispatcher::global();
+    dispatcher.send<registry_operation>({"extrapolation_worker"},
+                                        ctx.message_queue.identifier,
+                                        std::move(op));
+}
+
+static void process_client_destroyed_entities(entt::registry &registry, double time) {
+    auto &ctx = registry.ctx().at<client_network_context>();
+
+    if (ctx.client_destroyed_entities.empty()) {
+        return;
+    }
+
     packet::destroy_entity packet;
     packet.timestamp = time;
-    packet.entities = std::move(ctx.destroyed_entities);
+    packet.entities = std::move(ctx.client_destroyed_entities);
     ctx.packet_signal.publish(packet::edyn_packet{std::move(packet)});
 }
 
@@ -240,8 +279,10 @@ void update_network_client(entt::registry &registry) {
     auto time = performance_time();
 
     client_update_clock_sync(registry, time);
-    process_created_networked_entities(registry, time);
-    process_destroyed_networked_entities(registry, time);
+    process_created_entities(registry);
+    process_destroyed_entities(registry);
+    process_client_created_entities(registry, time);
+    process_client_destroyed_entities(registry, time);
     update_client_snapshot_exporter(registry, time);
     maybe_publish_registry_snapshot(registry, time);
     registry.ctx().at<client_network_context>().message_queue.update();
@@ -251,7 +292,6 @@ void update_network_client(entt::registry &registry) {
 
 static void process_packet(entt::registry &registry, const packet::client_created &packet) {
     auto &ctx = registry.ctx().at<client_network_context>();
-    ctx.importing_entities = true;
 
     auto remote_entity = packet.client_entity;
     auto local_entity = registry.create();
@@ -263,8 +303,6 @@ static void process_packet(entt::registry &registry, const packet::client_create
     emap_packet.timestamp = performance_time();
     emap_packet.pairs.emplace_back(remote_entity, local_entity);
     ctx.packet_signal.publish(packet::edyn_packet{std::move(emap_packet)});
-
-    ctx.importing_entities = false;
 
     ctx.client_assigned_signal.publish(ctx.client_entity);
 }
