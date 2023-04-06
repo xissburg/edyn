@@ -155,10 +155,14 @@ void deinit_network_client(entt::registry &registry) {
 }
 
 static void process_created_entities(entt::registry &registry) {
+    auto &ctx = registry.ctx().at<client_network_context>();
+
+    if (ctx.created_entities.empty()) {
+        return;
+    }
+
     auto &reg_op_ctx = registry.ctx().at<registry_operation_context>();
     auto builder = (*reg_op_ctx.make_reg_op_builder)(registry);
-
-    auto &ctx = registry.ctx().at<client_network_context>();
 
     for (auto entity : ctx.created_entities) {
         builder->create(entity);
@@ -170,6 +174,8 @@ static void process_created_entities(entt::registry &registry) {
     dispatcher.send<registry_operation>({"extrapolation_worker"},
                                         ctx.message_queue.identifier,
                                         std::move(op));
+
+    ctx.created_entities.clear();
 }
 
 static void process_client_created_entities(entt::registry &registry, double time) {
@@ -213,6 +219,8 @@ static void process_destroyed_entities(entt::registry &registry) {
     dispatcher.send<registry_operation>({"extrapolation_worker"},
                                         ctx.message_queue.identifier,
                                         std::move(op));
+
+    ctx.destroyed_entities.clear();
 }
 
 static void process_client_destroyed_entities(entt::registry &registry, double time) {

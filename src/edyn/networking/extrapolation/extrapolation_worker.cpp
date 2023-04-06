@@ -43,7 +43,6 @@ extrapolation_worker::extrapolation_worker(const settings &settings,
     , m_input_history(input_history)
     , m_poly_initializer(m_registry)
     , m_island_manager(m_registry)
-    , m_make_extrapolation_modified_comp(make_extrapolation_modified_comp)
     , m_message_queue(message_dispatcher::global().make_queue<
         extrapolation_request,
         registry_operation,
@@ -67,6 +66,8 @@ extrapolation_worker::extrapolation_worker(const settings &settings,
     m_message_queue.sink<msg::set_material_table>().connect<&extrapolation_worker::on_set_material_table>(*this);
     m_message_queue.sink<msg::set_extrapolator_context_settings>().connect<&extrapolation_worker::on_set_extrapolator_context_settings>(*this);
     m_message_queue.push_sink().connect<&extrapolation_worker::on_push_message>(*this);
+
+    m_modified_comp = (*make_extrapolation_modified_comp)(m_registry);
 }
 
 extrapolation_worker::~extrapolation_worker() {
@@ -131,9 +132,17 @@ void extrapolation_worker::on_extrapolation_request(message<extrapolation_reques
 
 void extrapolation_worker::on_registry_operation(message<registry_operation> &msg) {
     auto &ops = msg.content;
+    auto &emap = m_entity_map;
+
+    // Process destroyed entities before executing because entity mappings
+    // will be removed.
+    for (auto remote_entity : ops.destroy_entities) {
+        auto local_entity = emap.at(remote_entity);
+        m_modified_comp->remove_entity(local_entity);
+    }
+
     ops.execute(m_registry, m_entity_map);
 
-    auto &emap = m_entity_map;
     auto &graph = m_registry.ctx().at<entity_graph>();
     auto node_view = m_registry.view<graph_node>();
     auto procedural_view = m_registry.view<procedural_tag>();
@@ -169,49 +178,14 @@ void extrapolation_worker::on_registry_operation(message<registry_operation> &ms
     ops.emplace_for_each(constraints_tuple, insert_edge);
     ops.emplace_for_each<null_constraint>(insert_edge);
 
-    // When orientation is set manually, a few dependent components must be
-    // updated, e.g. AABB, cached origin, inertia_world_inv, rotated meshes...
-    ops.replace_for_each<orientation>([&](entt::entity remote_entity, const orientation &orn) {
-        auto local_entity = emap.at(remote_entity);
-
-        if (auto *origin = m_registry.try_get<edyn::origin>(local_entity)) {
-            auto &com = m_registry.get<center_of_mass>(local_entity);
-            auto &pos = m_registry.get<position>(local_entity);
-            *origin = to_world_space(-com, pos, orn);
-        }
-
-        if (m_registry.any_of<AABB>(local_entity)) {
-            update_aabb(m_registry, local_entity);
-        }
-
-        if (m_registry.any_of<dynamic_tag>(local_entity)) {
-            update_inertia(m_registry, local_entity);
-        }
-
-        if (m_registry.any_of<rotated_mesh_list>(local_entity)) {
-            update_rotated_mesh(m_registry, local_entity);
-        }
-    });
-
-    // When position is set manually, the AABB and cached origin must be updated.
-    ops.replace_for_each<position>([&](entt::entity remote_entity, const position &pos) {
-        auto local_entity = emap.at(remote_entity);
-
-        if (auto *origin = m_registry.try_get<edyn::origin>(local_entity)) {
-            auto &com = m_registry.get<center_of_mass>(local_entity);
-            auto &orn = m_registry.get<orientation>(local_entity);
-            *origin = to_world_space(-com, pos, orn);
-        }
-
-        if (m_registry.any_of<AABB>(local_entity)) {
-            update_aabb(m_registry, local_entity);
-        }
-    });
+    // Initialize shapes for new entities.
+    m_poly_initializer.init_new_shapes();
 
     // All new entities must be disabled when created.
     for (auto remote_entity : ops.create_entities) {
         auto local_entity = emap.at(remote_entity);
         m_registry.emplace<disabled_tag>(local_entity);
+        m_modified_comp->add_entity(local_entity);
     }
 
     // Store copy of imported state into "server" state storage.
@@ -241,7 +215,7 @@ void extrapolation_worker::on_set_material_table(message<msg::set_material_table
 
 void extrapolation_worker::on_set_extrapolator_context_settings(message<msg::set_extrapolator_context_settings> &msg) {
     m_input_history = msg.content.input_history;
-    m_make_extrapolation_modified_comp = msg.content.make_extrapolation_modified_comp;
+    m_modified_comp = (*msg.content.make_extrapolation_modified_comp)(m_registry);
 }
 
 void extrapolation_worker::on_push_message() {
@@ -261,6 +235,9 @@ void extrapolation_worker::init_extrapolation() {
     m_step_count = 0;
     m_island_manager.set_last_time(m_current_time);
     m_terminated_early = false;
+
+    // Initialize new nodes and edges and create islands.
+    m_island_manager.update(m_current_time);
 
     auto &graph = m_registry.ctx().at<entity_graph>();
     std::set<entity_graph::index_type> node_indices;
@@ -284,6 +261,7 @@ void extrapolation_worker::init_extrapolation() {
         }
     }
 
+    // Collection of entities in all involved islands.
     auto entities = entt::sparse_set{};
 
     graph.reach(
@@ -303,8 +281,12 @@ void extrapolation_worker::init_extrapolation() {
         m_registry.erase<disabled_tag>(entity);
     }
 
-    // Apply known remote state as the initial state for extrapolation.
+    // Apply last known remote state as the initial state for extrapolation.
     m_modified_comp->import_remote_state(entities);
+
+    // Start observing changes before replacing snapshot contents into registry
+    // to ensure these changes will be included in the result.
+    m_modified_comp->set_observe_changes(true);
 
     // Replace client component state by latest server state. The snapshot
     // only contains components which have changed since the last update.
@@ -314,6 +296,8 @@ void extrapolation_worker::init_extrapolation() {
 
     // Assign current state as the last known remote state which will be used
     // as the initial state for future extrapolations involving these entities.
+    // Only necessary to include entities in the snapshot since these are the
+    // only ones which changed.
     m_modified_comp->export_remote_state(snapshot_entities);
 
     // Recalculate properties after setting initial state from server.
@@ -338,21 +322,7 @@ void extrapolation_worker::init_extrapolation() {
         }
     }
 
-    // Create islands.
-    m_island_manager.update(m_current_time);
-
-    // Initialize shapes.
-    m_poly_initializer.init_new_shapes();
-
-    // Collect owned entities so they can be fed to the export function, which
-    // will ignore input components owned by the local client because local
-    // inputs must not be overriden by the last value set by extrapolation.
-    auto owned_entities = entt::sparse_set{};
-
-    for (auto remote_entity : m_request.owned_entities) {
-        auto local_entity = m_entity_map.at(remote_entity);
-        owned_entities.emplace(local_entity);
-    }
+    m_current_entities = std::move(entities);
 }
 
 void extrapolation_worker::finish_extrapolation() {
@@ -369,13 +339,19 @@ void extrapolation_worker::finish_extrapolation() {
         });
     }
 
-    m_modified_comp->export_to_builder(*builder, entities);
+    // Collect owned entities so they can be fed to the export function, which
+    // will ignore input components owned by the local client because local
+    // inputs must not be overriden by the last value set by extrapolation.
+    auto owned_entities = entt::sparse_set{};
 
-    /* auto body_view = m_registry.view<position, orientation, linvel, angvel, dynamic_tag>();
-    builder->replace<position>(body_view.begin(), body_view.end());
-    builder->replace<orientation>(body_view.begin(), body_view.end());
-    builder->replace<linvel>(body_view.begin(), body_view.end());
-    builder->replace<angvel>(body_view.begin(), body_view.end()); */
+    for (auto remote_entity : m_request.owned_entities) {
+        auto local_entity = m_entity_map.at(remote_entity);
+        owned_entities.emplace(local_entity);
+    }
+
+    m_modified_comp->set_observe_changes(false);
+    m_modified_comp->export_to_builder(*builder, m_current_entities, owned_entities);
+    m_modified_comp->clear_modified(m_current_entities);
 
     auto result = extrapolation_result{};
     result.ops = std::move(builder->finish());
@@ -389,7 +365,7 @@ void extrapolation_worker::finish_extrapolation() {
     });
 
     // Disable all entities at the end.
-    for (auto entity : entities) {
+    for (auto entity : m_current_entities) {
         m_registry.emplace<disabled_tag>(entity);
     }
 
@@ -399,6 +375,7 @@ void extrapolation_worker::finish_extrapolation() {
     if (m_request.should_remap) {
         m_entity_map.swap();
         result.remap(m_entity_map);
+        m_entity_map.swap();
     }
 
     auto &dispatcher = message_dispatcher::global();
@@ -406,6 +383,8 @@ void extrapolation_worker::finish_extrapolation() {
 
     // Destroy all contact manifolds to avoid mixing up with future jobs.
     m_registry.destroy(manifold_view.begin(), manifold_view.end());
+
+    m_current_entities.clear();
 }
 
 bool extrapolation_worker::should_step() {

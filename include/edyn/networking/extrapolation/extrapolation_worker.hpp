@@ -71,7 +71,6 @@ private:
     polyhedron_shape_initializer m_poly_initializer;
     solver m_solver;
 
-    make_extrapolation_modified_comp_func_t *m_make_extrapolation_modified_comp;
     std::unique_ptr<extrapolation_modified_comp> m_modified_comp;
 
     message_queue_handle<
@@ -88,6 +87,7 @@ private:
     bool m_has_work {false};
 
     extrapolation_request m_request;
+    entt::sparse_set m_current_entities;
 
     double m_init_time;
     double m_current_time;

@@ -39,13 +39,11 @@ void register_networked_components(entt::registry &registry, std::tuple<Actions.
         auto input_all = std::tuple_cat(input, action_lists);
         ctx->input_history = std::make_shared<decltype(input_state_history_impl(input_all))>();
 
-        ctx->make_extrapolation_modified_comp = [](entt::registry &registry,
-                                                   entt::sparse_set &relevant_entities,
-                                                   entt::sparse_set &owned_entities) {
+        ctx->make_extrapolation_modified_comp = [](entt::registry &registry) {
             auto external = std::tuple<Components...>{};
             auto all = std::tuple_cat(networked_components, external);
             return std::unique_ptr<extrapolation_modified_comp>(
-                new extrapolation_modified_comp_impl(registry, relevant_entities, owned_entities, all));
+                new extrapolation_modified_comp_impl(registry, all));
         };
 
         ctx->extrapolator->set_context_settings(ctx->input_history, ctx->make_extrapolation_modified_comp);
