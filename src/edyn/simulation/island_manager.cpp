@@ -352,6 +352,7 @@ void island_manager::split_islands() {
     auto multi_resident_view = m_registry->view<multi_island_resident>();
     auto aabb_view = m_registry->view<AABB>();
     auto procedural_view = m_registry->view<procedural_tag>();
+    auto disabled_view = m_registry->view<disabled_tag>();
     auto &graph = m_registry->ctx().at<entity_graph>();
 
     for (auto source_island_entity : m_islands_to_split) {
@@ -431,6 +432,7 @@ void island_manager::split_islands() {
         islands.pop_back();
 
         remove_sleeping_tag_from_island(*m_registry, source_island_entity, source_island);
+        const bool disabled = disabled_view.contains(source_island_entity);
 
         /* Update island AABB. */ {
             auto is_first_node = true;
@@ -498,6 +500,11 @@ void island_manager::split_islands() {
             remove_sleeping_tag_from_island(*m_registry, island_entity_new, island_new);
 
             m_registry->emplace<island_tag>(island_entity_new);
+
+            // Inherit disabled status.
+            if (disabled) {
+                m_registry->emplace<disabled_tag>(island_entity_new);
+            }
         }
     }
 

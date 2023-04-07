@@ -181,11 +181,28 @@ void extrapolation_worker::on_registry_operation(message<registry_operation> &ms
     // Initialize shapes for new entities.
     m_poly_initializer.init_new_shapes();
 
-    // All new entities must be disabled when created.
+    // Initialize new nodes and edges and create islands.
+    m_island_manager.update(m_current_time);
+
+    // All procedural entities must be disabled when created.
+    // All procedurals have a `island_resident` component.
+    // Non-procedurals are never disabled.
+    auto resident_view = m_registry.view<island_resident>();
+
     for (auto remote_entity : ops.create_entities) {
         auto local_entity = emap.at(remote_entity);
-        m_registry.emplace<disabled_tag>(local_entity);
+
+        // Observe component changes for this entity.
         m_modified_comp->add_entity(local_entity);
+
+        if (resident_view.contains(local_entity)) {
+            m_registry.emplace<disabled_tag>(local_entity);
+
+            auto [resident] = resident_view.get(local_entity);
+            if (!m_registry.all_of<disabled_tag>(resident.island_entity)) {
+                m_registry.emplace<disabled_tag>(resident.island_entity);
+            }
+        }
     }
 
     // Store copy of imported state into "server" state storage.
@@ -280,7 +297,7 @@ void extrapolation_worker::init_extrapolation() {
     auto resident_view = m_registry.view<island_resident>();
 
     for (auto entity : entities) {
-        m_registry.erase<disabled_tag>(entity);
+        m_registry.remove<disabled_tag>(entity);
         m_registry.remove<sleeping_tag>(entity);
 
         if (resident_view.contains(entity)) {
@@ -372,12 +389,14 @@ void extrapolation_worker::finish_extrapolation() {
         result.manifolds.push_back(manifold);
     });
 
-    // Disable all entities at the end.
+    // Disable procedural entities at the end. All procedural entities have a
+    // `island_resident` component.
+    // Non-procedurals are never disabled.
     auto resident_view = m_registry.view<island_resident>();
     for (auto entity : m_current_entities) {
-        m_registry.emplace<disabled_tag>(entity);
-
         if (resident_view.contains(entity)) {
+            m_registry.emplace<disabled_tag>(entity);
+
             auto [resident] = resident_view.get(entity);
             if (!m_registry.all_of<disabled_tag>(resident.island_entity)) {
                 m_registry.emplace<disabled_tag>(resident.island_entity);
@@ -451,13 +470,15 @@ void extrapolation_worker::finish_step() {
 
 void extrapolation_worker::extrapolate() {
     init_extrapolation();
+    auto &bphase = m_registry.ctx().at<broadphase>();
+    auto &nphase = m_registry.ctx().at<narrowphase>();
 
     while (should_step()) {
         begin_step();
-        m_registry.ctx().at<broadphase>().update(true);
+        bphase.update(true);
         m_island_manager.update(m_current_time);
-        m_registry.ctx().at<narrowphase>().update(true);
-        m_solver.update(true);
+        nphase.update(true);
+        m_solver.update(false);
         finish_step();
     }
 

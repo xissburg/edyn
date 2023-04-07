@@ -236,6 +236,24 @@ static void process_client_destroyed_entities(entt::registry &registry, double t
     ctx.packet_signal.publish(packet::edyn_packet{std::move(packet)});
 }
 
+static void dispatch_extrapolations(entt::registry &registry) {
+    auto &ctx = registry.ctx().at<client_network_context>();
+
+    if (ctx.pending_extrapolations.empty()) {
+        return;
+    }
+
+    auto &dispatcher = message_dispatcher::global();
+
+    for (auto &req : ctx.pending_extrapolations) {
+        dispatcher.send<extrapolation_request>({"extrapolation_worker"},
+                                               ctx.message_queue.identifier,
+                                               std::move(req));
+    }
+
+    ctx.pending_extrapolations.clear();
+}
+
 static void maybe_publish_registry_snapshot(entt::registry &registry, double time) {
     auto &ctx = registry.ctx().at<client_network_context>();
     auto &settings = registry.ctx().at<edyn::settings>();
@@ -291,6 +309,7 @@ void update_network_client(entt::registry &registry) {
     process_destroyed_entities(registry);
     process_client_created_entities(registry, time);
     process_client_destroyed_entities(registry, time);
+    dispatch_extrapolations(registry);
     update_client_snapshot_exporter(registry, time);
     maybe_publish_registry_snapshot(registry, time);
     registry.ctx().at<client_network_context>().message_queue.update();
@@ -630,9 +649,8 @@ static void snap_to_registry_snapshot(entt::registry &registry, packet::registry
 static void process_packet(entt::registry &registry, packet::registry_snapshot &snapshot) {
     if (contains_unknown_entities(registry, snapshot.entities)) {
         // Do not perform extrapolation if it contains unknown entities as the
-        // result would not make much sense if all parts are not involved. Wait
-        // until the entity request is completed and then extrapolations will
-        // be performed normally again. This should not happen very often.
+        // result would not make much sense if all parts are not involved.
+        // This should not happen very often.
         return;
     }
 
@@ -676,8 +694,12 @@ static void process_packet(entt::registry &registry, packet::registry_snapshot &
         return;
     }
 
-    // Create input to send to extrapolation job.
-    extrapolation_request req;
+    // Create input to send to extrapolation job later. They're not dispatched
+    // immediately because it's necessary to process the pending created
+    // entities first. Otherwise, this message would be processed by the
+    // extrapolation worker before the registry operation message which creates
+    // the entities involved in this extrapolation.
+    auto &req = ctx.pending_extrapolations.emplace_back();
     req.start_time = snapshot_time;
 
     if (settings.execution_mode == edyn::execution_mode::asynchronous) {
@@ -697,11 +719,6 @@ static void process_packet(entt::registry &registry, packet::registry_snapshot &
 
     req.snapshot = std::move(snapshot);
     req.should_remap = true;
-
-    auto &dispatcher = message_dispatcher::global();
-    dispatcher.send<extrapolation_request>({"extrapolation_worker"},
-                                           ctx.message_queue.identifier,
-                                           std::move(req));
 }
 
 static void process_packet(entt::registry &registry, packet::set_playout_delay &delay) {

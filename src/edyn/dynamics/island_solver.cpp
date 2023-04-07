@@ -8,6 +8,7 @@
 #include "edyn/comp/mass.hpp"
 #include "edyn/comp/origin.hpp"
 #include "edyn/comp/position.hpp"
+#include "edyn/comp/tag.hpp"
 #include "edyn/config/config.h"
 #include "edyn/config/constants.hpp"
 #include "edyn/config/execution_mode.hpp"
@@ -27,6 +28,7 @@
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/serialization/entt_s11n.hpp"
 #include "edyn/util/tuple_util.hpp"
+#include "edyn/config/config.h"
 #include <entt/entity/fwd.hpp>
 #include <entt/entity/registry.hpp>
 #include <cstdint>
@@ -154,6 +156,9 @@ void insert_rows(entt::registry &registry, row_cache &cache, const entt::sparse_
         if (!con_view.contains(entity)) {
             continue;
         }
+
+        EDYN_ASSERT((!registry.any_of<disabled_tag>(entity)));
+        EDYN_ASSERT((!registry.any_of<sleeping_tag>(entity)));
 
         // Insert entity into array located at the constraint type index.
         constraint_entities.entities[con_idx].push_back(entity);

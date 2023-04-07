@@ -116,7 +116,7 @@ static void prepare_constraints(entt::registry &registry, scalar dt, bool mt) {
     };
 
     const size_t max_sequential_size = 4;
-    auto num_constraints = calculate_view_size(registry.view<constraint_tag>(exclude_sleeping_disabled));
+    auto num_constraints = calculate_view_size(cache_view);
 
     if (mt && num_constraints > max_sequential_size) {
         auto &dispatcher = job_dispatcher::global();

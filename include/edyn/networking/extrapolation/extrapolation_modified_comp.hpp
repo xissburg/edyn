@@ -110,6 +110,7 @@ public:
 
     void remove_entity(entt::entity entity) override {
         m_registry->erase<modified_components>(entity);
+        (assure<Components>().remove(entity), ...);
     }
 
     void clear_modified(const entt::sparse_set &entities) override {

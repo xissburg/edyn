@@ -127,12 +127,13 @@ void broadphase::collide_tree(const dynamic_tree &tree, entt::entity entity,
     auto aabb_view = m_registry->view<AABB>();
     auto &settings = m_registry->ctx().at<edyn::settings>();
     auto &manifold_map = m_registry->ctx().at<contact_manifold_map>();
+    auto disabled_view = m_registry->view<disabled_tag>();
 
     tree.query(offset_aabb, [&](tree_node_id_t id) {
         auto &node = tree.get_node(id);
         auto collides = (*settings.should_collide_func)(*m_registry, entity, node.entity);
 
-        if (collides && !manifold_map.contains(entity, node.entity)) {
+        if (collides && !manifold_map.contains(entity, node.entity) && !disabled_view.contains(node.entity)) {
             auto [other_aabb] = aabb_view.get(node.entity);
 
             if (intersect(offset_aabb, other_aabb)) {
@@ -146,11 +147,12 @@ void broadphase::collide_tree_async(const dynamic_tree &tree, entt::entity entit
                                     const AABB &offset_aabb, size_t result_index) {
     auto aabb_view = m_registry->view<AABB>();
     auto &settings = m_registry->ctx().at<edyn::settings>();
+    auto disabled_view = m_registry->view<disabled_tag>();
 
     tree.query(offset_aabb, [&](tree_node_id_t id) {
         auto &node = tree.get_node(id);
 
-        if ((*settings.should_collide_func)(*m_registry, entity, node.entity)) {
+        if ((*settings.should_collide_func)(*m_registry, entity, node.entity) && !disabled_view.contains(node.entity)) {
             auto [other_aabb] = aabb_view.get(node.entity);
 
             if (intersect(offset_aabb, other_aabb)) {

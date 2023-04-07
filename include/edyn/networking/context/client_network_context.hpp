@@ -50,6 +50,8 @@ struct client_network_context {
     std::shared_ptr<input_state_history> input_history;
 
     std::unique_ptr<extrapolation_worker> extrapolator;
+    std::vector<extrapolation_request> pending_extrapolations;
+
     message_queue_handle<extrapolation_result> message_queue {
         message_dispatcher::global().make_queue<extrapolation_result>("client_side")};
 
