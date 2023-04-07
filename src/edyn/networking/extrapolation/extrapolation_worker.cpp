@@ -478,7 +478,7 @@ void extrapolation_worker::extrapolate() {
         bphase.update(true);
         m_island_manager.update(m_current_time);
         nphase.update(true);
-        m_solver.update(false);
+        m_solver.update(true);
         finish_step();
     }
 
