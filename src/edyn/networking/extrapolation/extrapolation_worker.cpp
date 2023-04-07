@@ -285,7 +285,7 @@ void extrapolation_worker::init_extrapolation() {
 
         if (resident_view.contains(entity)) {
             auto [resident] = resident_view.get(entity);
-            m_registry.remove<sleeping_tag>(resident.island_entity);
+            m_registry.remove<sleeping_tag, disabled_tag>(resident.island_entity);
         }
     }
 
@@ -373,8 +373,16 @@ void extrapolation_worker::finish_extrapolation() {
     });
 
     // Disable all entities at the end.
+    auto resident_view = m_registry.view<island_resident>();
     for (auto entity : m_current_entities) {
         m_registry.emplace<disabled_tag>(entity);
+
+        if (resident_view.contains(entity)) {
+            auto [resident] = resident_view.get(entity);
+            if (!m_registry.all_of<disabled_tag>(resident.island_entity)) {
+                m_registry.emplace<disabled_tag>(resident.island_entity);
+            }
+        }
     }
 
     // Assign timestamp of the last step.

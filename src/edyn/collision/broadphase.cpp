@@ -100,7 +100,7 @@ void broadphase::move_aabbs() {
         m_np_tree.move(node.id, aabb);
     });
 
-    auto island_aabb_node_view = m_registry->view<island_tree_resident, island_AABB>(entt::exclude_t<sleeping_tag>{});
+    auto island_aabb_node_view = m_registry->view<island_tree_resident, island_AABB>(exclude_sleeping_disabled);
     island_aabb_node_view.each([&](island_tree_resident &node, island_AABB &aabb) {
         m_island_tree.move(node.id, aabb);
     });

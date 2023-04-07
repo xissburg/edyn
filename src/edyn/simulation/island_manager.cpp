@@ -580,7 +580,7 @@ bool island_manager::could_go_to_sleep(entt::entity island_entity) const {
 }
 
 void island_manager::put_islands_to_sleep() {
-    auto island_view = m_registry->view<island>(entt::exclude_t<sleeping_tag>{});
+    auto island_view = m_registry->view<island>(exclude_sleeping_disabled);
 
     for (auto [entity, island] : island_view.each()) {
         if (could_go_to_sleep(entity)) {
