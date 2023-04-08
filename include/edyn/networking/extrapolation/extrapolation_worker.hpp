@@ -29,14 +29,14 @@ class extrapolation_worker final {
 
     void init();
     void deinit();
-    bool init_extrapolation();
-    bool should_step();
+    bool init_extrapolation(const extrapolation_request &);
+    bool should_step(const extrapolation_request &);
     void begin_step();
     void finish_step();
     void apply_history();
-    void finish_extrapolation();
+    void finish_extrapolation(const extrapolation_request &);
     void run();
-    void extrapolate();
+    void extrapolate(const extrapolation_request &);
 
 public:
     extrapolation_worker(const settings &settings,
@@ -84,9 +84,9 @@ private:
     std::unique_ptr<std::thread> m_thread;
     std::atomic<bool> m_running {false};
     std::atomic<bool> m_has_messages {false};
-    bool m_has_work {false};
 
-    extrapolation_request m_request;
+    std::vector<extrapolation_request> m_requests;
+    unsigned m_max_requests {3};
     entt::sparse_set m_current_entities;
 
     double m_init_time;

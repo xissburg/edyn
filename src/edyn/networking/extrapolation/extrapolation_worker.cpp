@@ -126,8 +126,11 @@ void extrapolation_worker::set_context_settings(std::shared_ptr<input_state_hist
 }
 
 void extrapolation_worker::on_extrapolation_request(message<extrapolation_request> &msg) {
-    m_request = std::move(msg.content);
-    m_has_work = true;
+    if (m_requests.size() == m_max_requests) {
+        m_requests.erase(m_requests.begin());
+    }
+
+    m_requests.emplace_back(std::move(msg.content));
 }
 
 void extrapolation_worker::on_registry_operation(message<registry_operation> &msg) {
@@ -246,9 +249,9 @@ void extrapolation_worker::apply_history() {
     m_input_history->import_each(since_time, settings.fixed_dt, m_registry, m_entity_map);
 }
 
-bool extrapolation_worker::init_extrapolation() {
+bool extrapolation_worker::init_extrapolation(const extrapolation_request &request) {
     m_init_time = performance_time();
-    m_current_time = m_request.start_time;
+    m_current_time = request.start_time;
     m_step_count = 0;
     m_island_manager.set_last_time(m_current_time);
     m_terminated_early = false;
@@ -266,7 +269,7 @@ bool extrapolation_worker::init_extrapolation() {
     // changed recently. Though the extrapolation must include all entities
     // that belong in the same island because entities cannot be simulated in
     // isolation from their island. An island is always simulated as one unit.
-    for (auto remote_entity : m_request.snapshot.entities) {
+    for (auto remote_entity : request.snapshot.entities) {
         // Abort if snapshot contains unknown entities.
         if (!m_entity_map.contains(remote_entity)) {
             return false;
@@ -321,8 +324,8 @@ bool extrapolation_worker::init_extrapolation() {
 
     // Replace client component state by latest server state. The snapshot
     // only contains components which have changed since the last update.
-    for (auto &pool : m_request.snapshot.pools) {
-        pool.ptr->replace_into_registry(m_registry, m_request.snapshot.entities, m_entity_map);
+    for (auto &pool : request.snapshot.pools) {
+        pool.ptr->replace_into_registry(m_registry, request.snapshot.entities, m_entity_map);
     }
 
     // Assign current state as the last known remote state which will be used
@@ -358,7 +361,7 @@ bool extrapolation_worker::init_extrapolation() {
     return true;
 }
 
-void extrapolation_worker::finish_extrapolation() {
+void extrapolation_worker::finish_extrapolation(const extrapolation_request &request) {
     // Insert modified components into a registry operation to be sent back to
     // the main thread which will assign the extrapolated state to its entities.
     auto &reg_op_ctx = m_registry.ctx().at<registry_operation_context>();
@@ -366,7 +369,7 @@ void extrapolation_worker::finish_extrapolation() {
 
     // Local entity mapping must not be included if the result is going to be
     // remapped into remote space.
-    if (!m_request.should_remap) {
+    if (!request.should_remap) {
         m_entity_map.each([&](auto remote_entity, auto local_entity) {
             builder->add_entity_mapping(local_entity, remote_entity);
         });
@@ -377,7 +380,7 @@ void extrapolation_worker::finish_extrapolation() {
     // inputs must not be overriden by the last value set by extrapolation.
     auto owned_entities = entt::sparse_set{};
 
-    for (auto remote_entity : m_request.owned_entities) {
+    for (auto remote_entity : request.owned_entities) {
         auto local_entity = m_entity_map.at(remote_entity);
         owned_entities.emplace(local_entity);
     }
@@ -415,14 +418,14 @@ void extrapolation_worker::finish_extrapolation() {
     // Assign timestamp of the last step.
     result.timestamp = m_current_time;
 
-    if (m_request.should_remap) {
+    if (request.should_remap) {
         m_entity_map.swap();
         result.remap(m_entity_map);
         m_entity_map.swap();
     }
 
     auto &dispatcher = message_dispatcher::global();
-    dispatcher.send<extrapolation_result>(m_request.destination, m_message_queue.identifier, std::move(result));
+    dispatcher.send<extrapolation_result>(request.destination, m_message_queue.identifier, std::move(result));
 
     // Destroy all contact manifolds to avoid mixing up with future jobs.
     m_registry.destroy(manifold_view.begin(), manifold_view.end());
@@ -430,10 +433,10 @@ void extrapolation_worker::finish_extrapolation() {
     m_current_entities.clear();
 }
 
-bool extrapolation_worker::should_step() {
+bool extrapolation_worker::should_step(const extrapolation_request &request) {
     auto time = performance_time();
 
-    if (time - m_init_time > m_request.execution_time_limit) {
+    if (time - m_init_time > request.execution_time_limit) {
         // Timeout.
         m_terminated_early = true;
         return false;
@@ -476,15 +479,15 @@ void extrapolation_worker::finish_step() {
     ++m_step_count;
 }
 
-void extrapolation_worker::extrapolate() {
-    if (!init_extrapolation()) {
+void extrapolation_worker::extrapolate(const extrapolation_request &request) {
+    if (!init_extrapolation(request)) {
         return;
     }
 
     auto &bphase = m_registry.ctx().at<broadphase>();
     auto &nphase = m_registry.ctx().at<narrowphase>();
 
-    while (should_step()) {
+    while (should_step(request)) {
         begin_step();
         bphase.update(true);
         m_island_manager.update(m_current_time);
@@ -493,7 +496,7 @@ void extrapolation_worker::extrapolate() {
         finish_step();
     }
 
-    finish_extrapolation();
+    finish_extrapolation(request);
 }
 
 void extrapolation_worker::run() {
@@ -508,12 +511,15 @@ void extrapolation_worker::run() {
             });
         }
 
-        m_message_queue.update();
+        do {
+            m_message_queue.update();
 
-        if (m_has_work) {
-            extrapolate();
-            m_has_work = false;
-        }
+            if (!m_requests.empty()) {
+                auto req = std::move(m_requests.front());
+                m_requests.erase(m_requests.begin());
+                extrapolate(req);
+            }
+        } while (!m_requests.empty() && m_has_messages.exchange(false, std::memory_order_relaxed));
     }
 
     deinit();
