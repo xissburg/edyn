@@ -191,9 +191,11 @@ void extrapolation_worker::on_registry_operation(message<registry_operation> &ms
     // All procedurals have a `island_resident` component.
     // Non-procedurals are never disabled.
     auto resident_view = m_registry.view<island_resident>();
+    entt::sparse_set local_create_entities;
 
     for (auto remote_entity : ops.create_entities) {
         auto local_entity = emap.at(remote_entity);
+        local_create_entities.emplace(local_entity);
 
         // Observe component changes for this entity.
         m_modified_comp->add_entity(local_entity);
@@ -208,16 +210,10 @@ void extrapolation_worker::on_registry_operation(message<registry_operation> &ms
         }
     }
 
-    // Store copy of imported state into "server" state storage.
-    if (!ops.create_entities.empty()) {
-        entt::sparse_set entities;
-
-        for (auto remote_entity : ops.create_entities) {
-            auto local_entity = emap.at(remote_entity);
-            entities.emplace(local_entity);
-        }
-
-        m_modified_comp->export_remote_state(entities);
+    // Store copy of imported state into local state storage. This represents
+    // the remote state that's been most recently seen.
+    if (!local_create_entities.empty()) {
+        m_modified_comp->export_remote_state(local_create_entities);
     }
 }
 
@@ -376,7 +372,7 @@ void extrapolation_worker::finish_extrapolation(const extrapolation_request &req
     }
 
     // Collect owned entities so they can be fed to the export function, which
-    // will ignore input components owned by the local client because local
+    // will ignore input components owned by the local client because user
     // inputs must not be overriden by the last value set by extrapolation.
     auto owned_entities = entt::sparse_set{};
 
@@ -419,6 +415,8 @@ void extrapolation_worker::finish_extrapolation(const extrapolation_request &req
     result.timestamp = m_current_time;
 
     if (request.should_remap) {
+        // Map all entities (including those contained in components) back to
+        // the source registry space.
         m_entity_map.swap();
         result.remap(m_entity_map);
         m_entity_map.swap();

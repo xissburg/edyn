@@ -84,7 +84,6 @@ struct client_network_context {
     }
 
     make_extrapolation_modified_comp_func_t *make_extrapolation_modified_comp;
-    registry_operation extrapolation_operations;
 
     std::shared_ptr<client_snapshot_importer> snapshot_importer;
     std::shared_ptr<client_snapshot_exporter> snapshot_exporter;

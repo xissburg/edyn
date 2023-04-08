@@ -32,7 +32,6 @@
 #include "edyn/dynamics/island_solver.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/util/entt_util.hpp"
-#include "edyn/util/island_util.hpp"
 #include <entt/entity/registry.hpp>
 #include <optional>
 #include <type_traits>
