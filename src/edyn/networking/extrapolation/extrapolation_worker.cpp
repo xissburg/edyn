@@ -246,7 +246,7 @@ void extrapolation_worker::apply_history() {
     m_input_history->import_each(since_time, settings.fixed_dt, m_registry, m_entity_map);
 }
 
-void extrapolation_worker::init_extrapolation() {
+bool extrapolation_worker::init_extrapolation() {
     m_init_time = performance_time();
     m_current_time = m_request.start_time;
     m_step_count = 0;
@@ -256,6 +256,7 @@ void extrapolation_worker::init_extrapolation() {
     // Initialize new nodes and edges and create islands.
     m_island_manager.update(m_current_time);
 
+    // Collect indices of nodes present in the snapshot.
     auto &graph = m_registry.ctx().at<entity_graph>();
     std::set<entity_graph::index_type> node_indices;
     auto node_view = m_registry.view<graph_node>();
@@ -266,6 +267,11 @@ void extrapolation_worker::init_extrapolation() {
     // that belong in the same island because entities cannot be simulated in
     // isolation from their island. An island is always simulated as one unit.
     for (auto remote_entity : m_request.snapshot.entities) {
+        // Abort if snapshot contains unknown entities.
+        if (!m_entity_map.contains(remote_entity)) {
+            return false;
+        }
+
         auto local_entity = m_entity_map.at(remote_entity);
         snapshot_entities.emplace(local_entity);
 
@@ -348,6 +354,8 @@ void extrapolation_worker::init_extrapolation() {
     }
 
     m_current_entities = std::move(entities);
+
+    return true;
 }
 
 void extrapolation_worker::finish_extrapolation() {
@@ -469,7 +477,10 @@ void extrapolation_worker::finish_step() {
 }
 
 void extrapolation_worker::extrapolate() {
-    init_extrapolation();
+    if (!init_extrapolation()) {
+        return;
+    }
+
     auto &bphase = m_registry.ctx().at<broadphase>();
     auto &nphase = m_registry.ctx().at<narrowphase>();
 
