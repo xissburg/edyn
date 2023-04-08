@@ -87,7 +87,6 @@ private:
 
     std::vector<extrapolation_request> m_requests;
     unsigned m_max_requests {3};
-    entt::sparse_set m_current_entities;
 
     double m_init_time;
     double m_current_time;

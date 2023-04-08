@@ -42,14 +42,14 @@ public:
     // Store most recently seen remote state into the local storage.
     virtual void export_remote_state(const entt::sparse_set &entities) = 0;
 
-    // Exports the modified components of the given entities into the builder.
+    // Exports components that have been modified throughout extrapolation into
+    // the builder.
     virtual void export_to_builder(registry_operation_builder &builder,
-                                   const entt::sparse_set &entities,
                                    const entt::sparse_set &owned_entities) = 0;
 
     // Clears the modified flags. Should be called after exporting to a builder
     // so the state is cleared for future extrapolations.
-    virtual void clear_modified(const entt::sparse_set &entities) = 0;
+    virtual void clear_modified() = 0;
 
 protected:
     entt::registry *m_registry;
@@ -178,13 +178,10 @@ public:
     }
 
     void export_to_builder(registry_operation_builder &builder,
-                           const entt::sparse_set &entities,
                            const entt::sparse_set &owned_entities) override {
         const auto components_tuple = std::tuple<Components...>{};
-        auto modified_view = m_registry->view<modified_components>();
 
-        for (auto entity : entities) {
-            auto [modified] = modified_view.get(entity);
+        for (auto [entity, modified] : m_registry->view<modified_components>().each()) {
             const auto owned_entity = owned_entities.contains(entity);
 
             for (unsigned i = 0; i < modified.count; ++i) {
@@ -203,13 +200,10 @@ public:
         }
     }
 
-    void clear_modified(const entt::sparse_set &entities) override {
-        auto modified_view = m_registry->view<modified_components>();
-
-        for (auto entity : entities) {
-            auto [modified] = modified_view.get(entity);
+    void clear_modified() override {
+        m_registry->view<modified_components>().each([](auto &&modified) {
             modified.count = 0;
-        }
+        });
     }
 
 private:

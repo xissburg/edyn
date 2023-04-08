@@ -554,6 +554,12 @@ void island_manager::put_to_sleep(entt::entity island_entity) {
     }
 }
 
+void island_manager::put_all_to_sleep() {
+    for (auto island_entity : m_registry->view<island>(exclude_sleeping_disabled)) {
+        put_to_sleep(island_entity);
+    }
+}
+
 bool island_manager::could_go_to_sleep(entt::entity island_entity) const {
     auto &island = m_registry->get<edyn::island>(island_entity);
     auto sleeping_disabled_view = m_registry->view<sleeping_disabled_tag>();

@@ -30,7 +30,9 @@
 #include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/math/transform.hpp"
 #include "edyn/time/time.hpp"
+#include "edyn/util/island_util.hpp"
 #include <entt/entity/registry.hpp>
+#include <entt/entity/utility.hpp>
 
 namespace edyn {
 
@@ -187,10 +189,9 @@ void extrapolation_worker::on_registry_operation(message<registry_operation> &ms
     // Initialize new nodes and edges and create islands.
     m_island_manager.update(m_current_time);
 
-    // All procedural entities must be disabled when created.
-    // All procedurals have a `island_resident` component.
-    // Non-procedurals are never disabled.
-    auto resident_view = m_registry.view<island_resident>();
+    // Force all new islands to sleep.
+    m_island_manager.put_all_to_sleep();
+
     entt::sparse_set local_create_entities;
 
     for (auto remote_entity : ops.create_entities) {
@@ -199,15 +200,6 @@ void extrapolation_worker::on_registry_operation(message<registry_operation> &ms
 
         // Observe component changes for this entity.
         m_modified_comp->add_entity(local_entity);
-
-        if (resident_view.contains(local_entity)) {
-            m_registry.emplace<disabled_tag>(local_entity);
-
-            auto [resident] = resident_view.get(local_entity);
-            if (!m_registry.all_of<disabled_tag>(resident.island_entity)) {
-                m_registry.emplace<disabled_tag>(resident.island_entity);
-            }
-        }
     }
 
     // Store copy of imported state into local state storage. This represents
@@ -298,16 +290,13 @@ bool extrapolation_worker::init_extrapolation(const extrapolation_request &reque
             }
         }, [](auto) { return true; }, []() {});
 
-    // Enable simulation for all involved entities.
+    // Wake up all involved islands.
     auto resident_view = m_registry.view<island_resident>();
 
     for (auto entity : entities) {
-        m_registry.remove<disabled_tag>(entity);
-        m_registry.remove<sleeping_tag>(entity);
-
         if (resident_view.contains(entity)) {
             auto [resident] = resident_view.get(entity);
-            m_registry.remove<sleeping_tag, disabled_tag>(resident.island_entity);
+            wake_up_island(m_registry, resident.island_entity);
         }
     }
 
@@ -352,8 +341,6 @@ bool extrapolation_worker::init_extrapolation(const extrapolation_request &reque
         }
     }
 
-    m_current_entities = std::move(entities);
-
     return true;
 }
 
@@ -382,34 +369,22 @@ void extrapolation_worker::finish_extrapolation(const extrapolation_request &req
     }
 
     m_modified_comp->set_observe_changes(false);
-    m_modified_comp->export_to_builder(*builder, m_current_entities, owned_entities);
-    m_modified_comp->clear_modified(m_current_entities);
+    m_modified_comp->export_to_builder(*builder, owned_entities);
+    m_modified_comp->clear_modified();
 
     auto result = extrapolation_result{};
     result.ops = std::move(builder->finish());
     EDYN_ASSERT(!result.ops.empty());
 
-    // Insert all manifolds into it. All manifolds in the registry belong to
-    // this extrapolation since they're always destroyed at the end of the job.
-    auto manifold_view = m_registry.view<contact_manifold>();
+    // All manifolds that are not sleeping have been involved in the
+    // extrapolation.
+    auto manifold_view = m_registry.view<contact_manifold>(entt::exclude_t<sleeping_tag>{});
     manifold_view.each([&](contact_manifold &manifold) {
         result.manifolds.push_back(manifold);
     });
 
-    // Disable procedural entities at the end. All procedural entities have a
-    // `island_resident` component.
-    // Non-procedurals are never disabled.
-    auto resident_view = m_registry.view<island_resident>();
-    for (auto entity : m_current_entities) {
-        if (resident_view.contains(entity)) {
-            m_registry.emplace<disabled_tag>(entity);
-
-            auto [resident] = resident_view.get(entity);
-            if (!m_registry.all_of<disabled_tag>(resident.island_entity)) {
-                m_registry.emplace<disabled_tag>(resident.island_entity);
-            }
-        }
-    }
+    // Put all islands to sleep at the end.
+    m_island_manager.put_all_to_sleep();
 
     // Assign timestamp of the last step.
     result.timestamp = m_current_time;
@@ -424,11 +399,6 @@ void extrapolation_worker::finish_extrapolation(const extrapolation_request &req
 
     auto &dispatcher = message_dispatcher::global();
     dispatcher.send<extrapolation_result>(request.destination, m_message_queue.identifier, std::move(result));
-
-    // Destroy all contact manifolds to avoid mixing up with future jobs.
-    m_registry.destroy(manifold_view.begin(), manifold_view.end());
-
-    m_current_entities.clear();
 }
 
 bool extrapolation_worker::should_step(const extrapolation_request &request) {
