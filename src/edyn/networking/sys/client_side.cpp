@@ -9,6 +9,7 @@
 #include "edyn/networking/comp/action_history.hpp"
 #include "edyn/networking/comp/asset_ref.hpp"
 #include "edyn/networking/comp/discontinuity.hpp"
+#include "edyn/networking/extrapolation/extrapolation_operation.hpp"
 #include "edyn/networking/extrapolation/extrapolation_result.hpp"
 #include "edyn/networking/networking_external.hpp"
 #include "edyn/networking/packet/asset_sync.hpp"
@@ -163,17 +164,22 @@ static void process_created_entities(entt::registry &registry) {
 
     auto &reg_op_ctx = registry.ctx().at<registry_operation_context>();
     auto builder = (*reg_op_ctx.make_reg_op_builder)(registry);
+    std::vector<entt::entity> owned_entities;
 
     for (auto entity : ctx.created_entities) {
         builder->create(entity);
         builder->emplace_all(entity);
+
+        if (ctx.owned_entities.contains(entity)) {
+            owned_entities.push_back(entity);
+        }
     }
 
     auto op = builder->finish();
     auto &dispatcher = message_dispatcher::global();
-    dispatcher.send<registry_operation>({"extrapolation_worker"},
-                                        ctx.message_queue.identifier,
-                                        std::move(op));
+    dispatcher.send<extrapolation_operation_create>(
+        {"extrapolation_worker"}, ctx.message_queue.identifier,
+        std::move(op), std::move(owned_entities));
 
     ctx.created_entities.clear();
 }
@@ -210,17 +216,9 @@ static void process_destroyed_entities(entt::registry &registry) {
     }
 
     // Destroy entities in extrapolator.
-    auto &reg_op_ctx = registry.ctx().at<registry_operation_context>();
-    auto builder = (*reg_op_ctx.make_reg_op_builder)(registry);
-    builder->destroy(ctx.destroyed_entities.begin(), ctx.destroyed_entities.end());
-    auto op = builder->finish();
-
     auto &dispatcher = message_dispatcher::global();
-    dispatcher.send<registry_operation>({"extrapolation_worker"},
-                                        ctx.message_queue.identifier,
-                                        std::move(op));
-
-    ctx.destroyed_entities.clear();
+    dispatcher.send<extrapolation_operation_destroy>(
+        {"extrapolation_worker"}, ctx.message_queue.identifier, std::move(ctx.destroyed_entities));
 }
 
 static void process_client_destroyed_entities(entt::registry &registry, double time) {
@@ -305,10 +303,10 @@ void update_network_client(entt::registry &registry) {
     auto time = performance_time();
 
     client_update_clock_sync(registry, time);
-    process_created_entities(registry);
-    process_destroyed_entities(registry);
     process_client_created_entities(registry, time);
     process_client_destroyed_entities(registry, time);
+    process_created_entities(registry);
+    process_destroyed_entities(registry);
     dispatch_extrapolations(registry);
     update_client_snapshot_exporter(registry, time);
     maybe_publish_registry_snapshot(registry, time);
@@ -707,14 +705,6 @@ static void process_packet(entt::registry &registry, packet::registry_snapshot &
         req.destination = {"worker"};
     } else {
         req.destination = ctx.message_queue.identifier;
-    }
-
-    for (auto entity : snapshot.entities) {
-        if (auto *owner = registry.try_get<entity_owner>(entity);
-            owner && owner->client_entity == ctx.client_entity)
-        {
-            req.owned_entities.emplace(entity);
-        }
     }
 
     req.snapshot = std::move(snapshot);

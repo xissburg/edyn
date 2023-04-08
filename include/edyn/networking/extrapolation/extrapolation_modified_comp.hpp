@@ -160,7 +160,9 @@ public:
     }
 
     void remove_entity(entt::entity entity) override {
-        m_registry->erase<modified_components>(entity);
+        if (m_registry->valid(entity)) {
+            m_registry->erase<modified_components>(entity);
+        }
         (assure<Components>().remove(entity), ...);
     }
 

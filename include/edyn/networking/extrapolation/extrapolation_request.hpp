@@ -10,7 +10,6 @@ namespace edyn {
 struct extrapolation_request {
     message_queue_identifier destination;
     double start_time;
-    entt::sparse_set owned_entities {};
     packet::registry_snapshot snapshot;
     double execution_time_limit {0.4};
     bool should_remap {true};

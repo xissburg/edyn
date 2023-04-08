@@ -13,6 +13,7 @@
 #include "edyn/context/settings.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
 #include "edyn/networking/context/client_network_context.hpp"
+#include "edyn/networking/extrapolation/extrapolation_operation.hpp"
 #include "edyn/networking/extrapolation/extrapolation_request.hpp"
 #include "edyn/networking/util/input_state_history.hpp"
 #include "edyn/parallel/message.hpp"
@@ -47,7 +48,8 @@ extrapolation_worker::extrapolation_worker(const settings &settings,
     , m_island_manager(m_registry)
     , m_message_queue(message_dispatcher::global().make_queue<
         extrapolation_request,
-        registry_operation,
+        extrapolation_operation_create,
+        extrapolation_operation_destroy,
         msg::set_settings,
         msg::set_registry_operation_context,
         msg::set_material_table,
@@ -62,7 +64,8 @@ extrapolation_worker::extrapolation_worker(const settings &settings,
     m_registry.ctx().emplace<material_mix_table>(material_table);
 
     m_message_queue.sink<extrapolation_request>().connect<&extrapolation_worker::on_extrapolation_request>(*this);
-    m_message_queue.sink<registry_operation>().connect<&extrapolation_worker::on_registry_operation>(*this);
+    m_message_queue.sink<extrapolation_operation_create>().connect<&extrapolation_worker::on_extrapolation_operation_create>(*this);
+    m_message_queue.sink<extrapolation_operation_destroy>().connect<&extrapolation_worker::on_extrapolation_operation_destroy>(*this);
     m_message_queue.sink<msg::set_settings>().connect<&extrapolation_worker::on_set_settings>(*this);
     m_message_queue.sink<msg::set_registry_operation_context>().connect<&extrapolation_worker::on_set_reg_op_ctx>(*this);
     m_message_queue.sink<msg::set_material_table>().connect<&extrapolation_worker::on_set_material_table>(*this);
@@ -135,16 +138,33 @@ void extrapolation_worker::on_extrapolation_request(message<extrapolation_reques
     m_requests.emplace_back(std::move(msg.content));
 }
 
-void extrapolation_worker::on_registry_operation(message<registry_operation> &msg) {
-    auto &ops = msg.content;
-    auto &emap = m_entity_map;
+void extrapolation_worker::on_extrapolation_operation_destroy(message<extrapolation_operation_destroy> &msg) {
+    for (auto remote_entity : msg.content.entities) {
+        if (!m_entity_map.contains(remote_entity)) {
+            continue;
+        }
 
-    // Process destroyed entities before executing because entity mappings
-    // will be removed.
-    for (auto remote_entity : ops.destroy_entities) {
-        auto local_entity = emap.at(remote_entity);
+        auto local_entity = m_entity_map.at(remote_entity);
+        m_entity_map.erase(remote_entity);
+
+        m_owned_entities.remove(local_entity);
         m_modified_comp->remove_entity(local_entity);
+
+        if (m_registry.valid(local_entity)) {
+            m_registry.destroy(local_entity);
+        }
     }
+
+    // Islands might've been split.
+    m_island_manager.update(m_current_time);
+
+    // Force all split islands to stay asleep.
+    m_island_manager.put_all_to_sleep();
+}
+
+void extrapolation_worker::on_extrapolation_operation_create(message<extrapolation_operation_create> &msg) {
+    auto &ops = msg.content.ops;
+    auto &emap = m_entity_map;
 
     ops.execute(m_registry, m_entity_map);
 
@@ -206,6 +226,12 @@ void extrapolation_worker::on_registry_operation(message<registry_operation> &ms
     // the remote state that's been most recently seen.
     if (!local_create_entities.empty()) {
         m_modified_comp->export_remote_state(local_create_entities);
+    }
+
+    // Collect owned entities.
+    for (auto remote_entity : msg.content.owned_entities) {
+        auto local_entity = emap.at(remote_entity);
+        m_owned_entities.emplace(local_entity);
     }
 }
 
@@ -358,18 +384,11 @@ void extrapolation_worker::finish_extrapolation(const extrapolation_request &req
         });
     }
 
-    // Collect owned entities so they can be fed to the export function, which
-    // will ignore input components owned by the local client because user
-    // inputs must not be overriden by the last value set by extrapolation.
-    auto owned_entities = entt::sparse_set{};
-
-    for (auto remote_entity : request.owned_entities) {
-        auto local_entity = m_entity_map.at(remote_entity);
-        owned_entities.emplace(local_entity);
-    }
-
+    // The export function will ignore input components owned by the local
+    // client because user inputs must not be overriden by the last value set
+    // by extrapolation.
     m_modified_comp->set_observe_changes(false);
-    m_modified_comp->export_to_builder(*builder, owned_entities);
+    m_modified_comp->export_to_builder(*builder, m_owned_entities);
     m_modified_comp->clear_modified();
 
     auto result = extrapolation_result{};

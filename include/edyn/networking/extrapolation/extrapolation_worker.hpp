@@ -8,11 +8,11 @@
 #include <condition_variable>
 #include <entt/entity/fwd.hpp>
 #include "edyn/networking/extrapolation/extrapolation_modified_comp.hpp"
+#include "edyn/networking/extrapolation/extrapolation_operation.hpp"
 #include "edyn/networking/extrapolation/extrapolation_request.hpp"
 #include "edyn/networking/extrapolation/extrapolation_result.hpp"
 #include "edyn/dynamics/solver.hpp"
 #include "edyn/replication/entity_map.hpp"
-#include "edyn/replication/registry_operation.hpp"
 #include "edyn/simulation/island_manager.hpp"
 #include "edyn/util/polyhedron_shape_initializer.hpp"
 #include "edyn/parallel/message.hpp"
@@ -57,7 +57,8 @@ public:
                               make_extrapolation_modified_comp_func_t *make_extrapolation_modified_comp);
 
     void on_extrapolation_request(message<extrapolation_request> &msg);
-    void on_registry_operation(message<registry_operation> &msg);
+    void on_extrapolation_operation_create(message<extrapolation_operation_create> &msg);
+    void on_extrapolation_operation_destroy(message<extrapolation_operation_destroy> &msg);
     void on_set_settings(message<msg::set_settings> &msg);
     void on_set_reg_op_ctx(message<msg::set_registry_operation_context> &msg);
     void on_set_material_table(message<msg::set_material_table> &msg);
@@ -75,7 +76,8 @@ private:
 
     message_queue_handle<
         extrapolation_request,
-        registry_operation,
+        extrapolation_operation_create,
+        extrapolation_operation_destroy,
         msg::set_settings,
         msg::set_registry_operation_context,
         msg::set_material_table,
@@ -87,6 +89,7 @@ private:
 
     std::vector<extrapolation_request> m_requests;
     unsigned m_max_requests {3};
+    entt::sparse_set m_owned_entities;
 
     double m_init_time;
     double m_current_time;
