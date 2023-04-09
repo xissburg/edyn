@@ -235,8 +235,9 @@ public:
                 continue;
             }
 
-            auto [owner] = owner_view.get(entity);
-            const auto owned_by_destination = owner.client_entity == dest_client_entity;
+            const auto owned_by_destination =
+                owner_view.contains(entity) &&
+                std::get<0>(owner_view.get(entity)).client_entity == dest_client_entity;
             export_modified_entity(registry, entity, modified, owned_by_destination, snap);
 
             // Include child entities
