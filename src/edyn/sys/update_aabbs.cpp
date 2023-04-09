@@ -72,7 +72,7 @@ void update_island_aabbs(entt::registry &registry) {
     auto aabb_view = registry.view<AABB>();
     auto procedural_view = registry.view<procedural_tag>();
 
-    registry.view<island, island_AABB>(entt::exclude_t<sleeping_tag>{})
+    registry.view<island, island_AABB>(exclude_sleeping_disabled)
         .each([&](island &island, island_AABB &aabb) {
         auto is_first_node = true;
 

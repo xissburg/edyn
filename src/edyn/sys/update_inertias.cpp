@@ -22,7 +22,7 @@ void update_inertias(entt::registry &registry) {
 }
 
 void update_inertia(entt::registry &registry, entt::entity entity) {
-    auto view = registry.view<orientation, inertia_inv, inertia_world_inv, dynamic_tag>(exclude_sleeping_disabled);
+    auto view = registry.view<orientation, inertia_inv, inertia_world_inv, dynamic_tag>();
     update_inertia(entity, view);
 }
 

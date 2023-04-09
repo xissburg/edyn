@@ -20,7 +20,6 @@ class island_manager {
     void split_islands();
     void wake_up_islands();
 
-    void put_to_sleep(entt::entity island_entity);
     bool could_go_to_sleep(entt::entity island_entity) const;
     void put_islands_to_sleep();
 
@@ -33,6 +32,9 @@ public:
     void on_destroy_graph_edge(entt::registry &, entt::entity);
     void on_destroy_island_resident(entt::registry &, entt::entity);
     void on_destroy_multi_island_resident(entt::registry &, entt::entity);
+
+    void put_to_sleep(entt::entity island_entity);
+    void put_all_to_sleep();
 
     void update(double timestamp);
 

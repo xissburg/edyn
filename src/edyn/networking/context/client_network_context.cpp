@@ -7,11 +7,9 @@
 namespace edyn {
 
 static std::unique_ptr<extrapolation_modified_comp>
-make_extrapolation_modified_comp_default(entt::registry &registry,
-                                         entt::sparse_set &relevant_entities,
-                                         entt::sparse_set &owned_entities) {
+make_extrapolation_modified_comp_default(entt::registry &registry) {
     return std::unique_ptr<extrapolation_modified_comp>(
-        new extrapolation_modified_comp_impl(registry, relevant_entities, owned_entities, networked_components));
+        new extrapolation_modified_comp_impl(registry, networked_components));
 }
 
 client_network_context::client_network_context(entt::registry &registry)

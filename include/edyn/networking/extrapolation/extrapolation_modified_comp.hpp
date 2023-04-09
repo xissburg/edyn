@@ -20,22 +20,39 @@ namespace edyn {
  */
 class extrapolation_modified_comp {
 public:
-    extrapolation_modified_comp(entt::registry &registry,
-                                entt::sparse_set &relevant_entities,
-                                entt::sparse_set &owned_entities)
+    extrapolation_modified_comp(entt::registry &registry)
         : m_registry(&registry)
-        , m_relevant_entities(std::move(relevant_entities))
-        , m_owned_entities(std::move(owned_entities))
     {}
 
     virtual ~extrapolation_modified_comp() = default;
 
-    virtual void export_to_builder(registry_operation_builder &builder) = 0;
+    // Start observing changes to relevant components to keep track of which
+    // components changed during extrapolation.
+    virtual void set_observe_changes(bool observe) = 0;
+
+    // Add an entity to be observed for changes.
+    virtual void add_entity(entt::entity entity) = 0;
+
+    // Remove entity, usually before being destroyed.
+    virtual void remove_entity(entt::entity entity) = 0;
+
+    // Load initial state prior to extrapolation into the target registry.
+    virtual void import_remote_state(const entt::sparse_set &entities) = 0;
+
+    // Store most recently seen remote state into the local storage.
+    virtual void export_remote_state(const entt::sparse_set &entities) = 0;
+
+    // Exports components that have been modified throughout extrapolation into
+    // the builder.
+    virtual void export_to_builder(registry_operation_builder &builder,
+                                   const entt::sparse_set &owned_entities) = 0;
+
+    // Clears the modified flags. Should be called after exporting to a builder
+    // so the state is cleared for future extrapolations.
+    virtual void clear_modified() = 0;
 
 protected:
     entt::registry *m_registry;
-    entt::sparse_set m_relevant_entities;
-    entt::sparse_set m_owned_entities;
     std::vector<entt::scoped_connection> m_connections;
 };
 
@@ -73,28 +90,101 @@ class extrapolation_modified_comp_impl : public extrapolation_modified_comp {
         }
     }
 
-public:
-    extrapolation_modified_comp_impl(entt::registry &registry,
-                                     entt::sparse_set &relevant_entities,
-                                     entt::sparse_set &owned_entities,
-                                     [[maybe_unused]] std::tuple<Components...>)
-        : extrapolation_modified_comp(registry, relevant_entities, owned_entities)
-    {
-        for (auto entity : m_relevant_entities) {
-            registry.emplace<modified_components>(entity);
+    template<typename Component>
+    auto & assure() {
+        entt::id_type id = entt::type_hash<Component>::value();
+        auto &&pool = remote_state_pools[id];
+
+        if(!pool) {
+            pool.reset(new entt::storage<Component>{});
         }
 
-        (observe_update<Components>(registry), ...);
+        return static_cast<entt::storage<Component> &>(*pool);
+    }
 
+
+    template<typename Component>
+    void import_remote_state_single(const entt::sparse_set &entities) {
+        if constexpr(!std::is_empty_v<Component>) {
+            auto &storage = assure<Component>();
+            auto view = m_registry->view<Component>();
+
+            for (auto entity : entities) {
+                if (view.contains(entity)) {
+                    auto [comp] = view.get(entity);
+                    comp = storage.get(entity);
+                }
+            }
+        }
+    }
+
+    template<typename Component>
+    void export_remote_state_single(const entt::sparse_set &entities) {
+        if constexpr(!std::is_empty_v<Component>) {
+            auto &storage = assure<Component>();
+            auto view = m_registry->view<Component>();
+
+            for (auto entity : entities) {
+                if (view.contains(entity)) {
+                    auto &comp = view.template get<Component>(entity);
+
+                    if (storage.contains(entity)) {
+                        storage.get(entity) = comp;
+                    } else {
+                        storage.emplace(entity, comp);
+                    }
+                }
+            }
+        }
+    }
+
+public:
+    extrapolation_modified_comp_impl(entt::registry &registry,
+                                     [[maybe_unused]] std::tuple<Components...>)
+        : extrapolation_modified_comp(registry)
+    {
         unsigned i = 0;
         ((m_is_network_input[i++] = std::disjunction_v<std::is_base_of<network_input, Components>, std::is_same<action_history, Components>>), ...);
     }
 
-    void export_to_builder(registry_operation_builder &builder) override {
+    void set_observe_changes(bool observe) override {
+        if (observe) {
+            (observe_update<Components>(*m_registry), ...);
+        } else {
+            m_connections.clear();
+        }
+    }
+
+    void add_entity(entt::entity entity) override {
+        m_registry->emplace<modified_components>(entity);
+    }
+
+    void remove_entity(entt::entity entity) override {
+        if (m_registry->valid(entity)) {
+            m_registry->erase<modified_components>(entity);
+        }
+        (assure<Components>().remove(entity), ...);
+    }
+
+    // Copy values from local storage into registry, effectively overriding
+    // all components with the last seen values from server. Must be called
+    // prior to extrapolating to set the initial state.
+    void import_remote_state(const entt::sparse_set &entities) override {
+        (import_remote_state_single<Components>(entities), ...);
+    }
+
+    // Copy values from registry into local storage. Must be called after
+    // importing new remote state into the extrapolator's registry.
+    void export_remote_state(const entt::sparse_set &entities) override {
+        (export_remote_state_single<Components>(entities), ...);
+    }
+
+    void export_to_builder(registry_operation_builder &builder,
+                           const entt::sparse_set &owned_entities) override {
         const auto components_tuple = std::tuple<Components...>{};
 
         for (auto [entity, modified] : m_registry->view<modified_components>().each()) {
-            const auto owned_entity = m_owned_entities.contains(entity);
+            const auto owned_entity = owned_entities.contains(entity);
 
             for (unsigned i = 0; i < modified.count; ++i) {
                 auto comp_idx = modified.indices[i];
@@ -112,12 +202,19 @@ public:
         }
     }
 
+    void clear_modified() override {
+        m_registry->view<modified_components>().each([](auto &&modified) {
+            modified.count = 0;
+        });
+    }
+
 private:
     std::array<bool, sizeof...(Components)> m_is_network_input;
+    entt::dense_map<entt::id_type, std::unique_ptr<entt::sparse_set>, entt::identity> remote_state_pools;
 };
 
 using make_extrapolation_modified_comp_func_t =
-    std::unique_ptr<extrapolation_modified_comp>(entt::registry &, entt::sparse_set &, entt::sparse_set &);
+    std::unique_ptr<extrapolation_modified_comp>(entt::registry &);
 
 }
 

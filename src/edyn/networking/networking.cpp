@@ -21,22 +21,25 @@ static auto & get_client_settings(entt::registry &registry) {
 template<typename Func>
 void edit_client_settings(entt::registry &registry, Func func) {
     auto &client_settings = get_client_settings(registry);
-    func(client_settings);
 
-    if (auto *stepper = registry.ctx().find<stepper_async>()) {
-        stepper->settings_changed();
-    }
+    if (func(client_settings)) {
+        if (auto *stepper = registry.ctx().find<stepper_async>()) {
+            stepper->settings_changed();
+        }
 
-    if (auto *ctx = registry.ctx().find<client_network_context>()) {
-        auto &settings = registry.ctx().at<edyn::settings>();
-        ctx->extrapolator->set_settings(settings);
+        if (auto *ctx = registry.ctx().find<client_network_context>()) {
+            auto &settings = registry.ctx().at<edyn::settings>();
+            ctx->extrapolator->set_settings(settings);
+        }
     }
 }
 
 void set_network_client_snapshot_rate(entt::registry &registry, double rate) {
     EDYN_ASSERT(rate > 0);
     edit_client_settings(registry, [rate](auto &client_settings) {
+        auto changed = client_settings.snapshot_rate != rate;
         client_settings.snapshot_rate = rate;
+        return changed;
     });
 }
 
@@ -47,7 +50,9 @@ double get_network_client_snapshot_rate(entt::registry &registry) {
 void set_network_client_round_trip_time(entt::registry &registry, double rtt) {
     EDYN_ASSERT(!(rtt < 0));
     edit_client_settings(registry, [rtt](auto &client_settings) {
+        auto changed = client_settings.round_trip_time != rtt;
         client_settings.round_trip_time = rtt;
+        return changed;
     });
 }
 
@@ -57,7 +62,9 @@ double get_network_client_round_trip_time(entt::registry &registry) {
 
 void set_network_client_extrapolation_enabled(entt::registry &registry, bool enabled) {
     edit_client_settings(registry, [enabled](auto &client_settings) {
+        auto changed = client_settings.extrapolation_enabled != enabled;
         client_settings.extrapolation_enabled = enabled;
+        return changed;
     });
 }
 
@@ -68,6 +75,7 @@ bool toggle_network_client_extrapolation_enabled(entt::registry &registry) {
         enabled = client_settings.extrapolation_enabled;
         enabled = !enabled;
         client_settings.extrapolation_enabled = enabled;
+        return true;
     });
 
     return enabled;
@@ -80,7 +88,9 @@ bool get_network_client_extrapolation_enabled(entt::registry &registry) {
 void set_network_client_discontinuity_decay_rate(entt::registry &registry, scalar rate) {
     EDYN_ASSERT(rate > 0);
     edit_client_settings(registry, [rate](auto &client_settings) {
+        auto changed = client_settings.discontinuity_decay_rate != rate;
         client_settings.discontinuity_decay_rate = rate;
+        return changed;
     });
 }
 
