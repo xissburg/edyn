@@ -291,7 +291,7 @@ static void trim_and_insert_actions(entt::registry &registry, double time) {
     });
 
     // Insert current action lists into action history.
-    ctx.snapshot_exporter->append_current_actions(time);
+    ctx.snapshot_exporter->append_current_actions(ctx.client_entity, time);
 }
 
 void update_client_snapshot_exporter(entt::registry &registry, double time) {
@@ -605,7 +605,8 @@ static bool contains_unknown_entities(entt::registry &registry,
 }
 
 static void insert_input_to_state_history(entt::registry &registry,
-                                          const packet::registry_snapshot &snap, double time) {
+                                          const packet::registry_snapshot &snap,
+                                          double time, double time_delta) {
     // Insert inputs of entities not owned by this client into the state history.
     auto &ctx = registry.ctx().at<client_network_context>();
     entt::sparse_set unowned_entities;
@@ -617,7 +618,7 @@ static void insert_input_to_state_history(entt::registry &registry,
     }
 
     if (!unowned_entities.empty()) {
-        ctx.input_history->emplace(snap, unowned_entities, time);
+        ctx.input_history->emplace(snap, unowned_entities, time, time_delta);
     }
 }
 
@@ -664,18 +665,20 @@ static void process_packet(entt::registry &registry, packet::registry_snapshot &
 
     const auto time = performance_time();
     double snapshot_time;
+    double client_server_time_difference;
 
     if (ctx.clock_sync.count > 0) {
+        client_server_time_difference = ctx.clock_sync.time_delta;
         snapshot_time = snapshot.timestamp + ctx.clock_sync.time_delta - ctx.server_playout_delay;
     } else {
-        const auto client_server_time_difference =
-            ctx.server_playout_delay + client_settings.round_trip_time / 2;
-        snapshot_time = time - client_server_time_difference;
+        auto remote_time = snapshot.timestamp + client_settings.round_trip_time / 2;
+        client_server_time_difference = time - remote_time;
+        snapshot_time = time - (client_settings.round_trip_time / 2 + ctx.server_playout_delay);
     }
 
     // Input from other clients must be always added to the state history.
     // The server won't send input components of entities owned by this client.
-    insert_input_to_state_history(registry, snapshot, snapshot_time);
+    insert_input_to_state_history(registry, snapshot, snapshot_time, client_server_time_difference);
 
     // Snap simulation to server state if the amount of time to be extrapolated
     // is smaller than the fixed delta time, which would cause the extrapolation

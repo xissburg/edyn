@@ -342,7 +342,9 @@ public:
                 entry.timestamp += time_delta;
             }
 
-            registry.get<action_history>(entity).merge(history);
+            registry.patch<action_history>(entity, [&](action_history &current) {
+                current.merge(history);
+            });
         }
 
         *pool_it = std::move(snap.pools.back());

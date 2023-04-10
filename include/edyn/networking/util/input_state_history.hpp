@@ -27,7 +27,8 @@ public:
 
     // Record state from a snapshot.
     virtual void emplace(const packet::registry_snapshot &snap,
-                         const entt::sparse_set &entities, double timestamp) = 0;
+                         const entt::sparse_set &entities,
+                         double timestamp, double time_delta) = 0;
 
     // Erase all recorded input and actions until the given timestamp.
     virtual void erase_until(double timestamp) = 0;
@@ -109,7 +110,7 @@ class input_state_history_impl : public input_state_history {
         }
     }
 
-    void add_actions(const entt::registry &registry, const entt::sparse_set &entities, double timestamp) {
+    void add_actions(const entt::registry &registry, const entt::sparse_set &entities) {
         auto history_view = registry.view<action_history>();
 
         for (auto entity : entities) {
@@ -129,13 +130,17 @@ class input_state_history_impl : public input_state_history {
 
     void add_actions(const std::vector<entt::entity> &pool_entities,
                      const pool_snapshot_data_impl<action_history> &pool_snapshot,
-                     const entt::sparse_set &entities, double timestamp) {
+                     const entt::sparse_set &entities, double time_delta) {
         for (size_t i = 0; i < pool_snapshot.entity_indices.size(); ++i) {
             auto entity_index = pool_snapshot.entity_indices[i];
-            auto entity = entities[entity_index];
-            auto &comp = pool_snapshot.components[i];
+            auto entity = pool_entities[entity_index];
+            auto comp = pool_snapshot.components[i];
 
             if (!comp.empty() && entities.contains(entity)) {
+                for (auto &entry : comp.entries) {
+                    entry.timestamp += time_delta;
+                }
+
                 if (!m_actions.contains(entity)) {
                     m_actions.emplace(entity, comp);
                 } else {
@@ -230,11 +235,12 @@ protected:
                  const entt::sparse_set &entities, double timestamp) override {
         std::lock_guard lock(m_mutex);
         (add<Inputs>(registry, entities, timestamp), ...);
-        add_actions(registry, entities, timestamp);
+        add_actions(registry, entities);
     }
 
     void emplace(const packet::registry_snapshot &snap,
-                 const entt::sparse_set &entities, double timestamp) override {
+                 const entt::sparse_set &entities,
+                 double timestamp, double time_delta) override {
         std::lock_guard lock(m_mutex);
         for (auto &pool : snap.pools) {
             ((entt::type_index<Inputs>::value() == pool.ptr->get_type_id() ?
@@ -243,7 +249,7 @@ protected:
 
             if (entt::type_index<action_history>::value() == pool.ptr->get_type_id()) {
                 auto *typed_pool = static_cast<pool_snapshot_data_impl<action_history> *>(pool.ptr.get());
-                add_actions(snap.entities, *typed_pool, entities, timestamp);
+                add_actions(snap.entities, *typed_pool, entities, time_delta);
             }
         }
     }

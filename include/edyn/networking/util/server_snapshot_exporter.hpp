@@ -99,9 +99,9 @@ class server_snapshot_exporter_impl : public server_snapshot_exporter {
                 constexpr auto is_input = std::is_base_of_v<network_input, CompType>;
                 constexpr auto is_action = std::is_same_v<CompType, action_history>;
 
-                // Must not send action history. Nor should send input
-                // state of entities owned by destination client.
-                if (!is_action && !(is_input && owned_by_destination)) {
+                // Must not send action history or input state of entities
+                // owned by destination client.
+                if (!(is_action && owned_by_destination) && !(is_input && owned_by_destination)) {
                     internal::snapshot_insert_entity<CompType>(registry, entity, snap, comp_index);
                 }
             });
