@@ -311,8 +311,8 @@ void update_network_client(entt::registry &registry) {
     update_client_snapshot_exporter(registry, time);
     maybe_publish_registry_snapshot(registry, time);
     registry.ctx().at<client_network_context>().message_queue.update();
-    update_input_history(registry, time);
     trim_and_insert_actions(registry, time);
+    update_input_history(registry, time);
 }
 
 static void process_packet(entt::registry &registry, const packet::client_created &packet) {

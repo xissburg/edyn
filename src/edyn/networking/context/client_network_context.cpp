@@ -15,7 +15,7 @@ make_extrapolation_modified_comp_default(entt::registry &registry) {
 client_network_context::client_network_context(entt::registry &registry)
     : snapshot_importer(new client_snapshot_importer_impl(networked_components))
     , snapshot_exporter(new client_snapshot_exporter_impl(registry, networked_components, {}))
-    , input_history(std::make_shared<input_state_history>())
+    , input_history{}
     , make_extrapolation_modified_comp(&make_extrapolation_modified_comp_default)
 {
     clock_sync.send_packet.connect<&entt::sigh<packet_observer_func_t>::publish>(packet_signal);

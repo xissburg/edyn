@@ -331,6 +331,11 @@ public:
             auto idx = history_pool->entity_indices[i];
             auto entity = snap.entities[idx];
             auto &history = history_pool->components[i];
+
+            if (history.empty()) {
+                continue;
+            }
+
             history.sort();
 
             for (auto &entry : history.entries) {

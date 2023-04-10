@@ -260,7 +260,10 @@ void extrapolation_worker::on_push_message() {
 void extrapolation_worker::apply_history() {
     auto &settings = m_registry.ctx().at<edyn::settings>();
     auto since_time = m_current_time - settings.fixed_dt;
-    m_input_history->import_each(since_time, settings.fixed_dt, m_registry, m_entity_map);
+
+    if (m_input_history) {
+        m_input_history->import_each(since_time, settings.fixed_dt, m_registry, m_entity_map);
+    }
 }
 
 bool extrapolation_worker::init_extrapolation(const extrapolation_request &request) {
@@ -328,6 +331,10 @@ bool extrapolation_worker::init_extrapolation(const extrapolation_request &reque
 
     // Apply last known remote state as the initial state for extrapolation.
     m_modified_comp->import_remote_state(entities);
+
+    if (m_input_history) {
+        m_input_history->import_latest(m_current_time, m_registry, m_entity_map);
+    }
 
     // Start observing changes before replacing snapshot contents into registry
     // to ensure these changes will be included in the result.

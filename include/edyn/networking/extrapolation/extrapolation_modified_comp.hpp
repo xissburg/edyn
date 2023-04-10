@@ -102,7 +102,6 @@ class extrapolation_modified_comp_impl : public extrapolation_modified_comp {
         return static_cast<entt::storage<Component> &>(*pool);
     }
 
-
     template<typename Component>
     void import_remote_state_single(const entt::sparse_set &entities) {
         if constexpr(!std::is_empty_v<Component>) {
