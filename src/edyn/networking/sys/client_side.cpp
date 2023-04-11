@@ -64,6 +64,8 @@ void on_destroy_networked_entity(entt::registry &registry, entt::entity entity) 
 
         ctx.client_destroyed_entities.push_back(entity);
     }
+
+    ctx.input_history->remove_entity(entity);
 }
 
 void on_construct_entity_owner(entt::registry &registry, entt::entity entity) {

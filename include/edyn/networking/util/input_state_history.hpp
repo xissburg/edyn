@@ -63,6 +63,10 @@ public:
 
     // Erase all recorded input and actions until the given timestamp.
     virtual void erase_until(double timestamp) = 0;
+
+    // Removes an entity from internal storages in case it had been added before.
+    // Must be called for all entities that have been destroyed.
+    virtual void remove_entity(entt::entity entity) = 0;
 };
 
 class input_state_history_reader {
@@ -213,6 +217,13 @@ public:
         }
     }
 
+    void remove_entity(entt::entity entity) override {
+        std::lock_guard lock(m_history->mutex);
+
+        m_history->actions.remove(entity);
+        (m_history->template get_inputs<Inputs>().remove(entity), ...);
+    }
+
 private:
     std::shared_ptr<input_state_history<Inputs...>> m_history;
 };
@@ -306,7 +317,7 @@ class input_state_history_reader_impl : public input_state_history_reader {
             // Import the first component state that's before the given time.
             auto it = first_before(history.entries, time);
 
-            if (it != history.entries.rbegin()) {
+            if (it != history.entries.rend()) {
                 import_component(registry, entity, it->component, emap);
             }
         }
