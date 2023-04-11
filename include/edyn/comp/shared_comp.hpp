@@ -76,7 +76,9 @@ using shared_components_t = decltype(std::tuple_cat(std::tuple<
     rolling_tag,
     roll_direction,
     discontinuity,
+    discontinuity_accumulator,
     discontinuity_spin,
+    discontinuity_spin_accumulator,
     child_list,
     parent_comp,
     null_constraint

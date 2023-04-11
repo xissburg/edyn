@@ -89,6 +89,7 @@ class server_snapshot_exporter_impl : public server_snapshot_exporter {
 
     void export_modified_entity(const entt::registry &registry, entt::entity entity,
                                 const modified_components &modified,
+                                bool owned_by_destination,
                                 packet::registry_snapshot &snap) const {
         static const auto components_tuple = std::tuple<Components...>{};
 
@@ -99,9 +100,9 @@ class server_snapshot_exporter_impl : public server_snapshot_exporter {
                 constexpr auto is_input = std::is_base_of_v<network_input, CompType>;
                 constexpr auto is_action = std::is_same_v<CompType, action_history>;
 
-                // Must not send action history nor should send input
-                // state back to clients.
-                if constexpr(!is_action && !is_input) {
+                // Must not send action history or input state of entities
+                // owned by destination client.
+                if (!(is_action && owned_by_destination) && !(is_input && owned_by_destination)) {
                     internal::snapshot_insert_entity<CompType>(registry, entity, snap, comp_index);
                 }
             });
@@ -110,11 +111,10 @@ class server_snapshot_exporter_impl : public server_snapshot_exporter {
 
     template<typename Component, typename It>
     void export_single(packet::registry_snapshot &snap, It first, It last, size_t index) const {
-        constexpr auto is_input = std::is_base_of_v<network_input, Component>;
         constexpr auto is_action = std::is_same_v<Component, action_history>;
 
-        // Inputs and actions must not be shared among clients.
-        if constexpr(!is_action && !is_input) {
+        // Actions must not be shared among clients.
+        if constexpr(!is_action) {
             for (; first != last; ++first) {
                 auto entity = *first;
 
@@ -236,7 +236,10 @@ public:
                 continue;
             }
 
-            export_modified_entity(registry, entity, modified, snap);
+            const auto owned_by_destination =
+                owner_view.contains(entity) &&
+                std::get<0>(owner_view.get(entity)).client_entity == dest_client_entity;
+            export_modified_entity(registry, entity, modified, owned_by_destination, snap);
 
             // Include child entities
             if (is_parent) {
@@ -246,7 +249,7 @@ public:
                 while (child_entity != entt::null) {
                     if (modified_view.contains(child_entity)) {
                         auto [child_modified] = modified_view.get(child_entity);
-                        export_modified_entity(registry, child_entity, child_modified, snap);
+                        export_modified_entity(registry, child_entity, child_modified, owned_by_destination, snap);
                     }
 
                     auto [child] = child_view.get(child_entity);

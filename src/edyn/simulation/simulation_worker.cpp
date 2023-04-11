@@ -15,7 +15,8 @@
 #include "edyn/config/config.h"
 #include "edyn/constraints/null_constraint.hpp"
 #include "edyn/math/vector3.hpp"
-#include "edyn/networking/sys/decay_discontinuities.hpp"
+#include "edyn/networking/comp/discontinuity.hpp"
+#include "edyn/networking/sys/accumulate_discontinuities.hpp"
 #include "edyn/networking/util/process_extrapolation_result.hpp"
 #include "edyn/networking/util/snap_to_pool_snapshot.hpp"
 #include "edyn/parallel/job.hpp"
@@ -44,10 +45,9 @@
 #include "edyn/context/settings.hpp"
 #include "edyn/context/registry_operation_context.hpp"
 #include "edyn/networking/extrapolation/extrapolation_result.hpp"
-#include "edyn/networking/comp/discontinuity.hpp"
+#include <entt/entity/registry.hpp>
 #include <algorithm>
 #include <atomic>
-#include <entt/entity/registry.hpp>
 
 namespace edyn {
 
@@ -293,6 +293,10 @@ void simulation_worker::stop() {
 }
 
 void simulation_worker::update(double dt) {
+    // Must clear before reading messages to avoid accumulating over values that
+    // have already been sent to main thread.
+    clear_accumulated_discontinuities_quietly(m_registry);
+
     m_message_queue.update();
     m_raycast_service.update(true);
     consume_raycast_results();
@@ -329,7 +333,6 @@ void simulation_worker::update(double dt) {
         m_island_manager.update(m_sim_time);
         nphase.update(true);
         m_solver.update(true);
-        decay_discontinuities(m_registry);
 
         m_sim_time += fixed_dt;
 
@@ -340,10 +343,6 @@ void simulation_worker::update(double dt) {
         if (settings.post_step_callback) {
             (*settings.post_step_callback)(m_registry);
         }
-
-        // Always update discontinuities since they decay in every step.
-        m_op_builder->replace<discontinuity>();
-        m_op_builder->replace<discontinuity_spin>();
 
         mark_transforms_replaced();
         sync();
@@ -431,7 +430,6 @@ void simulation_worker::on_step_simulation(message<msg::step_simulation> &) {
     m_island_manager.update(m_last_time);
     nphase.update(true);
     m_solver.update(true);
-    decay_discontinuities(m_registry);
 
     if (settings.clear_actions_func) {
         (*settings.clear_actions_func)(m_registry);
@@ -440,10 +438,6 @@ void simulation_worker::on_step_simulation(message<msg::step_simulation> &) {
     if (settings.post_step_callback) {
         (*settings.post_step_callback)(m_registry);
     }
-
-    // Always update discontinuities since they decay in every step.
-    m_op_builder->replace<discontinuity>();
-    m_op_builder->replace<discontinuity_spin>();
 
     mark_transforms_replaced();
     sync();

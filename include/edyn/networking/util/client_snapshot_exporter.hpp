@@ -37,9 +37,9 @@ public:
     virtual void export_modified(packet::registry_snapshot &snap, entt::entity client_entity,
                                  const entt::sparse_set &owned_entities, bool allow_full_ownership) const = 0;
 
-    void append_current_actions(double time) {
+    void append_current_actions(entt::entity client_entity, double time) {
         if (m_append_current_actions_func != nullptr) {
-            (*m_append_current_actions_func)(*m_registry, time);
+            (*m_append_current_actions_func)(*m_registry, client_entity, time);
         }
     }
 
@@ -59,7 +59,7 @@ protected:
     entt::registry *m_registry;
     bool m_observer_enabled {true};
 
-    using append_current_actions_func_t = void(entt::registry &registry, double time);
+    using append_current_actions_func_t = void(entt::registry &registry, entt::entity client_entity, double time);
     append_current_actions_func_t *m_append_current_actions_func {nullptr};
 
     std::map<entt::id_type, component_index_type> m_component_indices;
@@ -71,10 +71,21 @@ class client_snapshot_exporter_impl : public client_snapshot_exporter {
     using modified_components = exporter_modified_components<sizeof...(Components)>;
 
     template<typename Action>
-    static void append_actions(entt::registry &registry, unsigned index, double time) {
+    static void append_actions(entt::registry &registry, entt::entity client_entity,
+                               unsigned index, double time) {
         auto view = registry.view<action_list<Action>, action_history>();
+        auto owner_view = registry.view<entity_owner>();
 
+        // Only record actions of entities owned by the current client.
         for (auto [entity, list, history] : view.each()) {
+            if (owner_view.contains(entity)) {
+                auto [owner] = owner_view.get(entity);
+
+                if (owner.client_entity != client_entity) {
+                    continue;
+                }
+            }
+
             if (list.actions.empty()) {
                 continue;
             }
@@ -87,9 +98,9 @@ class client_snapshot_exporter_impl : public client_snapshot_exporter {
     }
 
     template<typename... Actions>
-    static void append_current_actions(entt::registry &registry, double time) {
+    static void append_current_actions(entt::registry &registry, entt::entity client_entity, double time) {
         unsigned index = 0;
-        (append_actions<Actions>(registry, index++, time), ...);
+        (append_actions<Actions>(registry, client_entity, index++, time), ...);
     }
 
     template<typename... Cs>

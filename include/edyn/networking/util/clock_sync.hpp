@@ -35,10 +35,10 @@ struct clock_sync_data {
     double remote_timestamp0;
 
     // Delay between time requests.
-    double delay {1};
+    double delay {0.5};
 
     // Time delta between local and remote clocks.
-    double time_delta;
+    double time_delta {0};
 
     // Maximum number of samples to be captured in one clock sync sequence.
     static constexpr auto max_time_delta_samples = 5;
@@ -54,7 +54,7 @@ struct clock_sync_data {
 
     // Length of time between clock synchronizations, i.e. inverse of how often
     // clock syncs should be performed.
-    double period {20.0 * 60.0};
+    double period {5.0 * 60.0};
 
     // Delegate invoked when the clock synchronization process needs to send a
     // packet, such as a time request.

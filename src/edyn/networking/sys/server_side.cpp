@@ -45,15 +45,8 @@
 namespace edyn {
 
 static void process_packet(entt::registry &registry, entt::entity client_entity, packet::registry_snapshot &snapshot) {
-    auto &ctx = registry.ctx().at<server_network_context>();
-    auto &settings = registry.ctx().at<edyn::settings>();
-
-    if (settings.execution_mode == edyn::execution_mode::asynchronous) {
-        // Import inputs directly into the main registry.
-        ctx.snapshot_importer->import_input_local(registry, client_entity, snapshot);
-
-        auto &stepper = registry.ctx().at<stepper_async>();
-        stepper.send_message_to_worker<msg::apply_network_pools>(std::move(snapshot.entities), std::move(snapshot.pools), false);
+    if (auto *stepper = registry.ctx().find<stepper_async>()) {
+        stepper->send_message_to_worker<msg::apply_network_pools>(std::move(snapshot.entities), std::move(snapshot.pools), false);
     } else {
         snap_to_pool_snapshot(registry, snapshot.entities, snapshot.pools, false);
         wake_up_island_residents(registry, snapshot.entities);
@@ -509,7 +502,7 @@ static void calculate_client_playout_delay(entt::registry &registry,
                                   server_settings.max_playout_delay);
 
     // Update playout delay if the difference is of significance.
-    if (std::abs(playout_delay - client.playout_delay) > 0.002) {
+    if (std::abs(playout_delay - client.playout_delay) > client.playout_delay * 0.06) {
         client.playout_delay = playout_delay;
 
         auto packet = edyn::packet::set_playout_delay{playout_delay};

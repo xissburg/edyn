@@ -6,14 +6,13 @@
 #include "edyn/collision/narrowphase.hpp"
 #include "edyn/core/entity_graph.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
-#include "edyn/networking/sys/decay_discontinuities.hpp"
 #include "edyn/sys/update_presentation.hpp"
 #include <entt/entity/registry.hpp>
 #include <cstdint>
 
 namespace edyn {
 
-stepper_sequential::stepper_sequential(entt::registry &registry, bool multithreaded, double time)
+stepper_sequential::stepper_sequential(entt::registry &registry, double time, bool multithreaded)
     : m_registry(&registry)
     , m_island_manager(registry)
     , m_poly_initializer(registry)
@@ -67,7 +66,6 @@ void stepper_sequential::update(double time) {
         nphase.update(m_multithreaded);
         m_solver.update(m_multithreaded);
         emitter.consume_events();
-        decay_discontinuities(*m_registry);
 
         if (settings.clear_actions_func) {
             (*settings.clear_actions_func)(*m_registry);
@@ -79,7 +77,7 @@ void stepper_sequential::update(double time) {
     }
 
     m_last_time = time;
-    update_presentation(*m_registry, get_simulation_timestamp(), time);
+    update_presentation(*m_registry, get_simulation_timestamp(), time, elapsed);
 }
 
 void stepper_sequential::step_simulation(double time) {
@@ -102,7 +100,6 @@ void stepper_sequential::step_simulation(double time) {
     nphase.update(m_multithreaded);
     m_solver.update(m_multithreaded);
     emitter.consume_events();
-    decay_discontinuities(*m_registry);
 
     if (settings.clear_actions_func) {
         (*settings.clear_actions_func)(*m_registry);

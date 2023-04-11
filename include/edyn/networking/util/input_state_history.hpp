@@ -1,311 +1,397 @@
-#ifndef EDYN_NETWORKING_INPUT_STATE_HISTORY_HPP
-#define EDYN_NETWORKING_INPUT_STATE_HISTORY_HPP
+#ifndef EDYN_NETWORKING_UTIL_INPUT_STATE_HISTORY_HPP
+#define EDYN_NETWORKING_UTIL_INPUT_STATE_HISTORY_HPP
 
+#include <entt/entity/fwd.hpp>
 #include <memory>
 #include <mutex>
-#include <type_traits>
 #include <vector>
+#include <type_traits>
 #include <entt/core/type_info.hpp>
 #include <entt/entity/registry.hpp>
 #include "edyn/comp/action_list.hpp"
+#include "edyn/networking/comp/action_history.hpp"
 #include "edyn/networking/packet/registry_snapshot.hpp"
 
 namespace edyn {
 
-namespace detail {
-    class comp_state_pool {
-    public:
-        virtual ~comp_state_pool() = default;
-        virtual void import(entt::registry &, const entity_map &) const = 0;
-        virtual bool empty() const = 0;
-        virtual entt::id_type type_id() const = 0;
-    };
-
+namespace internal {
     template<typename Component>
-    class comp_state_pool_impl : public comp_state_pool {
-    public:
-        void import(entt::registry &registry, const entity_map &emap) const override {
-            for (auto &pair : m_data) {
-                auto remote_entity = pair.first;
+    struct component_history {
+        struct entry {
+            Component component;
+            double timestamp;
+        };
 
-                if (!emap.contains(remote_entity)) {
-                    continue;
-                }
-
-                auto local_entity = emap.at(remote_entity);
-
-                if (!registry.valid(local_entity)) {
-                    continue;
-                }
-
-                auto comp = pair.second;
-                internal::map_child_entity(registry, emap, comp);
-
-                if (registry.all_of<Component>(local_entity)) {
-                    registry.replace<Component>(local_entity, comp);
-                } else {
-                    registry.emplace<Component>(local_entity, comp);
-                }
-            }
-        }
-
-        bool empty() const override {
-            return m_data.empty();
-        }
-
-        void insert(entt::entity entity, const Component &comp) {
-            m_data.emplace_back(entity, comp);
-        }
-
-        entt::id_type type_id() const override {
-            return entt::type_index<Component>::value();
-        }
-
-    private:
-        std::vector<std::pair<entt::entity, Component>> m_data;
+        std::vector<entry> entries;
     };
 }
 
 /**
- * @brief A history of user inputs which will be applied during extrapolation.
- * It is accessed from multiple threads so it has to be thread-safe.
+ * @brief A history of user inputs and actions which will be applied during
+ * extrapolation. It is accessed from multiple threads so it has to be thread-safe.
  */
-class input_state_history {
-    auto first_after(double timestamp) {
-        return std::find_if(history.begin(), history.end(),
-                            [timestamp](auto &&elem) { return elem.timestamp > timestamp; });
-    }
+template<typename... Inputs>
+struct input_state_history {
+    entt::storage<action_history> actions;
+    std::tuple<entt::storage<internal::component_history<Inputs>>...> inputs;
+    std::mutex mutex;
 
+    input_state_history() = default;
+    input_state_history(input_state_history &) = default;
+    input_state_history(input_state_history &&) = default;
+    input_state_history & operator=(input_state_history &) = default;
+    input_state_history & operator=(input_state_history &&) = default;
+    input_state_history([[maybe_unused]] const std::tuple<Inputs...> &) {}
+
+    template<typename Input>
+    auto & get_inputs() {
+        return std::get<entt::storage<internal::component_history<Input>>>(inputs);
+    }
+};
+
+class input_state_history_writer {
 public:
-    struct snapshot {
-        std::vector<std::unique_ptr<detail::comp_state_pool>> pools;
-    };
+    // Record the state of input components and any new actions in the action
+    // history of the provided entities.
+    virtual void emplace(const entt::registry &registry,
+                         const entt::sparse_set &entities, double timestamp) = 0;
 
-    struct element {
-        input_state_history::snapshot snapshot;
-        double timestamp;
+    // Record state from a snapshot.
+    virtual void emplace(const packet::registry_snapshot &snap,
+                         const entt::sparse_set &entities,
+                         double timestamp, double time_delta) = 0;
 
-        void import(entt::registry &registry, const entity_map &emap) const {
-            for (auto &pool : snapshot.pools) {
-                pool->import(registry, emap);
-            }
-        }
-    };
+    // Erase all recorded input and actions until the given timestamp.
+    virtual void erase_until(double timestamp) = 0;
 
-    /**
-     * Even though the timestamp of a registry snapshot lies right after the time
-     * an action happened, it is possible that the action wasn't still applied
-     * in the server side at the time the snapshot was generated. Perhaps the
-     * action was applied at the same time the snapshot was generated and then
-     * its effects will only become visible in the next update, which will cause
-     * a glitch on client-side extrapolation because the action will not be
-     * applied initially and the initial state does not include the effects of
-     * the action because it wasn't applied in the server at the time the
-     * snapshot was generated. All actions that happened before the snapshot
-     * time within this threshold will be applied at the start of an extrapolation.
-     */
-    double action_time_threshold{0.06};
+    // Removes an entity from internal storages in case it had been added before.
+    // Must be called for all entities that have been destroyed.
+    virtual void remove_entity(entt::entity entity) = 0;
+};
 
-protected:
-    virtual snapshot take_snapshot(const entt::registry &registry,
-                                   const entt::sparse_set &entities) const {
-        return {};
-    }
-
-    virtual snapshot take_snapshot(const packet::registry_snapshot &snap,
-                                   const entt::sparse_set &entities) const {
-        return {};
-    }
-
+class input_state_history_reader {
 public:
-    virtual ~input_state_history() = default;
+    // Import all inputs and actions within the time range into the registry.
+    // The entity map is necessary to map entities into the current registry
+    // space, since all entities in the history are in the main registry space.
+    virtual void import_each(double time, double length_of_time, entt::registry &registry, const entity_map &emap) const = 0;
 
-    template<typename DataSource>
-    void emplace(const DataSource &source, const entt::sparse_set &entities, double timestamp) {
-        // Insert input components of given entities from data source into container.
-        auto snapshot = take_snapshot(source, entities);
-
-        if (snapshot.pools.empty()) {
-            return;
-        }
-
-        // Sorted insertion.
-        std::lock_guard lock(mutex);
-        auto it = first_after(timestamp);
-        history.insert(it, {std::move(snapshot), timestamp});
-    }
-
-    void erase_until(double timestamp) {
-        std::lock_guard lock(mutex);
-        auto it = first_after(timestamp);
-        history.erase(history.begin(), it);
-    }
-
-    template<typename Func>
-    void each(double start_time, double length_of_time, Func func) const {
-        std::lock_guard lock(mutex);
-
-        for (auto &elem : history) {
-            if (elem.timestamp > start_time + length_of_time) {
-                break;
-            }
-
-            if (elem.timestamp >= start_time) {
-                func(elem);
-            }
-        }
-    }
-
-    void import_each(double time, double length_of_time, entt::registry &registry, const entity_map &emap) const {
-        each(time, length_of_time, [&](auto &&elem) {
-            elem.import(registry, emap);
-        });
-    }
-
-    virtual void import_initial_state(entt::registry &registry, const entity_map &emap, double time) {}
-
-protected:
-    std::vector<element> history;
-    mutable std::mutex mutex;
+    // Import all inputs that happened before `time` into the registry. This
+    // ensures the correct initial value is assigned before the extrapolation
+    // begins. Actions are not involved in this call. They're only imported
+    // via `import_each`.
+    virtual void import_latest(double time, entt::registry &registry, const entity_map &emap) const = 0;
 };
 
 template<typename... Inputs>
-class input_state_history_impl : public input_state_history {
+class input_state_history_writer_impl : public input_state_history_writer {
 
-    template<typename Input>
-    static void add_to_snapshot(snapshot &snapshot, const entt::registry &registry,
-                                const entt::sparse_set &entities) {
-        if constexpr(!std::is_empty_v<Input>) {
-            auto view = registry.view<Input>();
-            auto pool = std::unique_ptr<detail::comp_state_pool_impl<Input>>{};
+    template<typename Component>
+    void add(const entt::registry &registry, const entt::sparse_set &entities, double timestamp) {
+        auto view = registry.view<Component>();
+        auto &inputs = m_history->template get_inputs<Component>();
 
-            for (auto entity : entities) {
-                if (view.contains(entity)) {
-                    if (!pool) {
-                        pool.reset(new detail::comp_state_pool_impl<Input>);
-                    }
-
-                    auto [comp] = view.get(entity);
-                    pool->insert(entity, comp);
+        for (auto entity : entities) {
+            if (view.contains(entity)) {
+                if (!inputs.contains(entity)) {
+                    inputs.emplace(entity);
                 }
-            }
 
-            if (pool && !pool->empty()) {
-                snapshot.pools.push_back(std::move(pool));
+                auto [comp] = view.get(entity);
+                inputs.get(entity).entries.push_back({comp, timestamp});
             }
         }
     }
 
-    template<typename Input>
-    static void add_to_snapshot(snapshot &snapshot, const std::vector<entt::entity> &pool_entities,
-                                const pool_snapshot &pool_snapshot, const entt::sparse_set &entities) {
-        if constexpr(!std::is_empty_v<Input>) {
-            auto pool = std::unique_ptr<detail::comp_state_pool_impl<Input>>{};
-            auto *typed_pool = static_cast<pool_snapshot_data_impl<Input> *>(pool_snapshot.ptr.get());
+    template<typename Component>
+    void add(const std::vector<entt::entity> &pool_entities, const pool_snapshot &pool_snapshot,
+             const entt::sparse_set &entities, double timestamp) {
+        auto &inputs = m_history->template get_inputs<Component>();
+        auto *typed_pool = static_cast<pool_snapshot_data_impl<Component> *>(pool_snapshot.ptr.get());
 
-            for (size_t i = 0; i < typed_pool->entity_indices.size(); ++i) {
-                auto entity_index = typed_pool->entity_indices[i];
-                auto entity = pool_entities[entity_index];
-                auto &comp = typed_pool->components[i];
+        for (size_t i = 0; i < typed_pool->entity_indices.size(); ++i) {
+            auto entity_index = typed_pool->entity_indices[i];
+            auto entity = pool_entities[entity_index];
+            auto &comp = typed_pool->components[i];
 
-                if (entities.contains(entity)) {
-                    if (!pool) {
-                        pool.reset(new detail::comp_state_pool_impl<Input>);
-                    }
-
-                    pool->insert(entity, comp);
+            if (entities.contains(entity)) {
+                if (!inputs.contains(entity)) {
+                    inputs.emplace(entity);
                 }
-            }
 
-            if (pool && !pool->empty()) {
-                snapshot.pools.push_back(std::move(pool));
+                inputs.get(entity).entries.push_back({comp, timestamp});
             }
         }
     }
 
-protected:
-    snapshot take_snapshot(const entt::registry &registry,
-                           const entt::sparse_set &entities) const override {
-        snapshot snapshot;
-        (add_to_snapshot<Inputs>(snapshot, registry, entities), ...);
-        return snapshot;
-    }
+    void add_actions(const entt::registry &registry, const entt::sparse_set &entities) {
+        auto history_view = registry.view<action_history>();
 
-    snapshot take_snapshot(const packet::registry_snapshot &snap,
-                           const entt::sparse_set &entities) const override {
-        snapshot snapshot;
-        for (auto &pool : snap.pools) {
-            ((entt::type_index<Inputs>::value() == pool.ptr->get_type_id() ?
-                add_to_snapshot<Inputs>(snapshot, snap.entities, pool, entities) :
-                (void)0), ...);
-        }
-        return snapshot;
-    }
+        for (auto entity : entities) {
+            if (history_view.contains(entity)) {
+                auto [history] = history_view.get(entity);
 
-    // Import the last state of all inputs right before the extrapolation start time.
-    // This ensures correct initial input state before extrapolation begins.
-    template<typename Input>
-    struct import_initial_state_single {
-        static void import(entt::registry &registry, const entity_map &emap,
-                           const std::vector<element> &history, double time,
-                           double action_threshold) {
-            // Find history element with the greatest timestamp smaller than `time`
-            // which contains a pool of the given component type.
-            for (auto i = history.size(); i > 0; --i) {
-                auto &elem = history[i-1];
-
-                if (elem.timestamp > time) {
-                    continue;
-                }
-
-                auto pool_it = std::find_if(
-                    elem.snapshot.pools.begin(), elem.snapshot.pools.end(),
-                    [](auto &&pool) {
-                        return pool->type_id() == entt::type_index<Input>::value();
-                    });
-
-                if (pool_it != elem.snapshot.pools.end()) {
-                    (*pool_it)->import(registry, emap);
-                    break;
-                }
-            }
-        }
-    };
-
-    // Apply all actions that happened slightly before the extrapolation start time.
-    // This prevents glitches due to the effect of actions not yet being present
-    // in a registry snapshot due to small timing errors.
-    template<typename Action>
-    struct import_initial_state_single<action_list<Action>> {
-        static void import(entt::registry &registry, const entity_map &emap,
-                           const std::vector<element> &history, double time,
-                           double action_threshold) {
-            for (auto &elem : history) {
-                if (elem.timestamp < time && time - elem.timestamp < action_threshold) {
-                    auto pool_it = std::find_if(
-                        elem.snapshot.pools.begin(), elem.snapshot.pools.end(),
-                        [](auto &&pool) {
-                            return pool->type_id() == entt::type_index<action_list<Action>>::value();
-                        });
-
-                    if (pool_it != elem.snapshot.pools.end()) {
-                        (*pool_it)->import(registry, emap);
+                if (!history.empty()) {
+                    if (!m_history->actions.contains(entity)) {
+                        m_history->actions.emplace(entity, history);
+                    } else {
+                        m_history->actions.get(entity).merge(history);
                     }
                 }
             }
         }
-    };
+    }
+
+    void add_actions(const std::vector<entt::entity> &pool_entities,
+                     const pool_snapshot_data_impl<action_history> &pool_snapshot,
+                     const entt::sparse_set &entities, double time_delta) {
+        for (size_t i = 0; i < pool_snapshot.entity_indices.size(); ++i) {
+            auto entity_index = pool_snapshot.entity_indices[i];
+            auto entity = pool_entities[entity_index];
+            auto comp = pool_snapshot.components[i];
+
+            if (!comp.empty() && entities.contains(entity)) {
+                for (auto &entry : comp.entries) {
+                    entry.timestamp += time_delta;
+                }
+
+                if (!m_history->actions.contains(entity)) {
+                    m_history->actions.emplace(entity, comp);
+                } else {
+                    m_history->actions.get(entity).merge(comp);
+                }
+            }
+        }
+    }
+
+    template<typename Array>
+    auto first_after(const Array &arr, double timestamp) const {
+        return std::find_if(arr.begin(), arr.end(),
+                            [timestamp](auto &&elem) { return elem.timestamp > timestamp; });
+    }
+
+    template<typename Component>
+    void erase_until(double timestamp) {
+        auto &inputs = m_history->template get_inputs<Component>();
+
+        for (auto [entity, history] : inputs.each()) {
+            auto it = first_after(history.entries, timestamp);
+            history.entries.erase(history.entries.begin(), it);
+        }
+    }
 
 public:
-    input_state_history_impl() = default;
-    input_state_history_impl([[maybe_unused]] std::tuple<Inputs...>) {}
+    input_state_history_writer_impl(std::shared_ptr<input_state_history<Inputs...>> history)
+        : m_history(history)
+    {}
 
-    void import_initial_state(entt::registry &registry, const entity_map &emap, double time) override {
-        std::lock_guard lock(mutex);
-        (import_initial_state_single<Inputs>::import(registry, emap, history, time, action_time_threshold), ...);
+    void emplace(const entt::registry &registry,
+                 const entt::sparse_set &entities, double timestamp) override {
+        std::lock_guard lock(m_history->mutex);
+        (add<Inputs>(registry, entities, timestamp), ...);
+        add_actions(registry, entities);
     }
+
+    void emplace(const packet::registry_snapshot &snap,
+                 const entt::sparse_set &entities,
+                 double timestamp, double time_delta) override {
+        std::lock_guard lock(m_history->mutex);
+        for (auto &pool : snap.pools) {
+            ((entt::type_index<Inputs>::value() == pool.ptr->get_type_id() ?
+                add<Inputs>(snap.entities, pool, entities, timestamp) :
+                (void)0), ...);
+
+            if (entt::type_index<action_history>::value() == pool.ptr->get_type_id()) {
+                auto *typed_pool = static_cast<pool_snapshot_data_impl<action_history> *>(pool.ptr.get());
+                add_actions(snap.entities, *typed_pool, entities, time_delta);
+            }
+        }
+    }
+
+    void erase_until(double timestamp) override {
+        std::lock_guard lock(m_history->mutex);
+        (erase_until<Inputs>(timestamp), ...);
+
+        for (auto [entity, actions] : m_history->actions.each()) {
+            actions.erase_until(timestamp);
+        }
+    }
+
+    void remove_entity(entt::entity entity) override {
+        std::lock_guard lock(m_history->mutex);
+
+        m_history->actions.remove(entity);
+        (m_history->template get_inputs<Inputs>().remove(entity), ...);
+    }
+
+private:
+    std::shared_ptr<input_state_history<Inputs...>> m_history;
+};
+
+template<typename... Inputs>
+class input_state_history_reader_impl : public input_state_history_reader {
+
+    template<typename Component>
+    void import_component(entt::registry &registry, entt::entity remote_entity,
+                          Component comp, const entity_map &emap) const {
+        if (!emap.contains(remote_entity)) {
+            return;
+        }
+
+        auto local_entity = emap.at(remote_entity);
+
+        if (!registry.valid(local_entity)) {
+            return;
+        }
+
+        internal::map_child_entity(registry, emap, comp);
+
+        if (registry.all_of<Component>(local_entity)) {
+            registry.patch<Component>(local_entity, [&](auto &&current) {
+                merge_component(current, comp);
+            });
+        } else {
+            registry.emplace<Component>(local_entity, comp);
+        }
+    }
+
+    template<typename Component>
+    void import_each_input(double start_time, double length_of_time,
+                           entt::registry &registry, const entity_map &emap) const {
+        auto &inputs = m_history->template get_inputs<Component>();
+        auto end_time = start_time + length_of_time;
+
+        for (auto [entity, history] : inputs.each()) {
+            for (auto &entry : history.entries) {
+                if (entry.timestamp > end_time) {
+                    break;
+                }
+
+                if (entry.timestamp >= start_time) {
+                    import_component(registry, entity, entry.component, emap);
+                }
+            }
+        }
+    }
+
+    void import_each_action(double start_time, double length_of_time,
+                            entt::registry &registry, const entity_map &emap) const {
+        if (!m_import_action_func) {
+            return;
+        }
+
+        auto end_time = start_time + length_of_time;
+
+        for (auto [entity, actions] : m_history->actions.each()) {
+            for (auto &entry : actions.entries) {
+                if (entry.timestamp > end_time) {
+                    break;
+                }
+
+                if (entry.timestamp >= start_time) {
+                    auto remote_entity = entity;
+
+                    if (emap.contains(remote_entity)) {
+                        auto local_entity = emap.at(remote_entity);
+
+                        if (registry.valid(local_entity)) {
+                            (*m_import_action_func)(registry, local_entity, entry.action_index, entry.data);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    template<typename Array>
+    auto first_before(const Array &arr, double timestamp) const {
+        return std::find_if(arr.rbegin(), arr.rend(),
+                            [timestamp](auto &&elem) { return elem.timestamp <= timestamp; });
+    }
+
+    template<typename Component>
+    void import_latest_inputs(double time, entt::registry &registry, const entity_map &emap) const {
+        auto &inputs = m_history->template get_inputs<Component>();
+
+        for (auto [entity, history] : inputs.each()) {
+            // Import the first component state that's before the given time.
+            auto it = first_before(history.entries, time);
+
+            if (it != history.entries.rend()) {
+                import_component(registry, entity, it->component, emap);
+            }
+        }
+    }
+
+    template<typename Action>
+    static void import_action_single(entt::registry &registry, entt::entity entity,
+                                     const std::vector<uint8_t> &data) {
+        using ActionListType = action_list<Action>;
+        ActionListType import_list;
+        auto archive = memory_input_archive(data.data(), data.size());
+        archive(import_list);
+
+        if (archive.failed()) {
+            return;
+        }
+
+        if (!registry.all_of<ActionListType>(entity)) {
+            registry.emplace<ActionListType>(entity);
+        }
+
+        registry.patch<ActionListType>(entity, [&import_list](auto &list) {
+            list.actions.insert(list.actions.end(), import_list.actions.begin(), import_list.actions.end());
+        });
+    }
+
+    template<typename... Actions>
+    static auto import_action(entt::registry &registry, entt::entity entity,
+                              action_history::action_index_type action_index,
+                              const std::vector<uint8_t> &data) {
+        static_assert(sizeof...(Actions) > 0);
+        if constexpr(sizeof...(Actions) == 1) {
+            (import_action_single<Actions>(registry, entity, data), ...);
+        } else {
+            static const auto actions = std::tuple<Actions...>{};
+            visit_tuple(actions, action_index, [&](auto &&a) {
+                using ActionType = std::decay_t<decltype(a)>;
+                import_action_single<ActionType>(registry, entity, data);
+            });
+        }
+    }
+
+public:
+    template<typename... Actions>
+    input_state_history_reader_impl(std::shared_ptr<input_state_history<Inputs...>> history,
+                                    [[maybe_unused]] std::tuple<Actions...>)
+        : m_history(history)
+    {
+        if constexpr(sizeof...(Actions) > 0) {
+            m_import_action_func = &import_action<Actions...>;
+        }
+    }
+
+    void import_each(double start_time, double length_of_time,
+                     entt::registry &registry, const entity_map &emap) const override {
+        std::lock_guard lock(m_history->mutex);
+        (import_each_input<Inputs>(start_time, length_of_time, registry, emap), ...);
+        import_each_action(start_time, length_of_time, registry, emap);
+    }
+
+    void import_latest(double time, entt::registry &registry, const entity_map &emap) const override {
+        std::lock_guard lock(m_history->mutex);
+        (import_latest_inputs<Inputs>(time, registry, emap), ...);
+    }
+
+private:
+    std::shared_ptr<input_state_history<Inputs...>> m_history;
+
+    using import_action_func_t = void(entt::registry &, entt::entity,
+                                      action_history::action_index_type,
+                                      const std::vector<uint8_t> &);
+    import_action_func_t *m_import_action_func {nullptr};
 };
 
 }
 
-#endif // EDYN_NETWORKING_INPUT_STATE_HISTORY_HPP
+#endif // EDYN_NETWORKING_UTIL_INPUT_STATE_HISTORY_HPP

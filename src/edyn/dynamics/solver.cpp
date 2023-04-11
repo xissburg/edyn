@@ -39,7 +39,6 @@
 #include "edyn/dynamics/island_solver.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/util/entt_util.hpp"
-#include "edyn/util/island_util.hpp"
 #include <entt/entity/registry.hpp>
 #include <optional>
 #include <type_traits>
@@ -247,7 +246,7 @@ static void prepare_constraints(entt::registry &registry, scalar dt, bool mt) {
     };
 
     const size_t max_sequential_size = 4;
-    auto num_constraints = calculate_view_size(registry.view<constraint_tag>(exclude_sleeping_disabled));
+    auto num_constraints = calculate_view_size(cache_view);
 
     if (mt && num_constraints > max_sequential_size) {
         auto &dispatcher = job_dispatcher::global();

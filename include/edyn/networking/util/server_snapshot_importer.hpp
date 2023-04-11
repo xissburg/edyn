@@ -30,10 +30,6 @@ public:
     virtual void import(entt::registry &registry, entt::entity client_entity,
                         const packet::registry_snapshot &snap, bool check_ownership) = 0;
 
-    // Import input components of a pool containing local entities.
-    virtual void import_input_local(entt::registry &registry, entt::entity client_entity,
-                                    const packet::registry_snapshot &snap) = 0;
-
     // Transform contained entities from remote to local using the remote
     // client's entity map.
     virtual void transform_to_local(const entt::registry &registry, entt::entity client_entity,
@@ -179,45 +175,6 @@ class server_snapshot_importer_impl : public server_snapshot_importer {
     }
 
     template<typename Component>
-    void import_input_components_local(entt::registry &registry, entt::entity client_entity,
-                                       const std::vector<entt::entity> &pool_entities,
-                                       const pool_snapshot_data_impl<Component> &pool) {
-        auto owner_view = registry.view<entity_owner>();
-
-        for (size_t i = 0; i < pool.entity_indices.size(); ++i) {
-            auto entity_index = pool.entity_indices[i];
-            auto local_entity = pool_entities[entity_index];
-
-            if (!registry.valid(local_entity)) {
-                continue;
-            }
-
-            // Entity must be owned by client.
-            if (!owner_view.contains(local_entity) ||
-                std::get<0>(owner_view.get(local_entity)).client_entity != client_entity)
-            {
-                continue;
-            }
-
-            if constexpr(std::is_empty_v<Component>) {
-                if (!registry.any_of<Component>(local_entity)) {
-                    registry.emplace<Component>(local_entity);
-                }
-            } else {
-                auto &comp = pool.components[i];
-
-                if (registry.any_of<Component>(local_entity)) {
-                    registry.patch<Component>(local_entity, [&](auto &&current) {
-                        merge_component(current, comp);
-                    });
-                } else {
-                    registry.emplace<Component>(local_entity, comp);
-                }
-            }
-        }
-    }
-
-    template<typename Component>
     void transform_components_to_local(const entt::registry &registry, entt::entity client_entity,
                                        const std::vector<entt::entity> &pool_entities,
                                        pool_snapshot_data_impl<Component> &pool,
@@ -337,22 +294,6 @@ public:
         }
     }
 
-    void import_input_local(entt::registry &registry, entt::entity client_entity,
-                            const packet::registry_snapshot &snap) override {
-        const std::tuple<Components...> all_components;
-
-        for (auto &pool : snap.pools) {
-            visit_tuple(all_components, pool.component_index, [&](auto &&c) {
-                using CompType = std::decay_t<decltype(c)>;
-
-                if constexpr(std::is_base_of_v<network_input, CompType>) {
-                    auto *typed_pool = static_cast<pool_snapshot_data_impl<CompType> *>(pool.ptr.get());
-                    import_input_components_local(registry, client_entity, snap.entities, *typed_pool);
-                }
-            });
-        }
-    }
-
     void transform_to_local(const entt::registry &registry, entt::entity client_entity,
                             packet::registry_snapshot &snap, bool check_ownership) override {
         const std::tuple<Components...> all_components;
@@ -390,13 +331,20 @@ public:
             auto idx = history_pool->entity_indices[i];
             auto entity = snap.entities[idx];
             auto &history = history_pool->components[i];
+
+            if (history.empty()) {
+                continue;
+            }
+
             history.sort();
 
             for (auto &entry : history.entries) {
                 entry.timestamp += time_delta;
             }
 
-            registry.get<action_history>(entity).merge(history);
+            registry.patch<action_history>(entity, [&](action_history &current) {
+                current.merge(history);
+            });
         }
 
         *pool_it = std::move(snap.pools.back());

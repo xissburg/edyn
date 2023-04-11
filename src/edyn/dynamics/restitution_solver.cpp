@@ -25,6 +25,7 @@
 #include "edyn/core/entity_graph.hpp"
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/context/settings.hpp"
+#include "edyn/util/island_util.hpp"
 #include <entt/entity/registry.hpp>
 #include <entt/entity/utility.hpp>
 
@@ -323,7 +324,7 @@ bool solve_restitution_iteration(entt::registry &registry, entt::entity island_e
 
 void solve_restitution(entt::registry &registry, scalar dt) {
     auto &settings = registry.ctx().at<edyn::settings>();
-    auto island_view = registry.view<island_tag>(entt::exclude_t<sleeping_tag>{});
+    auto island_view = registry.view<island_tag>(exclude_sleeping_disabled);
 
     for (unsigned i = 0; i < settings.num_restitution_iterations; ++i) {
         bool all_solved = true;

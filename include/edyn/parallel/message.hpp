@@ -100,7 +100,7 @@ struct query_aabb_response {
 };
 
 struct set_extrapolator_context_settings {
-    std::shared_ptr<input_state_history> input_history;
+    std::shared_ptr<input_state_history_reader> input_history;
     make_extrapolation_modified_comp_func_t *make_extrapolation_modified_comp;
 };
 

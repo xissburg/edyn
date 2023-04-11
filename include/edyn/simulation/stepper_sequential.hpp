@@ -14,7 +14,7 @@ namespace edyn {
  */
 class stepper_sequential {
 public:
-    stepper_sequential(entt::registry &registry, bool multithreaded, double time);
+    stepper_sequential(entt::registry &registry, double time, bool multithreaded);
 
     void update(double time);
     void step_simulation(double time);
