@@ -76,6 +76,7 @@ class client_snapshot_exporter_impl : public client_snapshot_exporter {
         auto view = registry.view<action_list<Action>, action_history>();
         auto owner_view = registry.view<entity_owner>();
 
+        // Only record actions of entities owned by the current client.
         for (auto [entity, list, history] : view.each()) {
             if (owner_view.contains(entity)) {
                 auto [owner] = owner_view.get(entity);

@@ -40,10 +40,8 @@ namespace edyn {
 extrapolation_worker::extrapolation_worker(const settings &settings,
                                            const registry_operation_context &reg_op_ctx,
                                            const material_mix_table &material_table,
-                                           std::shared_ptr<input_state_history> input_history,
                                            make_extrapolation_modified_comp_func_t *make_extrapolation_modified_comp)
     : m_solver(m_registry)
-    , m_input_history(input_history)
     , m_poly_initializer(m_registry)
     , m_island_manager(m_registry)
     , m_message_queue(message_dispatcher::global().make_queue<
@@ -122,7 +120,7 @@ void extrapolation_worker::set_registry_operation_context(const registry_operati
     dispatcher.send<msg::set_registry_operation_context>(m_message_queue.identifier, {"unknown"}, reg_op_ctx);
 }
 
-void extrapolation_worker::set_context_settings(std::shared_ptr<input_state_history> input_history,
+void extrapolation_worker::set_context_settings(std::shared_ptr<input_state_history_reader> input_history,
                                                 make_extrapolation_modified_comp_func_t *make_extrapolation_modified_comp) {
     EDYN_ASSERT(make_extrapolation_modified_comp != nullptr);
     auto &dispatcher = message_dispatcher::global();
@@ -333,6 +331,7 @@ bool extrapolation_worker::init_extrapolation(const extrapolation_request &reque
     m_modified_comp->import_remote_state(entities);
 
     if (m_input_history) {
+        // Apply inputs that happened before the start time.
         m_input_history->import_latest(m_current_time, m_registry, m_entity_map);
     }
 

@@ -47,7 +47,7 @@ struct client_network_context {
     // Without full ownership, the client will only send input components to server.
     bool allow_full_ownership {true};
 
-    std::shared_ptr<input_state_history> input_history;
+    std::shared_ptr<input_state_history_writer> input_history;
 
     std::unique_ptr<extrapolation_worker> extrapolator;
     std::vector<extrapolation_request> pending_extrapolations;

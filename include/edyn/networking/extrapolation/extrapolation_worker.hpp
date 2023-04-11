@@ -20,7 +20,7 @@
 
 namespace edyn {
 
-class input_state_history;
+class input_state_history_reader;
 struct registry_operation_context;
 class material_mix_table;
 struct settings;
@@ -42,7 +42,6 @@ public:
     extrapolation_worker(const settings &settings,
                          const registry_operation_context &reg_op_ctx,
                          const material_mix_table &material_table,
-                         std::shared_ptr<input_state_history> input_history,
                          make_extrapolation_modified_comp_func_t *make_extrapolation_modified_comp);
 
     ~extrapolation_worker();
@@ -53,7 +52,7 @@ public:
     void set_settings(const edyn::settings &settings);
     void set_material_table(const material_mix_table &material_table);
     void set_registry_operation_context(const registry_operation_context &reg_op_ctx);
-    void set_context_settings(std::shared_ptr<input_state_history> input_history,
+    void set_context_settings(std::shared_ptr<input_state_history_reader> input_history,
                               make_extrapolation_modified_comp_func_t *make_extrapolation_modified_comp);
 
     void on_extrapolation_request(message<extrapolation_request> &msg);
@@ -96,7 +95,7 @@ private:
     unsigned m_step_count {0};
     bool m_terminated_early {false};
 
-    std::shared_ptr<input_state_history> m_input_history;
+    std::shared_ptr<input_state_history_reader> m_input_history;
 
     std::mutex m_mutex;
     std::condition_variable m_cv;

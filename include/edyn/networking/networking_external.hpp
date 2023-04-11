@@ -11,6 +11,7 @@
 #include "edyn/networking/comp/networked_comp.hpp"
 #include "edyn/networking/context/client_network_context.hpp"
 #include "edyn/networking/context/server_network_context.hpp"
+#include "edyn/networking/util/input_state_history.hpp"
 #include "edyn/replication/registry_operation.hpp"
 
 namespace edyn {
@@ -35,7 +36,10 @@ void register_networked_components(entt::registry &registry, std::tuple<Actions.
 
         auto input = std::tuple_cat(std::conditional_t<std::is_base_of_v<network_input, Components>,
                                     std::tuple<Components>, std::tuple<>>{}...);
-        ctx->input_history.reset(new input_state_history_impl(input, actions));
+        auto input_history = new input_state_history(input);
+        auto input_history_ptr =
+            std::shared_ptr<std::remove_pointer_t<decltype(input_history)>>(input_history);
+        ctx->input_history.reset(new input_state_history_writer_impl(input_history_ptr));
 
         ctx->make_extrapolation_modified_comp = [](entt::registry &registry) {
             auto external = std::tuple<Components...>{};
@@ -44,7 +48,12 @@ void register_networked_components(entt::registry &registry, std::tuple<Actions.
                 new extrapolation_modified_comp_impl(registry, all));
         };
 
-        ctx->extrapolator->set_context_settings(ctx->input_history, ctx->make_extrapolation_modified_comp);
+        auto input_history_reader = new input_state_history_reader_impl(input_history_ptr, actions);
+        auto input_history_reader_ptr =
+            std::shared_ptr<std::remove_pointer_t<decltype(input_history_reader)>>(input_history_reader);
+
+        ctx->extrapolator->set_context_settings(input_history_reader_ptr,
+                                                ctx->make_extrapolation_modified_comp);
     }
 
     if (auto *ctx = registry.ctx().find<server_network_context>()) {

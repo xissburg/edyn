@@ -140,7 +140,7 @@ void init_network_client(entt::registry &registry) {
     auto &reg_op_ctx = registry.ctx().at<registry_operation_context>();
     auto &material_table = registry.ctx().at<material_mix_table>();
     ctx.extrapolator = std::make_unique<extrapolation_worker>(settings, reg_op_ctx, material_table,
-                                                              ctx.input_history, ctx.make_extrapolation_modified_comp);
+                                                              ctx.make_extrapolation_modified_comp);
     ctx.extrapolator->start();
 
     ctx.message_queue.sink<extrapolation_result>().connect<&on_extrapolation_result>(registry);
