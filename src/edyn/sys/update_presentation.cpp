@@ -62,7 +62,11 @@ static void update_discontinuities(entt::registry &registry, double dt) {
 
     registry.view<discontinuity_spin>()
         .each([rate, dt](discontinuity_spin &dis) {
-            dis.offset -= dis.offset * std::min(rate * dt, 1.0);
+            if (std::abs(dis.offset) > scalar(0.0001)) {
+                dis.offset -= dis.offset * std::min(rate * dt, 1.0);
+            } else {
+                dis.offset = 0;
+            }
         });
 
     registry.view<discontinuity_spin, sleeping_tag>()
