@@ -46,9 +46,19 @@
 
 namespace edyn {
 
-void on_construct_networked_entity(entt::registry &registry, entt::entity entity) {
+static void on_construct_shared(entt::registry &registry, entt::entity entity) {
     auto &ctx = registry.ctx().at<client_network_context>();
     ctx.created_entities.push_back(entity);
+}
+
+static void on_destroy_shared(entt::registry &registry, entt::entity entity) {
+    auto &ctx = registry.ctx().at<client_network_context>();
+    ctx.destroyed_entities.push_back(entity);
+    ctx.input_history->remove_entity(entity);
+}
+
+void on_construct_networked_entity(entt::registry &registry, entt::entity entity) {
+    auto &ctx = registry.ctx().at<client_network_context>();
 
     if (!ctx.importing_entities) {
         ctx.client_created_entities.push_back(entity);
@@ -57,7 +67,6 @@ void on_construct_networked_entity(entt::registry &registry, entt::entity entity
 
 void on_destroy_networked_entity(entt::registry &registry, entt::entity entity) {
     auto &ctx = registry.ctx().at<client_network_context>();
-    ctx.destroyed_entities.push_back(entity);
 
     if (!ctx.importing_entities) {
         if (ctx.entity_map.contains(entity)) {
@@ -66,8 +75,6 @@ void on_destroy_networked_entity(entt::registry &registry, entt::entity entity) 
 
         ctx.client_destroyed_entities.push_back(entity);
     }
-
-    ctx.input_history->remove_entity(entity);
 }
 
 void on_construct_entity_owner(entt::registry &registry, entt::entity entity) {
@@ -134,6 +141,11 @@ void init_network_client(entt::registry &registry) {
     registry.on_construct<entity_owner>().connect<&on_construct_entity_owner>();
     registry.on_destroy<entity_owner>().connect<&on_destroy_entity_owner>();
 
+    registry.on_construct<graph_node>().connect<&on_construct_shared>();
+    registry.on_destroy<graph_node>().connect<&on_destroy_shared>();
+    registry.on_construct<graph_edge>().connect<&on_construct_shared>();
+    registry.on_destroy<graph_edge>().connect<&on_destroy_shared>();
+
     auto &settings = registry.ctx().at<edyn::settings>();
     settings.network_settings = client_network_settings{};
 
@@ -157,34 +169,66 @@ void deinit_network_client(entt::registry &registry) {
     registry.on_destroy<networked_tag>().disconnect<&on_destroy_networked_entity>();
     registry.on_construct<entity_owner>().disconnect<&on_construct_entity_owner>();
     registry.on_destroy<entity_owner>().disconnect<&on_destroy_entity_owner>();
+
+    registry.on_construct<graph_node>().disconnect<&on_construct_shared>();
+    registry.on_destroy<graph_node>().disconnect<&on_destroy_shared>();
+    registry.on_construct<graph_edge>().disconnect<&on_construct_shared>();
+    registry.on_destroy<graph_edge>().disconnect<&on_destroy_shared>();
 }
 
-static void process_created_entities(entt::registry &registry) {
+void add_entities_to_extrapolator(entt::registry &registry,
+                                  const std::vector<entt::entity> &entities,
+                                  const std::vector<entt::entity> &owned_entities) {
     auto &ctx = registry.ctx().at<client_network_context>();
-
-    if (ctx.created_entities.empty()) {
-        return;
-    }
-
     auto &reg_op_ctx = registry.ctx().at<registry_operation_context>();
     auto builder = (*reg_op_ctx.make_reg_op_builder)(registry);
-    std::vector<entt::entity> owned_entities;
 
-    for (auto entity : ctx.created_entities) {
+    for (auto entity : entities) {
         builder->create(entity);
         builder->emplace_all(entity);
-
-        if (ctx.owned_entities.contains(entity)) {
-            owned_entities.push_back(entity);
-        }
     }
 
     auto op = builder->finish();
     auto &dispatcher = message_dispatcher::global();
     dispatcher.send<extrapolation_operation_create>(
         {"extrapolation_worker"}, ctx.message_queue.identifier,
-        std::move(op), std::move(owned_entities));
+        std::move(op), owned_entities);
+}
 
+void remove_entities_from_extrapolator(entt::registry &registry,
+                                       const std::vector<entt::entity> &entities) {
+    auto &ctx = registry.ctx().at<client_network_context>();
+    auto &dispatcher = message_dispatcher::global();
+    dispatcher.send<extrapolation_operation_destroy>(
+        {"extrapolation_worker"}, ctx.message_queue.identifier, entities);
+}
+
+static void process_created_entities(entt::registry &registry) {
+    auto &ctx = registry.ctx().at<client_network_context>();
+
+    // Ignore contact manifolds and watch out for destroyed entities.
+    auto manifold_view = registry.view<contact_manifold>();
+
+    ctx.created_entities.erase(
+        std::remove_if(ctx.created_entities.begin(), ctx.created_entities.end(),
+            [&](auto &entity) {
+                return !registry.valid(entity) || manifold_view.contains(entity);
+            }),
+        ctx.created_entities.end());
+
+    if (ctx.created_entities.empty()) {
+        return;
+    }
+
+    std::vector<entt::entity> owned_entities;
+
+    for (auto entity : ctx.created_entities) {
+        if (ctx.owned_entities.contains(entity)) {
+            owned_entities.push_back(entity);
+        }
+    }
+
+    add_entities_to_extrapolator(registry, ctx.created_entities, owned_entities);
     ctx.created_entities.clear();
 }
 
@@ -216,13 +260,9 @@ static void process_destroyed_entities(entt::registry &registry) {
     auto &ctx = registry.ctx().at<client_network_context>();
 
     if (ctx.destroyed_entities.empty()) {
-        return;
+        remove_entities_from_extrapolator(registry, ctx.destroyed_entities);
+        ctx.destroyed_entities.clear();
     }
-
-    // Destroy entities in extrapolator.
-    auto &dispatcher = message_dispatcher::global();
-    dispatcher.send<extrapolation_operation_destroy>(
-        {"extrapolation_worker"}, ctx.message_queue.identifier, std::move(ctx.destroyed_entities));
 }
 
 static void process_client_destroyed_entities(entt::registry &registry, double time) {

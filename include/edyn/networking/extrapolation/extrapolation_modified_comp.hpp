@@ -109,7 +109,7 @@ class extrapolation_modified_comp_impl : public extrapolation_modified_comp {
             auto view = m_registry->view<Component>();
 
             for (auto entity : entities) {
-                if (view.contains(entity)) {
+                if (view.contains(entity) && storage.contains(entity)) {
                     auto [comp] = view.get(entity);
                     comp = storage.get(entity);
                 }

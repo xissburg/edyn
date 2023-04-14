@@ -15,6 +15,7 @@
 #include "edyn/networking/context/client_network_context.hpp"
 #include "edyn/networking/extrapolation/extrapolation_operation.hpp"
 #include "edyn/networking/extrapolation/extrapolation_request.hpp"
+#include "edyn/networking/settings/client_network_settings.hpp"
 #include "edyn/networking/util/input_state_history.hpp"
 #include "edyn/parallel/message.hpp"
 #include "edyn/replication/registry_operation.hpp"
@@ -79,15 +80,19 @@ extrapolation_worker::~extrapolation_worker() {
 
 void extrapolation_worker::init() {
     auto &settings = m_registry.ctx().at<edyn::settings>();
-    if (settings.init_callback) {
-        (*settings.init_callback)(m_registry);
+    auto &client_settings = std::get<client_network_settings>(settings.network_settings);
+
+    if (client_settings.extrapolation_init_callback) {
+        (*client_settings.extrapolation_init_callback)(m_registry);
     }
 }
 
 void extrapolation_worker::deinit() {
     auto &settings = m_registry.ctx().at<edyn::settings>();
-    if (settings.deinit_callback) {
-        (*settings.deinit_callback)(m_registry);
+    auto &client_settings = std::get<client_network_settings>(settings.network_settings);
+
+    if (client_settings.extrapolation_deinit_callback) {
+        (*client_settings.extrapolation_deinit_callback)(m_registry);
     }
 }
 
@@ -234,7 +239,17 @@ void extrapolation_worker::on_extrapolation_operation_create(message<extrapolati
 }
 
 void extrapolation_worker::on_set_settings(message<msg::set_settings> &msg) {
-    m_registry.ctx().at<settings>() = msg.content.settings;
+    const auto &settings = msg.content.settings;
+    auto &client_settings = std::get<client_network_settings>(settings.network_settings);
+    auto &current = m_registry.ctx().at<edyn::settings>();
+    auto &client_current = std::get<client_network_settings>(current.network_settings);
+
+    if (client_settings.extrapolation_init_callback &&
+        client_settings.extrapolation_init_callback != client_current.extrapolation_init_callback) {
+        (*client_settings.extrapolation_init_callback)(m_registry);
+    }
+
+    current = settings;
 }
 
 void extrapolation_worker::on_set_reg_op_ctx(message<msg::set_registry_operation_context> &msg) {
@@ -264,7 +279,7 @@ void extrapolation_worker::apply_history() {
     }
 }
 
-bool extrapolation_worker::init_extrapolation(const extrapolation_request &request) {
+bool extrapolation_worker::begin_extrapolation(const extrapolation_request &request) {
     m_init_time = performance_time();
     m_current_time = request.start_time;
     m_step_count = 0;
@@ -351,6 +366,14 @@ bool extrapolation_worker::init_extrapolation(const extrapolation_request &reque
     // only ones which changed.
     m_modified_comp->export_remote_state(snapshot_entities);
 
+    // Invoke pre-extrapolation callback after setting up initial state.
+    auto &settings = m_registry.ctx().at<edyn::settings>();
+    auto &client_settings = std::get<client_network_settings>(settings.network_settings);
+
+    if (client_settings.extrapolation_begin_callback) {
+        (*client_settings.extrapolation_begin_callback)(m_registry);
+    }
+
     // Recalculate properties after setting initial state from server.
     auto origin_view = m_registry.view<position, orientation, center_of_mass, origin>();
 
@@ -377,6 +400,14 @@ bool extrapolation_worker::init_extrapolation(const extrapolation_request &reque
 }
 
 void extrapolation_worker::finish_extrapolation(const extrapolation_request &request) {
+    // Invoke post-extrapolation callback before wrapping up.
+    auto &settings = m_registry.ctx().at<edyn::settings>();
+    auto &client_settings = std::get<client_network_settings>(settings.network_settings);
+
+    if (client_settings.extrapolation_finish_callback) {
+        (*client_settings.extrapolation_finish_callback)(m_registry);
+    }
+
     // Insert modified components into a registry operation to be sent back to
     // the main thread which will assign the extrapolated state to its entities.
     auto &reg_op_ctx = m_registry.ctx().at<registry_operation_context>();
@@ -405,7 +436,9 @@ void extrapolation_worker::finish_extrapolation(const extrapolation_request &req
     // extrapolation.
     auto manifold_view = m_registry.view<contact_manifold>(entt::exclude_t<sleeping_tag>{});
     manifold_view.each([&](contact_manifold &manifold) {
-        result.manifolds.push_back(manifold);
+        if (manifold.num_points > 0) {
+            result.manifolds.push_back(manifold);
+        }
     });
 
     // Put all islands to sleep at the end.
@@ -445,6 +478,7 @@ bool extrapolation_worker::should_step(const extrapolation_request &request) {
 
 void extrapolation_worker::begin_step() {
     auto &settings = m_registry.ctx().at<edyn::settings>();
+    auto &client_settings = std::get<client_network_settings>(settings.network_settings);
 
     // Clear all action lists before inserting new actions.
     // This will include any actions imported via the registry operations.
@@ -456,24 +490,26 @@ void extrapolation_worker::begin_step() {
 
     apply_history();
 
-    if (settings.pre_step_callback) {
-        (*settings.pre_step_callback)(m_registry);
+    if (client_settings.extrapolation_pre_step_callback) {
+        (*client_settings.extrapolation_pre_step_callback)(m_registry);
     }
 }
 
 void extrapolation_worker::finish_step() {
     auto &settings = m_registry.ctx().at<edyn::settings>();
+    auto &client_settings = std::get<client_network_settings>(settings.network_settings);
+
     m_current_time += settings.fixed_dt;
 
-    if (settings.post_step_callback) {
-        (*settings.post_step_callback)(m_registry);
+    if (client_settings.extrapolation_post_step_callback) {
+        (*client_settings.extrapolation_post_step_callback)(m_registry);
     }
 
     ++m_step_count;
 }
 
 void extrapolation_worker::extrapolate(const extrapolation_request &request) {
-    if (!init_extrapolation(request)) {
+    if (!begin_extrapolation(request)) {
         return;
     }
 

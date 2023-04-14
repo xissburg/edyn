@@ -45,6 +45,11 @@ struct procedural_tag {};
 struct networked_tag {};
 
 /**
+ * An entity that should not be shared between client and server.
+ */
+struct network_exclude_tag {};
+
+/**
  * An entity that is currently asleep.
  */
 struct sleeping_tag {};
