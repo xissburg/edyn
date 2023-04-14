@@ -2,8 +2,11 @@
 #define EDYN_NETWORKING_SETTINGS_CLIENT_NETWORK_SETTINGS_HPP
 
 #include "edyn/math/scalar.hpp"
+#include <entt/entity/fwd.hpp>
 
 namespace edyn {
+
+using extrapolation_callback_t = void(*)(entt::registry &);
 
 struct client_network_settings {
     double snapshot_rate {20};
@@ -19,6 +22,13 @@ struct client_network_settings {
     // longer action history decreases the chances of actions being lost. It
     // is sensible to increase it in case packet loss is high.
     double action_history_max_age {1.0};
+
+    extrapolation_callback_t extrapolation_init_callback {nullptr};
+    extrapolation_callback_t extrapolation_deinit_callback {nullptr};
+    extrapolation_callback_t extrapolation_begin_callback {nullptr};
+    extrapolation_callback_t extrapolation_finish_callback {nullptr};
+    extrapolation_callback_t extrapolation_pre_step_callback {nullptr};
+    extrapolation_callback_t extrapolation_post_step_callback {nullptr};
 };
 
 }

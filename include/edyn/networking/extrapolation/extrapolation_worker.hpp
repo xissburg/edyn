@@ -29,7 +29,7 @@ class extrapolation_worker final {
 
     void init();
     void deinit();
-    bool init_extrapolation(const extrapolation_request &);
+    bool begin_extrapolation(const extrapolation_request &);
     bool should_step(const extrapolation_request &);
     void begin_step();
     void finish_step();
