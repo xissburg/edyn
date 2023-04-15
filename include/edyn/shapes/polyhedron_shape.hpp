@@ -40,22 +40,6 @@ struct polyhedron_shape {
      * @param mesh Shared pointer to a convex mesh.
      */
     polyhedron_shape(std::shared_ptr<convex_mesh> mesh);
-
-    /**
-     * @brief Loads a polyhedron shape from an obj file.
-     * The obj file must have a single shape. If the obj file contains more than
-     * one shape, use a `compound_shape` instead.
-     * @remark The transform is applied in this order: scale, rotation,
-     * translation.
-     * @param path_to_obj File path.
-     * @param pos Offset to apply to all vertex positions.
-     * @param orn Orientation to rotate all vertices.
-     * @param scale Scaling to apply to all vertices.
-     */
-    polyhedron_shape(const std::string &path_to_obj,
-                     const vector3 &pos = vector3_zero,
-                     const quaternion &orn = quaternion_identity,
-                     const vector3 &scale = vector3_one);
 };
 
 template<typename Archive>

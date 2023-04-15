@@ -109,6 +109,7 @@ add_library(Edyn
     src/edyn/util/tire_util.cpp
     src/edyn/util/constraint_util.cpp
     src/edyn/util/shape_util.cpp
+    src/edyn/util/shape_io.cpp
     src/edyn/util/aabb_util.cpp
     src/edyn/math/shape_volume.cpp
     src/edyn/util/collision_util.cpp
