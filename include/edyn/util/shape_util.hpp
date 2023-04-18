@@ -66,49 +66,6 @@ void make_box_mesh(const vector3 &half_extents,
                    std::vector<uint32_t> &indices,
                    std::vector<uint32_t> &faces);
 
-struct obj_mesh {
-    std::vector<vector3> vertices;
-    std::vector<vector3> colors;
-    std::vector<uint32_t> indices;
-    std::vector<uint32_t> faces;
-};
-
-/**
- * @brief Loads meshes from a *.obj file.
- * Scale, rotation and translation are applied to all vertices in this order.
- * @param path Path to file.
- * @param meshes Array to be filled with meshes.
- * @param pos Position offset to add to vertices.
- * @param orn Orientation to rotate vertices.
- * @param scale Scaling to be applied to all vertices.
- * @return Success or failure.
- */
-bool load_meshes_from_obj(const std::string &path,
-                          std::vector<obj_mesh> &meshes,
-                          vector3 pos = vector3_zero,
-                          quaternion orn = quaternion_identity,
-                          vector3 scale = vector3_one);
-
-/**
- * @brief Loads a triangle mesh from a *.obj file which must've been
- * triangulated during export.
- * @param path Path to file.
- * @param vertices Array to be filled with vertices.
- * @param indices Array to be filled with indices for each triangle.
- * @param colors Array to be filled with vertex colors.
- * @param pos Position offset to add to vertices.
- * @param orn Orientation to rotate vertices.
- * @param scale Scaling to be applied to all vertices.
- * @return Success or failure.
- */
-bool load_tri_mesh_from_obj(const std::string &path,
-                            std::vector<vector3> &vertices,
-                            std::vector<uint32_t> &indices,
-                            std::vector<vector3> *colors = nullptr,
-                            vector3 pos = vector3_zero,
-                            quaternion orn = quaternion_identity,
-                            vector3 scale = vector3_one);
-
 /**
  * @brief Calculates a point on a axis-aligned box that's furthest along
  * a given direction, i.e. support point.

@@ -64,22 +64,6 @@ struct compound_shape {
     template<typename Func>
     void raycast(const vector3 &p0, const vector3 &p1, Func func) const;
 
-    compound_shape() = default;
-
-    /**
-     * @brief Loads a compound shape from an obj file.
-     * @remark The transform is applied in this order: scale, rotation,
-     * translation.
-     * @param path_to_obj File path.
-     * @param pos Offset to apply to all vertex positions.
-     * @param orn Orientation to rotate all vertices.
-     * @param scale Scaling to apply to all vertices.
-     */
-    compound_shape(const std::string &path_to_obj,
-                   const vector3 &pos = vector3_zero,
-                   const quaternion &orn = quaternion_identity,
-                   const vector3 &scale = vector3_one);
-
     std::vector<shape_node> nodes;
     static_tree tree;
 };
