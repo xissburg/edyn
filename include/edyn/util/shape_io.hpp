@@ -11,7 +11,6 @@
 
 namespace edyn {
 
-
 struct obj_mesh {
     std::vector<vector3> vertices;
     std::vector<vector3> colors;
@@ -70,6 +69,7 @@ struct polyhedron_with_center {
  * @param pos Offset to apply to all vertex positions.
  * @param orn Orientation to rotate all vertices.
  * @param scale Scaling to apply to all vertices.
+ * @return List of polyhedrons with their respective centroid.
  */
 std::vector<polyhedron_with_center> load_convex_polyhedrons_from_obj(
     const std::string &path_to_obj,
@@ -78,13 +78,15 @@ std::vector<polyhedron_with_center> load_convex_polyhedrons_from_obj(
     const vector3 &scale = vector3_one);
 
 /**
- * @brief Loads a compound shape from an obj file.
+ * @brief Loads a compound shape from an obj file. All child shapes are created
+ * as polyhedrons.
  * @remark The transform is applied in this order: scale, rotation,
  * translation.
  * @param path_to_obj File path.
  * @param pos Offset to apply to all vertex positions.
  * @param orn Orientation to rotate all vertices.
  * @param scale Scaling to apply to all vertices.
+ * @return Compound shape.
  */
 compound_shape load_compound_shape_from_obj(
     const std::string &path_to_obj,

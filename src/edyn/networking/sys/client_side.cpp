@@ -259,7 +259,7 @@ static void process_client_created_entities(entt::registry &registry, double tim
 static void process_destroyed_entities(entt::registry &registry) {
     auto &ctx = registry.ctx().at<client_network_context>();
 
-    if (ctx.destroyed_entities.empty()) {
+    if (!ctx.destroyed_entities.empty()) {
         remove_entities_from_extrapolator(registry, ctx.destroyed_entities);
         ctx.destroyed_entities.clear();
     }
