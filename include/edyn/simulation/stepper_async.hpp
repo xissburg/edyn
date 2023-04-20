@@ -27,6 +27,8 @@ class stepper_async final {
 
     void sync();
 
+    void calculate_presentation_delay(double current_time, double elapsed);
+
     struct worker_raycast_context {
         vector3 p0, p1;
         raycast_delegate_type delegate;
@@ -51,7 +53,7 @@ public:
     void on_raycast_response(message<msg::raycast_response> &);
     void on_query_aabb_response(message<msg::query_aabb_response> &);
 
-    void update(double time);
+    void update(double current_time);
 
     void set_paused(bool);
     void step_simulation();
@@ -67,7 +69,8 @@ public:
 
     void material_table_changed();
 
-    double get_simulation_timestamp() const;
+    double get_simulation_timestamp() const { return m_sim_time; }
+    double get_presentation_delay() const { return m_presentation_delay; }
 
     template<typename Message, typename... Args>
     void send_message_to_worker(Args &&... args) {
@@ -104,6 +107,9 @@ private:
     bool m_importing {false};
     double m_last_time {};
     double m_sim_time {};
+    double m_presentation_delay {};
+    std::array<double, 48> m_time_diff_samples {};
+    bool m_adjusting_presentation_delay {true};
     bool m_paused {false};
 
     raycast_id_type m_next_raycast_id {};

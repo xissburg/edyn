@@ -53,7 +53,8 @@ static void update_discontinuities(entt::registry &registry, double dt) {
     });
 }
 
-void update_presentation(entt::registry &registry, double sim_time, double time, double delta_time) {
+void update_presentation(entt::registry &registry, double sim_time, double current_time,
+                         double delta_time, double presentation_delay) {
     auto &settings = registry.ctx().at<edyn::settings>();
 
     if (std::holds_alternative<client_network_settings>(settings.network_settings)) {
@@ -62,8 +63,10 @@ void update_presentation(entt::registry &registry, double sim_time, double time,
 
     auto linear_view = registry.view<position, linvel, present_position, procedural_tag>(exclude_sleeping_disabled);
     auto angular_view = registry.view<orientation, angvel, present_orientation, procedural_tag>(exclude_sleeping_disabled);
-    const double fixed_dt = settings.fixed_dt;
-    const auto interpolation_dt = std::min(time - sim_time - fixed_dt, fixed_dt);
+
+    // Interpolate transforms at `sim_time` towards a consistent point in time
+    // which is `presentation_delay` seconds behind the current time.
+    const auto interpolation_dt = current_time - presentation_delay - sim_time;
 
     linear_view.each([interpolation_dt](position &pos, linvel &vel, present_position &pre) {
         pre = pos + vel * interpolation_dt;

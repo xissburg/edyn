@@ -44,17 +44,19 @@ void stepper_sequential::update(double time) {
     auto &nphase = m_registry->ctx().at<narrowphase>();
     auto &emitter = m_registry->ctx().at<contact_event_emitter>();
 
-    auto total_steps = num_steps;
+    auto effective_steps = num_steps;
 
-    if (total_steps > settings.max_steps_per_update) {
-        total_steps = settings.max_steps_per_update;
+    if (effective_steps > settings.max_steps_per_update) {
+        effective_steps = settings.max_steps_per_update;
+        // Advance sim time to account for steps skipped.
+        sim_time += (num_steps - effective_steps) * fixed_dt;
     }
 
     // Initialize new AABBs and shapes even in case num_steps is zero.
     m_poly_initializer.init_new_shapes();
     bphase.init_new_aabb_entities();
 
-    for (unsigned i = 0; i < total_steps; ++i) {
+    for (unsigned i = 0; i < effective_steps; ++i) {
         auto step_time = sim_time + fixed_dt * i;
 
         if (settings.pre_step_callback) {
@@ -77,7 +79,7 @@ void stepper_sequential::update(double time) {
     }
 
     m_last_time = time;
-    update_presentation(*m_registry, get_simulation_timestamp(), time, elapsed);
+    update_presentation(*m_registry, get_simulation_timestamp(), time, elapsed, fixed_dt);
 }
 
 void stepper_sequential::step_simulation(double time) {

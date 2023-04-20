@@ -1,36 +1,24 @@
 #include "edyn/simulation/stepper_async.hpp"
 #include "edyn/collision/contact_event_emitter.hpp"
-#include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_manifold_events.hpp"
-#include "edyn/collision/contact_point.hpp"
-#include "edyn/collision/dynamic_tree.hpp"
 #include "edyn/collision/query_aabb.hpp"
 #include "edyn/comp/child_list.hpp"
-#include "edyn/comp/inertia.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/tag.hpp"
-#include "edyn/comp/shape_index.hpp"
 #include "edyn/constraints/null_constraint.hpp"
-#include "edyn/context/registry_operation_context.hpp"
-#include "edyn/parallel/message.hpp"
-#include "edyn/shapes/shapes.hpp"
-#include "edyn/config/config.h"
 #include "edyn/constraints/constraint.hpp"
-#include "edyn/constraints/contact_constraint.hpp"
-#include "edyn/simulation/simulation_worker.hpp"
+#include "edyn/context/registry_operation_context.hpp"
+#include "edyn/math/math.hpp"
+#include "edyn/parallel/message.hpp"
 #include "edyn/sys/update_presentation.hpp"
 #include "edyn/core/entity_graph.hpp"
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/comp/graph_edge.hpp"
-#include "edyn/time/time.hpp"
-#include "edyn/util/island_util.hpp"
-#include "edyn/util/vector_util.hpp"
 #include "edyn/replication/registry_operation.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
-#include <entt/entity/entity.hpp>
 #include <entt/entity/registry.hpp>
-#include <set>
+#include <numeric>
 
 namespace edyn {
 
@@ -46,6 +34,7 @@ stepper_async::stepper_async(entt::registry &registry, double time)
                registry.ctx().at<registry_operation_context>(),
                registry.ctx().at<material_mix_table>())
     , m_last_time(time)
+    , m_sim_time(time)
 {
     m_connections.push_back(registry.on_construct<graph_node>().connect<&stepper_async::on_construct_shared>(*this));
     m_connections.push_back(registry.on_destroy<graph_node>().connect<&stepper_async::on_destroy_graph_node>(*this));
@@ -62,8 +51,6 @@ stepper_async::stepper_async(entt::registry &registry, double time)
     m_op_observer = (*reg_op_ctx.make_reg_op_observer)(*m_op_builder);
 
     m_worker.start();
-
-    m_sim_time = performance_time();
 }
 
 void stepper_async::on_construct_shared(entt::registry &registry, entt::entity entity) {
@@ -118,10 +105,6 @@ void stepper_async::on_destroy_graph_edge(entt::registry &registry, entt::entity
     }
 }
 
-double stepper_async::get_simulation_timestamp() const {
-    return m_sim_time;
-}
-
 void stepper_async::on_step_update(message<msg::step_update> &msg) {
     m_importing = true;
     m_op_observer->set_active(false);
@@ -130,6 +113,8 @@ void stepper_async::on_step_update(message<msg::step_update> &msg) {
     auto &ops = msg.content.ops;
     ops.execute(registry, m_entity_map);
 
+    m_sim_time = msg.content.timestamp;
+
     // Insert entity mappings for new entities into the current op.
     for (auto remote_entity : ops.create_entities) {
         if (m_entity_map.contains(remote_entity)) {
@@ -137,8 +122,6 @@ void stepper_async::on_step_update(message<msg::step_update> &msg) {
             m_op_builder->add_entity_mapping(local_entity, remote_entity);
         }
     }
-
-    m_sim_time = msg.content.timestamp;
 
     auto node_view = registry.view<graph_node>();
 
@@ -242,7 +225,48 @@ void stepper_async::sync() {
     }
 }
 
-void stepper_async::update(double time) {
+void stepper_async::calculate_presentation_delay(double current_time, double elapsed) {
+    // Keep a history of differences between current time and simulation time.
+    // Adjust presentation delay to keep it close to the highest time difference,
+    // with the goal of having the presentation interpolation happen backwards,
+    // i.e. avoid extrapolation from happening instead, which causes jitter.
+    std::rotate(m_time_diff_samples.begin(), m_time_diff_samples.begin() + 1, m_time_diff_samples.end());
+    auto time_diff = std::min(current_time - m_sim_time, 1.0);
+    m_time_diff_samples.back() = time_diff;
+
+    auto time_diff_avg = std::accumulate(m_time_diff_samples.begin(), m_time_diff_samples.end(), 0.0) / m_time_diff_samples.size();
+    auto time_diff_dev = m_time_diff_samples; // Calculate deviation from average.
+
+    for (auto &val : time_diff_dev) {
+        val = std::abs(val - time_diff_avg);
+    }
+
+    // Average absolute deviation of time differences.
+    auto time_diff_dev_avg = std::accumulate(time_diff_dev.begin(), time_diff_dev.end(), 0.0) / time_diff_dev.size();
+    auto target_presentation_delay = time_diff_avg + time_diff_dev_avg;
+    auto presentation_error = target_presentation_delay - m_presentation_delay;
+
+    // Avoid adjusting presentation delay every time. Try to find a stable value.
+    // Only start adjusting if the target moves away significantly.
+    // TODO: Using a bunch of magic numbers for now. Still needs tuning and a
+    // more solid logic.
+    if (!m_adjusting_presentation_delay &&
+        (presentation_error > time_diff_dev_avg * 0.12 || presentation_error < -time_diff_dev_avg * 1.2))
+    {
+        m_adjusting_presentation_delay = true;
+    }
+
+    if (m_adjusting_presentation_delay) {
+        auto rate = presentation_error > 0 ? 1.7 : 0.33;
+        m_presentation_delay += presentation_error * std::min(rate * elapsed, 1.0);
+
+        if (std::abs(presentation_error) < time_diff_dev_avg * 0.6) {
+            m_adjusting_presentation_delay = false;
+        }
+    }
+}
+
+void stepper_async::update(double current_time) {
     m_message_queue_handle.update();
     sync();
 
@@ -254,15 +278,19 @@ void stepper_async::update(double time) {
     if (m_paused) {
         snap_presentation(*m_registry);
     } else {
-        auto elapsed = time - m_last_time;
-        update_presentation(*m_registry, get_simulation_timestamp(), time, elapsed);
+        const auto elapsed = std::min(current_time - m_last_time, 1.0);
+        calculate_presentation_delay(current_time, elapsed);
+        update_presentation(*m_registry, m_sim_time, current_time, elapsed, m_presentation_delay);
     }
 
-    m_last_time = time;
+    m_last_time = current_time;
 }
 
 void stepper_async::set_paused(bool paused) {
     m_paused = paused;
+    m_presentation_delay = 0;
+    m_time_diff_samples = {};
+    m_adjusting_presentation_delay = true;
     send_message_to_worker<msg::set_paused>(paused);
 }
 

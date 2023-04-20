@@ -1,6 +1,7 @@
 #ifndef EDYN_COLLISION_CONTACT_MANIFOLD_EVENTS_HPP
 #define EDYN_COLLISION_CONTACT_MANIFOLD_EVENTS_HPP
 
+#include <array>
 #include "edyn/config/constants.hpp"
 
 namespace edyn {

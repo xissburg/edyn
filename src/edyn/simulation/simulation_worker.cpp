@@ -121,8 +121,8 @@ void simulation_worker::init() {
         (*settings.init_callback)(m_registry);
     }
 
-    m_last_time = performance_time();
-    m_sim_time = m_last_time;
+    m_last_time = m_current_time;
+    m_sim_time = m_current_time;
     m_island_manager.set_last_time(m_last_time);
 }
 
@@ -287,7 +287,7 @@ void simulation_worker::stop() {
     m_thread.reset();
 }
 
-void simulation_worker::update(double dt) {
+void simulation_worker::update() {
     // Must clear before reading messages to avoid accumulating over values that
     // have already been sent to main thread.
     clear_accumulated_discontinuities_quietly(m_registry);
@@ -302,8 +302,7 @@ void simulation_worker::update(double dt) {
         return;
     }
 
-    auto time = performance_time();
-    auto elapsed = time - m_last_time;
+    const auto elapsed = m_current_time - m_last_time;
     m_accumulated_time += elapsed;
 
     auto &settings = m_registry.ctx().at<edyn::settings>();
@@ -311,7 +310,13 @@ void simulation_worker::update(double dt) {
     const auto num_steps = static_cast<int64_t>(std::floor(m_accumulated_time / fixed_dt));
     m_accumulated_time -= static_cast<double>(num_steps) * fixed_dt;
 
-    auto total_steps = std::min(num_steps, static_cast<int64_t>(settings.max_steps_per_update));
+    auto effective_steps = num_steps;
+
+    if (num_steps > settings.max_steps_per_update) {
+        effective_steps = settings.max_steps_per_update;
+        // Advance sim time to account for steps skipped.
+        m_sim_time += (num_steps - effective_steps) * fixed_dt;
+    }
 
     m_poly_initializer.init_new_shapes();
 
@@ -319,7 +324,7 @@ void simulation_worker::update(double dt) {
     auto &bphase = m_registry.ctx().at<broadphase>();
     bphase.init_new_aabb_entities();
 
-    for (unsigned i = 0; i < total_steps; ++i) {
+    for (unsigned i = 0; i < effective_steps; ++i) {
         if (settings.pre_step_callback) {
             (*settings.pre_step_callback)(m_registry);
         }
@@ -343,24 +348,24 @@ void simulation_worker::update(double dt) {
         sync();
     }
 
-    m_last_time = time;
+    m_last_time = m_current_time;
     m_sim_time = m_last_time - m_accumulated_time;
 }
 
 void simulation_worker::run() {
-    init();
-
     // Use a PID to keep updates at a fixed and controlled rate.
     auto proportional_term = 0.18;
     auto integral_term = 0.06;
     auto i_term = 0.0;
-    auto time = performance_time();
+
+    m_current_time = performance_time();
+    init();
 
     while (m_running.load(std::memory_order_relaxed)) {
         auto t1 = performance_time();
-        auto dt = t1 - time;
-        time = t1;
-        update(dt);
+        auto dt = t1 - m_current_time;
+        m_current_time = t1;
+        update();
         sync();
 
         // Apply delay to maintain a fixed update rate.
@@ -396,13 +401,13 @@ void simulation_worker::on_set_paused(message<msg::set_paused> &msg) {
     m_accumulated_time = 0;
 
     if (!m_paused) {
-        m_last_time = performance_time();
+        m_last_time = m_current_time;
         m_sim_time = m_last_time;
     }
 }
 
 void simulation_worker::on_step_simulation(message<msg::step_simulation> &) {
-    m_last_time = performance_time();
+    m_last_time = m_current_time;
     m_sim_time = m_last_time;
 
     auto &bphase = m_registry.ctx().at<broadphase>();
