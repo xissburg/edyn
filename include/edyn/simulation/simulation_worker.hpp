@@ -31,7 +31,7 @@ class simulation_worker final {
     void deinit();
     void sync();
     void run();
-    void update(double);
+    void update();
 
     void wake_up_affected_islands(const registry_operation &ops);
     void consume_raycast_results();
@@ -95,6 +95,7 @@ private:
     std::unique_ptr<std::thread> m_thread;
     std::atomic<bool> m_running {false};
     double m_accumulated_time {};
+    double m_current_time {};
     double m_last_time {};
     double m_sim_time {};
     bool m_paused {false};
