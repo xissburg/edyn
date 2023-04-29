@@ -39,6 +39,7 @@ struct init_config {
     // Number of worker threads to spawn. If zero, value will be taken from
     // `std::thread::hardware_concurrency`.
     size_t num_worker_threads {0};
+    scalar fixed_dt {scalar(1.0 / 60)};
     edyn::execution_mode execution_mode {edyn::execution_mode::asynchronous};
     // If using a custom time source, assign the current time here for the
     // engine initialization.

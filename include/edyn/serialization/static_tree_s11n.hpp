@@ -2,6 +2,7 @@
 #define EDYN_SERIALIZATION_STATIC_TREE_S11N_HPP
 
 #include "edyn/collision/static_tree.hpp"
+#include "edyn/serialization/std_s11n.hpp"
 
 namespace edyn {
 
@@ -20,7 +21,7 @@ void serialize(Archive &archive, static_tree &tree) {
 
 inline
 size_t serialization_sizeof(const static_tree::tree_node &node) {
-    return 
+    return
         sizeof(node.aabb.min) +
         sizeof(node.aabb.max) +
         sizeof(node.child1) +

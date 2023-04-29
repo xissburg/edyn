@@ -36,15 +36,16 @@ TEST(networking_test, input_state_history) {
         registry.emplace<edyn::networked_tag>(entity);
     }
 
-    auto history = edyn::input_state_history_impl<input>();
-    history.emplace(registry, entities, 1);
+    auto history = std::make_shared<edyn::input_state_history<input>>();
+    auto writer = edyn::input_state_history_writer_impl<input>(history);
+    writer.emplace(registry, entities, 1);
 
     registry.get<input>(ent0).value = 11;
-    history.emplace(registry, entities, 2);
+    writer.emplace(registry, entities, 2);
 
     registry.get<input>(ent0).value = 0;
     registry.get<input>(ent2).value = 1337;
-    history.emplace(registry, entities, 3);
+    writer.emplace(registry, entities, 3);
 
     registry.get<input>(ent0).value = -98;
     registry.get<input>(ent2).value = 77;
@@ -61,7 +62,7 @@ TEST(networking_test, input_state_history) {
     input_pool.ptr = pool_data;
     snapshot.pools.push_back(std::move(input_pool));
 
-    history.emplace(snapshot, entities, 4);
+    writer.emplace(snapshot, entities, 4, 0);
 
     auto registry2 = entt::registry{};
     auto emap = edyn::entity_map{};
@@ -73,23 +74,24 @@ TEST(networking_test, input_state_history) {
     registry2.emplace<input>(emap.at(ent0));
     registry2.emplace<input>(emap.at(ent2));
 
-    history.import_initial_state(registry2, emap, 2);
+    auto reader = edyn::input_state_history_reader_impl<input>(history, {});
+    reader.import_latest(2, registry2, emap);
 
     ASSERT_EQ(registry2.get<input>(emap.at(ent0)).value, 11);
     ASSERT_EQ(registry2.get<input>(emap.at(ent2)).value, 997);
 
-    history.import_each(2, 1, registry2, emap);
+    reader.import_each(2, 1, registry2, emap);
 
     ASSERT_EQ(registry2.get<input>(emap.at(ent0)).value, 0);
     ASSERT_EQ(registry2.get<input>(emap.at(ent2)).value, 1337);
 
-    history.erase_until(2);
-    history.import_initial_state(registry2, emap, 2);
+    writer.erase_until(2);
+    reader.import_latest(2, registry2, emap);
 
     ASSERT_EQ(registry2.get<input>(emap.at(ent0)).value, 0);
     ASSERT_EQ(registry2.get<input>(emap.at(ent2)).value, 1337);
 
-    history.import_each(2, 2, registry2, emap);
+    reader.import_each(2, 2, registry2, emap);
 
     ASSERT_EQ(registry2.get<input>(emap.at(ent0)).value, -98);
     ASSERT_EQ(registry2.get<input>(emap.at(ent2)).value, 77);

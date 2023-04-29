@@ -44,6 +44,10 @@ public:
         return m_failed;
     }
 
+    bool eof() const {
+        return m_position == m_size;
+    }
+
 protected:
     template<typename T>
     void read_bytes(T &t) {

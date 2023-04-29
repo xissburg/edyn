@@ -109,6 +109,7 @@ private:
     double m_sim_time {};
     double m_presentation_delay {};
     std::array<double, 48> m_time_diff_samples {};
+    bool m_should_calculate_presentation_delay {false};
     bool m_adjusting_presentation_delay {true};
     bool m_paused {false};
 
