@@ -148,7 +148,12 @@ constexpr vector3 rotate(const quaternion &q, const vector3 &v) noexcept {
     return v + cross(scalar(2) * r, cross(r, v) + q.w * v);
 }
 
-// Build a quaternion from an angle about and axis of rotation.
+/**
+ * @brief Make a quaternion representing a rotation about an axis.
+ * @param v Rotation axis. Doesn't have to be unit length.
+ * @param a Angle in radians.
+ * @return Quaternion that rotates by `a` about axis `v`.
+ */
 inline quaternion quaternion_axis_angle(const vector3 &v, scalar a) noexcept {
     auto l = length(v);
     auto s = std::sin(a * scalar(0.5)) / l;
