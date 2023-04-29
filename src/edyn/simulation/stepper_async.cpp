@@ -114,6 +114,8 @@ void stepper_async::on_step_update(message<msg::step_update> &msg) {
     ops.execute(registry, m_entity_map);
 
     m_sim_time = msg.content.timestamp;
+    // Only calculate delay if the sim time was set.
+    m_should_calculate_presentation_delay = true;
 
     // Insert entity mappings for new entities into the current op.
     for (auto remote_entity : ops.create_entities) {
@@ -279,10 +281,15 @@ void stepper_async::update(double current_time) {
         snap_presentation(*m_registry);
     } else {
         const auto elapsed = std::min(current_time - m_last_time, 1.0);
-        calculate_presentation_delay(current_time, elapsed);
+
+        if (m_should_calculate_presentation_delay) {
+            calculate_presentation_delay(current_time, elapsed);
+        }
+
         update_presentation(*m_registry, m_sim_time, current_time, elapsed, m_presentation_delay);
     }
 
+    m_should_calculate_presentation_delay = false;
     m_last_time = current_time;
 }
 
