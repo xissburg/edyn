@@ -95,6 +95,8 @@ bool load_meshes_from_obj(const std::string &path,
                 index_offset += mesh.vertices.size();
                 meshes.emplace_back(std::move(mesh));
             }
+            auto iss = std::istringstream(line.substr(pos_space, line.size() - pos_space));
+            mesh.name = iss.str();
         } else if (cmd == "v") {
             auto iss = std::istringstream(line.substr(pos_space, line.size() - pos_space));
             auto v = read_vector3(iss);

@@ -12,6 +12,7 @@
 namespace edyn {
 
 struct obj_mesh {
+    std::string name;
     std::vector<vector3> vertices;
     std::vector<vector3> colors;
     std::vector<uint32_t> indices;
