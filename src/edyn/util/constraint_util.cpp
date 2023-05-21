@@ -120,6 +120,7 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
             contact.m_load_sensitivity = tire->load_sensitivity;
             contact.m_lat_tread_stiffness = tire->lat_tread_stiffness;
             contact.m_lon_tread_stiffness = tire->lon_tread_stiffness;
+            contact.m_sidewall_height = tire->tire_radius - tire->rim_radius;
         });
     } else {
         make_constraint<contact_constraint>(registry, manifold_entity, body0, body1);

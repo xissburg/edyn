@@ -10,6 +10,8 @@ struct tire_material {
     scalar lat_tread_stiffness {1800000};
     scalar speed_sensitivity {0.03};
     scalar load_sensitivity {0.05};
+    scalar tire_radius {0.36};
+    scalar rim_radius {0.19};
 };
 
 template<typename Archive>
@@ -18,6 +20,7 @@ void serialize(Archive &archive, tire_material &mat) {
     archive(mat.lat_tread_stiffness);
     archive(mat.speed_sensitivity);
     archive(mat.load_sensitivity);
+    archive(mat.tire_radius, mat.rim_radius);
 }
 
 }
