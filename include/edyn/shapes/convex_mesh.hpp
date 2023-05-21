@@ -88,7 +88,7 @@ struct convex_mesh {
      * @param face_idx Face index.
      * @return Number of vertices on the face.
      */
-    uint32_t vertex_count(size_t face_idx) const {
+    uint32_t face_vertex_count(size_t face_idx) const {
         auto face_count_idx = face_idx * 2 + 1;
         EDYN_ASSERT(face_count_idx < faces.size());
         return faces[face_count_idx];
@@ -116,9 +116,7 @@ struct convex_mesh {
     void calculate_relevant_normals();
     void calculate_relevant_edges();
 
-#ifdef EDYN_DEBUG
-    void validate() const;
-#endif
+    bool validate() const;
 };
 
 /**
