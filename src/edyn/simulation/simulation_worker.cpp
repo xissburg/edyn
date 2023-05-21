@@ -195,6 +195,8 @@ void simulation_worker::on_update_entities(message<msg::update_entities> &msg) {
     // When orientation is set manually, a few dependent components must be
     // updated, e.g. AABB, cached origin, inertia_world_inv, rotated meshes...
     ops.replace_for_each<orientation>([&](entt::entity remote_entity, const orientation &orn) {
+        if (!emap.contains(remote_entity)) return;
+
         auto local_entity = emap.at(remote_entity);
 
         if (auto *origin = registry.try_get<edyn::origin>(local_entity)) {
@@ -218,6 +220,8 @@ void simulation_worker::on_update_entities(message<msg::update_entities> &msg) {
 
     // When position is set manually, the AABB and cached origin must be updated.
     ops.replace_for_each<position>([&](entt::entity remote_entity, const position &pos) {
+        if (!emap.contains(remote_entity)) return;
+
         auto local_entity = emap.at(remote_entity);
 
         if (auto *origin = registry.try_get<edyn::origin>(local_entity)) {

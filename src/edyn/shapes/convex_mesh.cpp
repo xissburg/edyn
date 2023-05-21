@@ -8,10 +8,7 @@ namespace edyn {
 void convex_mesh::initialize() {
     shift_to_centroid();
     update_calculated_properties();
-
-#ifdef EDYN_DEBUG
-    validate();
-#endif
+    EDYN_ASSERT(validate());
 }
 
 void convex_mesh::update_calculated_properties() {
@@ -58,6 +55,7 @@ void convex_mesh::calculate_normals() {
         auto i1 = indices[first + 1];
         auto &v0 = vertices[i0];
         auto &v1 = vertices[i1];
+        auto normal = vector3_zero;
 
         // Find a second edge that's not collinear.
         for (size_t j = 1; j < count; ++j) {
@@ -65,13 +63,19 @@ void convex_mesh::calculate_normals() {
             auto i3 = indices[first + (j + 1) % count];
             auto &v2 = vertices[i2];
             auto &v3 = vertices[i3];
-            auto normal = cross(v1 - v0, v3 - v2);
+            auto n = cross(v1 - v0, v3 - v2);
 
-            if (try_normalize(normal)) {
-                normals.push_back(normal);
+            if (try_normalize(n)) {
+                normal = n;
                 break;
             }
         }
+
+        if (normal == vector3_zero) {
+            normal = vector3_y;
+        }
+
+        normals.push_back(normal);
     }
 
     EDYN_ASSERT(normals.size() == num_faces());
@@ -142,9 +146,7 @@ void convex_mesh::calculate_relevant_edges() {
     }
 }
 
-#ifdef EDYN_DEBUG
-void convex_mesh::validate() const {
-#ifndef EDYN_DISABLE_ASSERT
+bool convex_mesh::validate() const {
     // Check if all faces are flat.
     for (size_t i = 0; i < num_faces(); ++i) {
         auto &normal = normals[i];
@@ -158,7 +160,9 @@ void convex_mesh::validate() const {
             auto ij = indices[first + j];
             auto &vj = vertices[ij];
 
-            EDYN_ASSERT(std::abs(dot(vj - v0, normal)) < convex_mesh_validation_parallel_tolerance);
+            if (std::abs(dot(vj - v0, normal)) > convex_mesh_validation_parallel_tolerance) {
+                return false;
+            }
         }
     }
 
@@ -171,12 +175,14 @@ void convex_mesh::validate() const {
 
         // All vertices must lie behind the plane parallel to the face.
         for (auto &vj : vertices) {
-            EDYN_ASSERT(dot(vj - v0, normal) < convex_mesh_validation_parallel_tolerance);
+            if(dot(vj - v0, normal) > convex_mesh_validation_parallel_tolerance) {
+                return false;
+            }
         }
     }
-#endif
+
+    return true;
 }
-#endif
 
 rotated_mesh make_rotated_mesh(const convex_mesh &mesh, const quaternion &orn) {
     auto rotated = rotated_mesh{};
