@@ -5,8 +5,13 @@
 namespace edyn {
 
 contact_manifold_map::contact_manifold_map(entt::registry &registry) {
-    registry.on_construct<contact_manifold>().connect<&contact_manifold_map::on_construct_contact_manifold>(*this);
-    registry.on_destroy<contact_manifold>().connect<&contact_manifold_map::on_destroy_contact_manifold>(*this);
+    m_connections.push_back(
+        registry.on_construct<contact_manifold>()
+        .connect<&contact_manifold_map::on_construct_contact_manifold>(*this));
+
+    m_connections.push_back(
+        registry.on_destroy<contact_manifold>()
+        .connect<&contact_manifold_map::on_destroy_contact_manifold>(*this));
 }
 
 bool contact_manifold_map::contains(entity_pair pair) const {

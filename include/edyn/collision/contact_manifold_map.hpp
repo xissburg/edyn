@@ -4,6 +4,7 @@
 #include <map>
 #include <utility>
 #include <entt/entity/fwd.hpp>
+#include <entt/signal/sigh.hpp>
 #include "edyn/core/entity_pair.hpp"
 
 namespace edyn {
@@ -14,6 +15,10 @@ namespace edyn {
 class contact_manifold_map {
 public:
     contact_manifold_map(entt::registry &);
+
+    // Cannot be copied because `entt::scoped_connection` deletes its copy ctor.
+    contact_manifold_map(const contact_manifold_map &) = delete;
+    contact_manifold_map(contact_manifold_map &&) = default;
 
     /**
      * @brief Checks whether a contact manifold exists for a pair of entities.
@@ -42,6 +47,7 @@ public:
 
 private:
     std::map<entity_pair, entt::entity> m_pair_map;
+    std::vector<entt::scoped_connection> m_connections;
 };
 
 }
