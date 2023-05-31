@@ -12,10 +12,13 @@ namespace edyn {
 struct constraint_row_prep_cache;
 struct quaternion;
 
+struct tierod_offset {
+    vector3 value {vector3_zero};
+};
+
 struct tierod_constraint : public constraint_base {
     vector3 pivotA;
     vector3 pivotB;
-    vector3 pivotA_offset {vector3_zero};
     scalar rod_length;
 
     // upper control arm pivots
@@ -56,7 +59,6 @@ void serialize(Archive &archive, tierod_constraint &con) {
     archive(con.body);
     archive(con.pivotA);
     archive(con.pivotB);
-    archive(con.pivotA_offset);
     archive(con.rod_length);
     archive(con.upper_pivotA);
     archive(con.upper_pivotB);
@@ -69,6 +71,11 @@ void serialize(Archive &archive, tierod_constraint &con) {
     archive(con.steering_arm_length);
     archive(con.steering_arm_angle);
     archive(con.applied_impulse);
+}
+
+template<typename Archive>
+void serialize(Archive &archive, tierod_offset &offset) {
+    archive(offset.value);
 }
 
 }

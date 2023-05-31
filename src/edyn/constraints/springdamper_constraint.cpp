@@ -134,7 +134,7 @@ void springdamper_constraint::set_dual_spring_stiffness() {
 void springdamper_constraint::set_dual_spring_stiffness(scalar primary_stiffness, scalar primary_max_defl,
                                 scalar secondary_stiffness, scalar secondary_max_defl) {
     m_stiffness_curve = spring_stiffness_curve(primary_stiffness, primary_max_defl,
-                                             secondary_stiffness, secondary_max_defl);
+                                               secondary_stiffness, secondary_max_defl);
 }
 
 scalar springdamper_constraint::get_spring_deflection(entt::registry &registry) const {

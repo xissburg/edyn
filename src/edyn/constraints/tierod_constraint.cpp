@@ -20,7 +20,7 @@
 namespace edyn {
 
 void tierod_constraint::prepare(
-    const entt::registry &, entt::entity,
+    const entt::registry &registry, entt::entity entity,
     constraint_row_prep_cache &cache, scalar dt,
     const constraint_body &bodyA, const constraint_body &bodyB) {
 
@@ -37,7 +37,8 @@ void tierod_constraint::prepare(
     // Then rotate a steering arm vector according to this joint position which
     // must be orthogonal to the wheel spin axis and use this vector in a constraint
     // row which forces the wheel spin axis to be orthogonal to this vector.
-    auto pivotA_world = to_world_space(pivotA + pivotA_offset, bodyA.origin, bodyA.orn);
+    auto &offset = registry.get<tierod_offset>(entity);
+    auto pivotA_world = to_world_space(pivotA + offset.value, bodyA.origin, bodyA.orn);
 
     // Calculate origin of the steering arm circle in world space. It's a point
     // in the steering axis. Originally, this origin would be calculated as an

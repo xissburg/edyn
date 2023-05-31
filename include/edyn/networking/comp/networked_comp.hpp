@@ -93,7 +93,8 @@ static const auto networked_components = std::tuple_cat(std::tuple<
     action_history,
     asset_ref,
     child_list,
-    parent_comp
+    parent_comp,
+    tierod_offset
 >{});
 
 using networked_components_t = std::decay_t<decltype(networked_components)>;

@@ -81,7 +81,8 @@ using shared_components_t = decltype(std::tuple_cat(std::tuple<
     discontinuity_spin_accumulator,
     child_list,
     parent_comp,
-    null_constraint
+    null_constraint,
+    tierod_offset
 >{}, constraints_tuple, shapes_tuple)); // Concatenate with all shapes and constraints at the end.
 
 }

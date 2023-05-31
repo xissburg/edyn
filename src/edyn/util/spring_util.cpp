@@ -4,7 +4,7 @@ namespace edyn {
 
 // TODO: Include bump stop stiffness in curve. ****
 pwl_curve spring_stiffness_curve(scalar primary_stiffness, scalar primary_max_defl,
-                                    scalar secondary_stiffness, scalar secondary_max_defl) {
+                                 scalar secondary_stiffness, scalar secondary_max_defl) {
     pwl_curve curve;
     curve.add(-1, 0);
     curve.add(0, 0);
