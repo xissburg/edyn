@@ -4,7 +4,6 @@
 #include <array>
 #include <vector>
 #include "edyn/math/vector3.hpp"
-#include "edyn/math/pwl_curve.hpp"
 #include "edyn/constraints/constraint_body.hpp"
 #include "edyn/constraints/constraint_base.hpp"
 
@@ -14,8 +13,6 @@ struct constraint_row_prep_cache;
 struct quaternion;
 
 struct springdamper_constraint : public constraint_base {
-    pwl_curve m_stiffness_curve;
-
     vector3 m_pivotA;
     vector3 m_ctrl_arm_pivotA;
     vector3 m_ctrl_arm_pivotB;
@@ -51,13 +48,6 @@ struct springdamper_constraint : public constraint_base {
     scalar m_damping_ratio;
     vector3 m_spring_damper_dir;
 
-    void set_constant_spring_stiffness();
-    void set_constant_spring_stiffness(scalar stiffness, scalar max_defl);
-
-    void set_dual_spring_stiffness();
-    void set_dual_spring_stiffness(scalar primary_stiffness, scalar primary_max_defl,
-                                   scalar secondary_stiffness, scalar secondary_max_defl);
-
     scalar get_spring_deflection(entt::registry &) const;
     scalar get_preload() const;
     scalar get_combined_spring_stiffness() const;
@@ -66,6 +56,7 @@ struct springdamper_constraint : public constraint_base {
 
     struct {
         scalar spring {};
+        scalar bumpstop {};
         scalar damper {};
         scalar damper_limit {};
     } applied_impulse {};
@@ -81,7 +72,6 @@ struct springdamper_constraint : public constraint_base {
 template<typename Archive>
 void serialize(Archive &archive, springdamper_constraint &con) {
     archive(con.body);
-    archive(con.m_stiffness_curve);
     archive(con.m_pivotA);
     archive(con.m_ctrl_arm_pivotA);
     archive(con.m_ctrl_arm_pivotB);

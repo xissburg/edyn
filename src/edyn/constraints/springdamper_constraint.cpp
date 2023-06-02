@@ -1,5 +1,6 @@
 #include "edyn/constraints/springdamper_constraint.hpp"
 #include "edyn/comp/origin.hpp"
+#include "edyn/config/config.h"
 #include "edyn/constraints/constraint_row.hpp"
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/comp/position.hpp"
@@ -11,6 +12,7 @@
 #include "edyn/comp/delta_linvel.hpp"
 #include "edyn/comp/delta_angvel.hpp"
 #include "edyn/comp/center_of_mass.hpp"
+#include "edyn/math/constants.hpp"
 #include "edyn/math/transform.hpp"
 #include "edyn/util/spring_util.hpp"
 #include "edyn/util/constraint_util.hpp"
@@ -66,19 +68,74 @@ void springdamper_constraint::prepare(
 
     // Spring.
     {
-        auto spring_len = coilover_len - m_spring_offset - m_spring_perch_offset - m_damper_body_offset - m_spring_divider_length;
-        auto rest_len = m_spring_rest_length + m_second_spring_rest_length;
-        auto error = rest_len - spring_len;
-        auto spring_force = m_stiffness_curve.get(error) * lever_term;
-        auto spring_impulse = spring_force * dt;
         auto &row = cache.add_row();
         row.J = {d, p, -d, -q};
         row.lower_limit = 0;
-        row.upper_limit = spring_impulse;
         row.impulse = applied_impulse.spring;
 
-        // Make error inversely proportional to distance from control arm pivot.
-        cache.get_options().error = -error * cos_theta * ctrl_arm_pivot_ratio_inv / dt;
+        const auto spring_room = coilover_len -
+            (m_spring_offset + m_spring_perch_offset + m_damper_body_offset + m_spring_divider_length);
+
+        const auto max_spring_deflection = m_spring_min_length + m_second_spring_min_length;
+
+        if (spring_room < max_spring_deflection) {
+            // Maximum deflection has been reached. Apply hard impulse.
+            row.upper_limit = large_scalar;
+
+            auto error = max_spring_deflection - spring_room;
+            cache.get_options().error = -error * cos_theta * ctrl_arm_pivot_ratio_inv / dt;
+        } else {
+            auto rest_len = m_spring_rest_length + m_second_spring_rest_length;
+            auto error = rest_len - spring_room;
+            scalar spring_force;
+
+            if (m_second_spring_stiffness > 0) {
+                auto combined_stiffness = get_combined_spring_stiffness();
+                auto second_max_defl = m_second_spring_rest_length - m_second_spring_min_length;
+
+                // Find total deflection when secondary reaches its maximum deflection.
+                // Create transition from combined stiffness to primary stiffness.
+                auto transition_defl = second_max_defl * m_second_spring_stiffness / combined_stiffness;
+
+                if (error < transition_defl) {
+                    spring_force = std::max(error, edyn::scalar(0)) * combined_stiffness;
+                } else {
+                    spring_force = transition_defl * combined_stiffness + (error - transition_defl) * m_spring_stiffness;
+                }
+            } else {
+                spring_force = std::max(error, edyn::scalar(0)) * m_spring_stiffness;
+            }
+
+            spring_force *= lever_term;
+
+            auto spring_impulse = spring_force * dt;
+            row.upper_limit = spring_impulse;
+
+            // Make error inversely proportional to distance from control arm pivot.
+            cache.get_options().error = -error * cos_theta * ctrl_arm_pivot_ratio_inv / dt;
+        }
+    }
+
+    // Bump stop.
+    {
+        auto &row = cache.add_row();
+        row.J = {d, p, -d, -q};
+        row.lower_limit = 0;
+        row.impulse = applied_impulse.bumpstop;
+
+        const auto bumpstop_room = coilover_len -
+            (m_spring_offset + m_damper_body_offset + m_damper_body_length);
+
+        if (bumpstop_room < 0) {
+            row.upper_limit = large_scalar;
+            cache.get_options().error = bumpstop_room * cos_theta * ctrl_arm_pivot_ratio_inv / dt;
+        } else {
+            auto bumpstop_error = std::max(m_bumpstop_rest_length - bumpstop_room, edyn::scalar(0));
+            auto bumpstop_force = bumpstop_error * m_bumpstop_stiffness * lever_term;
+            auto spring_impulse = bumpstop_force * dt;
+            row.upper_limit = spring_impulse;
+            cache.get_options().error = -bumpstop_error * cos_theta * ctrl_arm_pivot_ratio_inv / dt;
+        }
     }
 
     // Damper.
@@ -115,28 +172,6 @@ void springdamper_constraint::prepare(
     }
 }
 
-void springdamper_constraint::set_constant_spring_stiffness() {
-    set_constant_spring_stiffness(m_spring_stiffness, m_spring_rest_length - m_spring_min_length);
-}
-
-void springdamper_constraint::set_constant_spring_stiffness(scalar stiffness, scalar max_defl) {
-    m_stiffness_curve.clear();
-    m_stiffness_curve.add(-1, 0);
-    m_stiffness_curve.add(0, 0);
-    m_stiffness_curve.add(max_defl, max_defl * stiffness);
-}
-
-void springdamper_constraint::set_dual_spring_stiffness() {
-    set_dual_spring_stiffness(m_spring_stiffness, m_spring_rest_length - m_spring_min_length,
-                              m_second_spring_stiffness, m_second_spring_rest_length - m_second_spring_min_length);
-}
-
-void springdamper_constraint::set_dual_spring_stiffness(scalar primary_stiffness, scalar primary_max_defl,
-                                scalar secondary_stiffness, scalar secondary_max_defl) {
-    m_stiffness_curve = spring_stiffness_curve(primary_stiffness, primary_max_defl,
-                                               secondary_stiffness, secondary_max_defl);
-}
-
 scalar springdamper_constraint::get_spring_deflection(entt::registry &registry) const {
     auto posA = edyn::get_rigidbody_origin(registry, body[0]);
     auto ornA = registry.get<orientation>(body[0]);
@@ -166,15 +201,8 @@ scalar springdamper_constraint::get_spring_deflection(entt::registry &registry) 
 }
 
 scalar springdamper_constraint::get_preload() const {
-    return spring_preload(m_stiffness_curve,
-                          m_piston_rod_length,
-                          m_damper_body_length,
-                          m_damper_body_offset,
-                          m_spring_offset,
-                          m_spring_perch_offset,
-                          m_spring_divider_length,
-                          m_spring_rest_length,
-                          m_second_spring_rest_length);
+    // TODO
+    return {};
 }
 
 scalar springdamper_constraint::get_combined_spring_stiffness() const {
@@ -230,6 +258,7 @@ scalar springdamper_constraint::get_damping_force(scalar speed) const {
 void springdamper_constraint::store_applied_impulses(const std::vector<scalar> &impulses) {
     unsigned row_idx = 0;
     applied_impulse.spring = impulses[row_idx++];
+    applied_impulse.bumpstop = impulses[row_idx++];
     applied_impulse.damper = impulses[row_idx++];
     applied_impulse.damper_limit = impulses[row_idx++];
 }
