@@ -252,6 +252,28 @@ inline vector3 abs(const vector3 &v) noexcept {
     return {std::abs(v.x), std::abs(v.y), std::abs(v.z)};
 }
 
+// Returns the index of the coordinate with lowest value.
+constexpr size_t min_index(const vector3 &v) noexcept {
+    auto min_val = v.x;
+    size_t min_idx = 0;
+
+    if (v.y < min_val) {
+        min_val = v.y;
+        min_idx = 1;
+    }
+
+    if (v.z < min_val) {
+        min_idx = 2;
+    }
+
+    return min_idx;
+}
+
+// Returns the index of the coordinate with lowest absolute value.
+inline size_t min_index_abs(const vector3 &v) noexcept {
+    return min_index(abs(v));
+}
+
 // Returns the index of the coordinate with greatest value.
 constexpr size_t max_index(const vector3 &v) noexcept {
     auto max_val = v.x;
