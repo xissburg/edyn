@@ -1226,7 +1226,8 @@ bool intersect_segment_aabb(vector3 p0, vector3 p1,
 intersect_ray_cylinder_result intersect_ray_cylinder(vector3 p0, vector3 p1,
                                                      vector3 pos, quaternion orn,
                                                      scalar radius, scalar half_length,
-                                                     coordinate_axis axis, scalar &u) noexcept {
+                                                     coordinate_axis axis,
+                                                     scalar &fraction_in, scalar &fraction_out) noexcept {
     // Let a plane be defined by the ray and the vector orthogonal to the
     // cylinder axis and the ray (i.e. their cross product). This plane cuts
     // the cylinder and their intersection is an ellipse with vertical half
@@ -1268,7 +1269,8 @@ intersect_ray_cylinder_result intersect_ray_cylinder(vector3 p0, vector3 p1,
     auto de = dot(d, e);
     auto delta_sqr = (radius_sqr - dist_sqr) * ee / (dd * ee - de * de);
     auto delta = std::sqrt(delta_sqr);
-    u = t - delta;
+    fraction_in = t - delta;
+    fraction_out = t + delta;
     return {intersect_ray_cylinder_result::kind::intersects, dist_sqr, normal};
 }
 

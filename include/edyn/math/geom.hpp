@@ -380,13 +380,15 @@ struct intersect_ray_cylinder_result {
  * @param orn Cylinder orientation.
  * @param radius Cylinder radius.
  * @param half_length Cylinder half length.
- * @param u Output intersection parameter.
+ * @param fraction_in Fraction where the line enters the cylinder.
+ * @param fraction_out Fraction where the line exits the cylinder.
  * @return Result containing intersection situation, the distance and normal.
  */
 intersect_ray_cylinder_result intersect_ray_cylinder(vector3 p0, vector3 p1,
                                                      vector3 pos, quaternion orn,
                                                      scalar radius, scalar half_length,
-                                                     coordinate_axis axis, scalar &u) noexcept;
+                                                     coordinate_axis axis,
+                                                     scalar &fraction_in, scalar &fraction_out) noexcept;
 
 /**
  * @brief Intersects a ray with a sphere.

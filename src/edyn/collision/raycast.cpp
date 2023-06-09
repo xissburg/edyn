@@ -109,10 +109,10 @@ shape_raycast_result shape_raycast(const box_shape &box, const raycast_context &
 }
 
 shape_raycast_result shape_raycast(const cylinder_shape &cylinder, const raycast_context &ctx) {
-    scalar intersection_fraction;
+    scalar fraction_in, fraction_out;
     auto intersect_result = intersect_ray_cylinder(ctx.p0, ctx.p1, ctx.pos, ctx.orn,
                                                    cylinder.radius, cylinder.half_length,
-                                                   cylinder.axis, intersection_fraction);
+                                                   cylinder.axis, fraction_in, fraction_out);
 
     if (intersect_result.kind == intersect_ray_cylinder_result::kind::distance_greater_than_radius) {
         return {};
@@ -146,7 +146,7 @@ shape_raycast_result shape_raycast(const cylinder_shape &cylinder, const raycast
     }
 
     // Line intersects infinite cylinder. Check if it's within finite cylinder.
-    auto intersection = lerp(ctx.p0, ctx.p1, intersection_fraction);
+    auto intersection = lerp(ctx.p0, ctx.p1, fraction_in);
     scalar projections[] = {
         dot(intersection - cyl_vertices[0], cyl_dir_norm),
         dot(intersection - cyl_vertices[1], cyl_dir_norm)
@@ -155,7 +155,7 @@ shape_raycast_result shape_raycast(const cylinder_shape &cylinder, const raycast
     if (projections[0] > 0 && projections[1] < 0) {
         // Intersection lies on the side of cylinder.
         auto result = shape_raycast_result{};
-        result.fraction = intersection_fraction;
+        result.fraction = fraction_in;
         result.normal = intersect_result.normal / std::sqrt(intersect_result.dist_sqr);
         result.info_var = cylinder_raycast_info{cylinder_feature::side_edge};
         return result;
@@ -195,9 +195,9 @@ shape_raycast_result shape_raycast(const sphere_shape &sphere, const raycast_con
 }
 
 shape_raycast_result shape_raycast(const capsule_shape &capsule, const raycast_context &ctx) {
-    scalar u;
+    scalar u_in, u_out;
     auto intersect_result = intersect_ray_cylinder(ctx.p0, ctx.p1, ctx.pos, ctx.orn,
-                                                   capsule.radius, capsule.half_length, capsule.axis, u);
+                                                   capsule.radius, capsule.half_length, capsule.axis, u_in, u_out);
 
     if (intersect_result.kind == intersect_ray_cylinder_result::kind::distance_greater_than_radius) {
         return {};
@@ -208,15 +208,17 @@ shape_raycast_result shape_raycast(const capsule_shape &capsule, const raycast_c
     auto radius = capsule.radius;
 
     auto intersect_hemisphere = [&](size_t hemi_idx) -> shape_raycast_result {
-        if (!intersect_ray_sphere(ctx.p0, ctx.p1, vertices[hemi_idx], radius, u)) {
+        scalar fraction;
+
+        if (!intersect_ray_sphere(ctx.p0, ctx.p1, vertices[hemi_idx], radius, fraction)) {
             return {};
         }
 
-        auto intersection = lerp(ctx.p0, ctx.p1, u);
+        auto intersection = lerp(ctx.p0, ctx.p1, u_in);
         auto normal = normalize(intersection - ctx.pos);
 
         auto result = shape_raycast_result{};
-        result.fraction = u;
+        result.fraction = fraction;
         result.normal = normal;
         result.info_var = capsule_raycast_info{capsule_feature::hemisphere, hemi_idx};
         return result;
@@ -231,7 +233,7 @@ shape_raycast_result shape_raycast(const capsule_shape &capsule, const raycast_c
 
     // Line intersects infinite cylinder. Check if it's within finite
     // cylindrical section.
-    auto intersection = lerp(ctx.p0, ctx.p1, u);
+    auto intersection = lerp(ctx.p0, ctx.p1, u_in);
 
     scalar projections[] = {
         dot(intersection - vertices[0], cap_dir),
@@ -241,7 +243,7 @@ shape_raycast_result shape_raycast(const capsule_shape &capsule, const raycast_c
     if (projections[0] > 0 && projections[1] < 0) {
         // Intersection lies on the side of cylindrical section.
         auto result = shape_raycast_result{};
-        result.fraction = u;
+        result.fraction = u_in;
         result.normal = intersect_result.normal / std::sqrt(intersect_result.dist_sqr);
         result.info_var = capsule_raycast_info{capsule_feature::side};
 
