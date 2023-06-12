@@ -57,7 +57,10 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         auto I_inv = inverse_matrix_symmetric(inertia);
         registry.emplace<edyn::inertia>(entity, inertia);
         registry.emplace<inertia_inv>(entity, I_inv);
-        registry.emplace<inertia_world_inv>(entity, I_inv);
+
+        auto basis = to_matrix3x3(def.orientation);
+        auto I_inv_world = basis * I_inv * transpose(basis);
+        registry.emplace<inertia_world_inv>(entity, I_inv_world);
     } else {
         registry.emplace<mass>(entity, EDYN_SCALAR_MAX);
         registry.emplace<mass_inv>(entity, scalar(0));
@@ -189,8 +192,8 @@ entt::entity make_rigidbody(entt::registry &registry, const rigidbody_def &def) 
 
 void rigidbody_apply_impulse(entt::registry &registry, entt::entity entity,
                              const vector3 &impulse, const vector3 &rel_location) {
-    auto &m_inv = registry.get<mass_inv>(entity);
-    auto &i_inv = registry.get<inertia_world_inv>(entity);
+    auto &m_inv = registry.get<const mass_inv>(entity);
+    auto &i_inv = registry.get<const inertia_world_inv>(entity);
     registry.patch<linvel>(entity, [&](linvel &v) {
         v += impulse * m_inv;
     });
@@ -201,7 +204,7 @@ void rigidbody_apply_impulse(entt::registry &registry, entt::entity entity,
 
 void rigidbody_apply_torque_impulse(entt::registry &registry, entt::entity entity,
                                     const vector3 &torque_impulse) {
-    auto &i_inv = registry.get<inertia_world_inv>(entity);
+    auto &i_inv = registry.get<const inertia_world_inv>(entity);
     registry.patch<angvel>(entity, [&](angvel &w) {
         w += i_inv * torque_impulse;
     });
