@@ -1,16 +1,6 @@
 #include "edyn/constraints/spin_angle_constraint.hpp"
 #include "edyn/constraints/constraint_row.hpp"
-#include "edyn/comp/position.hpp"
-#include "edyn/comp/orientation.hpp"
-#include "edyn/comp/spin.hpp"
-#include "edyn/comp/mass.hpp"
-#include "edyn/comp/inertia.hpp"
-#include "edyn/comp/linvel.hpp"
-#include "edyn/comp/angvel.hpp"
-#include "edyn/comp/delta_linvel.hpp"
-#include "edyn/comp/delta_angvel.hpp"
 #include "edyn/dynamics/row_cache.hpp"
-#include "edyn/util/constraint_util.hpp"
 #include <entt/entity/registry.hpp>
 
 namespace edyn {

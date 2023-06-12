@@ -1,22 +1,10 @@
 #include "edyn/constraints/spin_constraint.hpp"
-#include "edyn/constraints/constraint_row.hpp"
 #include "edyn/dynamics/row_cache.hpp"
-#include "edyn/comp/spin.hpp"
-#include "edyn/comp/position.hpp"
-#include "edyn/comp/orientation.hpp"
-#include "edyn/comp/linvel.hpp"
-#include "edyn/comp/angvel.hpp"
-#include "edyn/comp/delta_linvel.hpp"
-#include "edyn/comp/delta_angvel.hpp"
-#include "edyn/comp/mass.hpp"
-#include "edyn/comp/inertia.hpp"
-#include "edyn/math/constants.hpp"
-#include "edyn/util/constraint_util.hpp"
-#include <entt/entity/registry.hpp>
+#include "edyn/math/vector3.hpp"
 
 namespace edyn {
 
-void spin_constraint::prepare(const entt::registry &registry, entt::entity entity,
+void spin_constraint::prepare(const entt::registry &, entt::entity,
                               constraint_row_prep_cache &cache, scalar dt,
                               const constraint_body &bodyA, const constraint_body &bodyB) {
     auto axisA = rotate(bodyA.orn, vector3_x);

@@ -9,8 +9,6 @@
 namespace edyn {
 
 struct constraint_row_prep_cache;
-struct vector3;
-struct quaternion;
 
 /**
  * Constraints the `spin_angle` of two entities, which can be constrained

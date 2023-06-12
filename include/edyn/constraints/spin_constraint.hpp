@@ -8,8 +8,6 @@
 
 namespace edyn {
 
-struct vector3;
-struct quaternion;
 struct constraint_row_prep_cache;
 
 /**

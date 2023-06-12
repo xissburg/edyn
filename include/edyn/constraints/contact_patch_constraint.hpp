@@ -8,14 +8,10 @@
 #include "edyn/config/constants.hpp"
 #include "edyn/constraints/constraint_body.hpp"
 #include "edyn/math/vector3.hpp"
-#include "edyn/math/constants.hpp"
 #include "edyn/constraints/constraint_base.hpp"
-#include "edyn/util/array_util.hpp"
 
 namespace edyn {
 
-struct matrix3x3;
-struct quaternion;
 struct constraint_row_prep_cache;
 struct contact_manifold;
 
