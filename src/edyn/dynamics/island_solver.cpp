@@ -315,8 +315,8 @@ scalar solve_position_constraints_each(entt::registry &registry, const std::vect
 
         for (auto entity : entities) {
             auto [con] = con_view.get(entity);
-            auto [posA, ornA, inv_mA, inv_IA] = body_view.get(con.body[0]);
-            auto [posB, ornB, inv_mB, inv_IB] = body_view.get(con.body[1]);
+            auto [posA, ornA, inv_mA, inv_IA, inv_IA_local] = body_view.get(con.body[0]);
+            auto [posB, ornB, inv_mB, inv_IB, inv_IB_local] = body_view.get(con.body[1]);
 
             solver.posA = &posA;
             solver.posB = &posB;
@@ -326,6 +326,8 @@ scalar solve_position_constraints_each(entt::registry &registry, const std::vect
             solver.inv_mB = inv_mB;
             solver.inv_IA = &inv_IA;
             solver.inv_IB = &inv_IB;
+            solver.inv_IA_local = &inv_IA_local;
+            solver.inv_IB_local = &inv_IB_local;
 
             if (origin_view.contains(con.body[0])) {
                 solver.originA = &origin_view.template get<origin>(con.body[0]);
@@ -363,8 +365,7 @@ constexpr auto max_variadic(Args &&...args) {
 template<typename... C, size_t... Ints>
 scalar solve_position_constraints_indexed(entt::registry &registry, const island_constraint_entities &constraint_entities,
                                          [[maybe_unused]] std::tuple<C...>, std::index_sequence<Ints...>) {
-    auto body_view = registry.view<position, orientation,
-                                   mass_inv, inertia_world_inv>();
+    auto body_view = registry.view<position, orientation, mass_inv, inertia_world_inv, inertia_inv>();
     auto origin_view = registry.view<origin, center_of_mass>();
     return max_variadic(solve_position_constraints_each<C>(registry, constraint_entities.entities[Ints], body_view, origin_view)...);
 }

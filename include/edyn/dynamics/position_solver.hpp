@@ -42,10 +42,10 @@ public:
 
         // Compute world space inertia with new orientation.
         auto basisA = to_matrix3x3(*ornA);
-        *inv_IA = basisA * *inv_IA * transpose(basisA);
+        *inv_IA = basisA * *inv_IA_local * transpose(basisA);
 
         auto basisB = to_matrix3x3(*ornB);
-        *inv_IB = basisB * *inv_IB * transpose(basisB);
+        *inv_IB = basisB * *inv_IB_local * transpose(basisB);
 
         max_error = std::max(std::abs(error), max_error);
     }
@@ -64,6 +64,7 @@ public:
     orientation *ornA, *ornB;
     scalar inv_mA, inv_mB;
     inertia_world_inv *inv_IA, *inv_IB;
+    inertia_inv *inv_IA_local, *inv_IB_local;
     scalar error_correction_rate {0.2};
     scalar max_error {};
 };

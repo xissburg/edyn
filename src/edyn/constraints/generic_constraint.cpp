@@ -1,24 +1,9 @@
 #include "edyn/constraints/generic_constraint.hpp"
-#include "edyn/config/config.h"
-#include "edyn/constraints/constraint_row.hpp"
-#include "edyn/comp/position.hpp"
-#include "edyn/comp/orientation.hpp"
-#include "edyn/comp/mass.hpp"
-#include "edyn/comp/inertia.hpp"
-#include "edyn/comp/linvel.hpp"
-#include "edyn/comp/angvel.hpp"
-#include "edyn/comp/delta_linvel.hpp"
-#include "edyn/comp/delta_angvel.hpp"
-#include "edyn/comp/origin.hpp"
-#include "edyn/comp/tag.hpp"
 #include "edyn/dynamics/position_solver.hpp"
 #include "edyn/dynamics/row_cache.hpp"
-#include "edyn/math/constants.hpp"
 #include "edyn/math/math.hpp"
-#include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/transform.hpp"
 #include "edyn/util/constraint_util.hpp"
-#include <entt/entity/registry.hpp>
 
 namespace edyn {
 
