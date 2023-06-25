@@ -10,7 +10,6 @@
 namespace edyn {
 
 struct constraint_row_prep_cache;
-struct quaternion;
 
 struct springdamper_constraint : public constraint_base {
     vector3 m_pivotA;

@@ -10,8 +10,6 @@
 namespace edyn {
 
 struct constraint_row_prep_cache;
-struct quaternion;
-struct vector3;
 
 struct tirecarcass_constraint : public constraint_base {
     scalar m_lateral_stiffness {120000};

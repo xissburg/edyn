@@ -8,7 +8,6 @@
 #include "edyn/comp/material.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
-#include "edyn/comp/tire_material.hpp"
 #include "edyn/comp/origin.hpp"
 #include "edyn/comp/angvel.hpp"
 #include "edyn/shapes/shapes.hpp"
@@ -111,7 +110,7 @@ void detect_collision(std::array<entt::entity, 2> body, collision_result &,
  * when appropriate for each point that is removed).
  */
 template<typename TransformView, typename VelView, typename RollingView,
-         typename TireView, typename NewPointFunc, typename DestroyPointFunc>
+         typename NewPointFunc, typename DestroyPointFunc>
 void process_collision(entt::entity manifold_entity,
                        contact_manifold &manifold,
                        contact_manifold_events &events,
@@ -119,7 +118,6 @@ void process_collision(entt::entity manifold_entity,
                        TransformView &tr_view,
                        VelView &vel_view,
                        RollingView &rolling_view,
-                       TireView &tire_view,
                        const origin_view_t &origin_view,
                        const orientation_view_t &orn_view,
                        const material_view_t &material_view,

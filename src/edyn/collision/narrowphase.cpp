@@ -42,7 +42,6 @@ void narrowphase::detect_collision_parallel() {
     auto vel_view = m_registry->view<angvel>();
     auto rolling_view = m_registry->view<rolling_tag>();
     auto origin_view = m_registry->view<origin>();
-    auto tire_view = m_registry->view<tire_material>();
     auto material_view = m_registry->view<material>();
     auto orn_view = m_registry->view<orientation>();
     auto mesh_shape_view = m_registry->view<mesh_shape>();
@@ -56,7 +55,7 @@ void narrowphase::detect_collision_parallel() {
     m_cp_destruction_infos.resize(manifold_view.size());
     auto &dispatcher = job_dispatcher::global();
 
-    auto for_loop_body = [this, body_view, tr_view, vel_view, rolling_view, tire_view, origin_view,
+    auto for_loop_body = [this, body_view, tr_view, vel_view, rolling_view, origin_view,
              manifold_view, events_view, orn_view, material_view, mesh_shape_view,
              paged_mesh_shape_view, shapes_views_tuple, dt](size_t index) {
         auto entity = manifold_view[index];
@@ -68,7 +67,7 @@ void narrowphase::detect_collision_parallel() {
 
         detect_collision(manifold.body, result, body_view, origin_view, shapes_views_tuple);
         process_collision(entity, manifold, events, result, tr_view, vel_view,
-                          rolling_view, tire_view, origin_view, orn_view, material_view,
+                          rolling_view, origin_view, orn_view, material_view,
                           mesh_shape_view, paged_mesh_shape_view, dt,
                           [&construction_info](const collision_result::collision_point &rp) {
             construction_info.point[construction_info.count++] = rp;

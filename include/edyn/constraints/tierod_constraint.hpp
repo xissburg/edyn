@@ -10,7 +10,6 @@
 namespace edyn {
 
 struct constraint_row_prep_cache;
-struct quaternion;
 
 struct tierod_offset {
     vector3 value {vector3_zero};

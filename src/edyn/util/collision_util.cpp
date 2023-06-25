@@ -2,7 +2,6 @@
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_manifold_events.hpp"
 #include "edyn/comp/material.hpp"
-#include "edyn/comp/tire_material.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/config/constants.hpp"
 #include "edyn/math/quaternion.hpp"
