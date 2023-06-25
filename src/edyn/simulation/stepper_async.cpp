@@ -253,13 +253,14 @@ void stepper_async::calculate_presentation_delay(double current_time, double ela
     // TODO: Using a bunch of magic numbers for now. Still needs tuning and a
     // more solid logic.
     if (!m_adjusting_presentation_delay &&
-        (presentation_error > time_diff_dev_avg * 0.12 || presentation_error < -time_diff_dev_avg * 1.2))
+        (presentation_error > time_diff_dev_avg * 0.8 || presentation_error < -time_diff_dev_avg * 1.3))
     {
         m_adjusting_presentation_delay = true;
     }
 
     if (m_adjusting_presentation_delay) {
-        auto rate = presentation_error > 0 ? 1.7 : 0.33;
+        // Correct faster if the error grows, which would lead to extrapolation.
+        auto rate = presentation_error > 0 ? 5 : 2;
         m_presentation_delay += presentation_error * std::min(rate * elapsed, 1.0);
 
         if (std::abs(presentation_error) < time_diff_dev_avg * 0.6) {

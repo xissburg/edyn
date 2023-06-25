@@ -6,14 +6,11 @@
 #include <entt/entity/fwd.hpp>
 #include "edyn/math/vector3.hpp"
 #include "edyn/constraints/constraint_base.hpp"
-#include "edyn/constraints/constraint_body.hpp"
 
 namespace edyn {
 
 struct constraint_row_prep_cache;
-class position_solver;
-struct quaternion;
-struct matrix3x3;
+struct constraint_body;
 
 struct soft_distance_constraint : public constraint_base {
     std::array<vector3, 2> pivot;

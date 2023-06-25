@@ -88,7 +88,7 @@ void update_presentation(entt::registry &registry, double sim_time, double curre
 
     // Interpolate transforms at `sim_time` towards a consistent point in time
     // which is `presentation_delay` seconds behind the current time.
-    const auto interpolation_dt = current_time - presentation_delay - sim_time;
+    const auto interpolation_dt = std::min(static_cast<scalar>(current_time - presentation_delay - sim_time), settings.fixed_dt);
 
     linear_view.each([interpolation_dt](position &pos, linvel &vel, present_position &pre) {
         pre = pos + vel * interpolation_dt;

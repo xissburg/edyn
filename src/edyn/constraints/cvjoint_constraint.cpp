@@ -5,7 +5,6 @@
 #include "edyn/math/transform.hpp"
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/math/vector3.hpp"
-#include <entt/entity/registry.hpp>
 #include <cmath>
 
 namespace edyn {

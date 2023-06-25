@@ -320,11 +320,12 @@ void simulation_worker::update() {
     m_accumulated_time -= static_cast<double>(num_steps) * fixed_dt;
 
     auto effective_steps = num_steps;
+    auto sim_dt = fixed_dt;
 
     if (num_steps > settings.max_steps_per_update) {
         effective_steps = settings.max_steps_per_update;
-        // Advance sim time to account for steps skipped.
-        m_sim_time += (num_steps - effective_steps) * fixed_dt;
+        // Adjust sim time to account for steps skipped.
+        sim_dt = (elapsed - m_accumulated_time) / effective_steps;
     }
 
     m_poly_initializer.init_new_shapes();
@@ -343,7 +344,7 @@ void simulation_worker::update() {
         nphase.update(true);
         m_solver.update(true);
 
-        m_sim_time += fixed_dt;
+        m_sim_time += sim_dt;
 
         if (settings.clear_actions_func) {
             (*settings.clear_actions_func)(m_registry);
@@ -480,8 +481,13 @@ void simulation_worker::on_set_material_table(message<msg::set_material_table> &
 }
 
 void simulation_worker::on_set_com(message<msg::set_com> &msg) {
-    auto entity = m_entity_map.at(msg.content.entity);
-    apply_center_of_mass(m_registry, entity, msg.content.com);
+    if (m_entity_map.contains(msg.content.entity)) {
+        auto entity = m_entity_map.at(msg.content.entity);
+
+        if (m_registry.valid(entity)) {
+            apply_center_of_mass(m_registry, entity, msg.content.com);
+        }
+    }
 }
 
 void simulation_worker::on_raycast_request(message<msg::raycast_request> &msg) {
