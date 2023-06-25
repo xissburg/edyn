@@ -12,7 +12,9 @@ polyhedron_shape_initializer::polyhedron_shape_initializer(entt::registry &regis
     : m_registry(&registry)
 {
     m_connections.push_back(registry.on_construct<polyhedron_shape>().connect<&polyhedron_shape_initializer::on_construct_polyhedron_shape>(*this));
+    m_connections.push_back(registry.on_update<polyhedron_shape>().connect<&polyhedron_shape_initializer::on_construct_polyhedron_shape>(*this));
     m_connections.push_back(registry.on_construct<compound_shape>().connect<&polyhedron_shape_initializer::on_construct_compound_shape>(*this));
+    m_connections.push_back(registry.on_update<compound_shape>().connect<&polyhedron_shape_initializer::on_construct_compound_shape>(*this));
     m_connections.push_back(registry.on_destroy<rotated_mesh_list>().connect<&polyhedron_shape_initializer::on_destroy_rotated_mesh_list>(*this));
 }
 
@@ -50,7 +52,7 @@ void polyhedron_shape_initializer::init_new_shapes() {
         auto rotated = make_rotated_mesh(*polyhedron.mesh, orn);
         auto rotated_ptr = std::make_unique<rotated_mesh>(std::move(rotated));
         polyhedron.rotated = rotated_ptr.get();
-        m_registry->emplace<rotated_mesh_list>(entity, polyhedron.mesh, std::move(rotated_ptr));
+        m_registry->emplace_or_replace<rotated_mesh_list>(entity, polyhedron.mesh, std::move(rotated_ptr));
     }
 
     for (auto entity : m_new_compound_shapes) {
@@ -71,7 +73,7 @@ void polyhedron_shape_initializer::init_new_shapes() {
             polyhedron.rotated = rotated_ptr.get();
 
             if (prev_rotated_entity == entt::null) {
-                m_registry->emplace<rotated_mesh_list>(entity, polyhedron.mesh, std::move(rotated_ptr), node.orientation);
+                m_registry->emplace_or_replace<rotated_mesh_list>(entity, polyhedron.mesh, std::move(rotated_ptr), node.orientation);
                 prev_rotated_entity = entity;
             } else {
                 auto next = m_registry->create();
