@@ -1,6 +1,7 @@
 #include "edyn/constraints/soft_distance_constraint.hpp"
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/math/transform.hpp"
+#include "edyn/constraints/constraint_body.hpp"
 
 namespace edyn {
 

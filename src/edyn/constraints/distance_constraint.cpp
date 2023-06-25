@@ -1,7 +1,6 @@
 #include "edyn/constraints/distance_constraint.hpp"
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/math/transform.hpp"
-#include <entt/entity/registry.hpp>
 
 namespace edyn {
 
