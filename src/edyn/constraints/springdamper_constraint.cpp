@@ -23,10 +23,12 @@ void springdamper_constraint::prepare(
     auto rB = ctrl_armB - bodyB.pos;
 
     scalar side = m_ctrl_arm_pivotA.x > 0 ? 1 : -1;
-    auto chassis_z = rotate(bodyA.orn, vector3_z);
+    // Use chassis z axis as the control arm rotation axis. Could be made
+    // arbitrary in the future.
+    auto ctrl_arm_z = rotate(bodyA.orn, vector3_z);
     auto ctrl_arm_x = ctrl_arm_dir * side;
-    auto ctrl_arm_y = cross(chassis_z, ctrl_arm_x);
-    auto ctrl_arm_basis = matrix3x3_columns(ctrl_arm_x, ctrl_arm_y, chassis_z);
+    auto ctrl_arm_y = cross(ctrl_arm_z, ctrl_arm_x);
+    auto ctrl_arm_basis = matrix3x3_columns(ctrl_arm_x, ctrl_arm_y, ctrl_arm_z);
     auto ctrl_arm_pivot_rel = ctrl_arm_basis * m_ctrl_arm_pivot;
     auto ctrl_arm_pivot = ctrl_armA + ctrl_arm_pivot_rel;
     auto coiloverA = to_world_space(m_pivotA, bodyA.origin, bodyA.orn);
@@ -40,17 +42,22 @@ void springdamper_constraint::prepare(
     auto p = cross(rA, d);
     auto q = cross(rB, d);
 
-    // Account for angle between the coilover and the control arm normal and
-    // the lever created by the length of the control arm. The force is applied
-    // somewhere in the middle of the control arm, which generates a torque
-    // proportional to the distance from the control arm pivot on the chassis
-    // (given by `m_ctrl_arm_pivot.x`) which then creates a force at the
-    // wheel pivot which is inversely proportional to the control arm length.
-    auto cos_theta = dot(d, coilover_dir);
-    auto ctrl_arm_pivot_horizontal_dist = m_ctrl_arm_pivot.x * side;
-    auto ctrl_arm_pivot_ratio = ctrl_arm_pivot_horizontal_dist / ctrl_arm_len;
+    // The coilover applies force on the control arm at `ctrl_arm_pivot`
+    // which generates a torque proportional to the distance to `ctrl_armA`
+    // projected on the plane of control arm rotation, where the normal
+    // vector is `ctrl_arm_z`.
+    // This torque will produce a force at the wheel pivot `ctrl_armB` which
+    // is inversely proportional to the control arm length.
+    // Calculate cosine of angle between coilover axis and direction of
+    // tangential component of force.
+    auto tangent_force_dir = normalize(cross(ctrl_arm_z, ctrl_arm_pivot_rel)) * side;
+    auto cos_theta = dot(coilover_dir, tangent_force_dir);
+    auto ctrl_arm_pivot_proj_len = std::sqrt(m_ctrl_arm_pivot.x * m_ctrl_arm_pivot.x + m_ctrl_arm_pivot.y * m_ctrl_arm_pivot.y);
+    auto ctrl_arm_pivot_ratio = ctrl_arm_pivot_proj_len / ctrl_arm_len;
     auto ctrl_arm_pivot_ratio_inv = scalar(1) / ctrl_arm_pivot_ratio;
-    auto lever_term = ctrl_arm_pivot_ratio * cos_theta;
+    // The motion ratio represents how much the coilover compresses/extends
+    // proportionally to the movement of the control arm pivot at the wheel.
+    auto motion_ratio = ctrl_arm_pivot_ratio * cos_theta;
 
     // Spring.
     {
@@ -92,7 +99,7 @@ void springdamper_constraint::prepare(
                 spring_force = std::max(error, edyn::scalar(0)) * m_spring_stiffness;
             }
 
-            spring_force *= lever_term;
+            spring_force *= motion_ratio;
 
             auto spring_impulse = spring_force * dt;
             row.upper_limit = spring_impulse;
@@ -117,7 +124,7 @@ void springdamper_constraint::prepare(
             cache.get_options().error = bumpstop_room * cos_theta * ctrl_arm_pivot_ratio_inv / dt;
         } else {
             auto bumpstop_error = std::max(m_bumpstop_rest_length - bumpstop_room, edyn::scalar(0));
-            auto bumpstop_force = bumpstop_error * m_bumpstop_stiffness * lever_term;
+            auto bumpstop_force = bumpstop_error * m_bumpstop_stiffness * motion_ratio;
             auto spring_impulse = bumpstop_force * dt;
             row.upper_limit = spring_impulse;
             cache.get_options().error = -bumpstop_error * cos_theta * ctrl_arm_pivot_ratio_inv / dt;
@@ -126,13 +133,23 @@ void springdamper_constraint::prepare(
 
     // Damper.
     {
-        auto velA = bodyA.linvel + cross(bodyA.angvel, coiloverA - bodyA.pos);
+        // Calculate angular velocity of control arm.
         auto vel_ctrl_armA = bodyA.linvel + cross(bodyA.angvel, ctrl_armA - bodyA.pos);
         auto vel_ctrl_armB = bodyB.linvel + cross(bodyB.angvel, rB);
-        auto velB = lerp(vel_ctrl_armA, vel_ctrl_armB, ctrl_arm_pivot_ratio);
+        // Resultant velocity at control arm pivot on wheel.
+        auto vel_rel_ctrl_arm = project_direction(vel_ctrl_armB - vel_ctrl_armA, ctrl_arm_z);
+        auto ang_vel_sign = dot(vel_rel_ctrl_arm, ctrl_arm_y) * side > 0 ? 1: -1;
+        // Angular velocity is linear velocity divided by radius.
+        auto ang_spd_ctrl_arm = length(vel_rel_ctrl_arm) / ctrl_arm_len;
+        auto ang_vel_ctrl_arm = ctrl_arm_z * (ang_spd_ctrl_arm * ang_vel_sign);
+
+        // Velocity of coilover pivot on chassis.
+        auto velA = bodyA.linvel + cross(bodyA.angvel, coiloverA - bodyA.pos);
+        // Velocity of coilover pivot on control arm.
+        auto velB = vel_ctrl_armA + cross(ang_vel_ctrl_arm, ctrl_arm_pivot_rel);
         auto v_rel = velA - velB;
         auto speed = dot(coilover_dir, v_rel);
-        auto damping_force = get_damping_force(speed) * lever_term;
+        auto damping_force = get_damping_force(speed) * motion_ratio;
         auto damping_impulse = std::abs(damping_force) * dt;
 
         auto &row = cache.add_row();
@@ -173,12 +190,13 @@ scalar springdamper_constraint::get_spring_deflection(entt::registry &registry) 
     ctrl_arm_dir /= ctrl_arm_len;
 
     scalar side = m_ctrl_arm_pivotA.x > 0 ? 1 : -1;
-    auto chassis_z = rotate(ornA, vector3_z);
+    auto ctrl_arm_z = rotate(ornA, vector3_z);
     auto ctrl_arm_x = ctrl_arm_dir * side;
-    auto ctrl_arm_y = cross(chassis_z, ctrl_arm_x);
-    auto ctrl_arm_basis = matrix3x3_columns(ctrl_arm_x, ctrl_arm_y, chassis_z);
+    auto ctrl_arm_y = cross(ctrl_arm_z, ctrl_arm_x);
+    auto ctrl_arm_basis = matrix3x3_columns(ctrl_arm_x, ctrl_arm_y, ctrl_arm_z);
     auto ctrl_arm_pivot_rel = ctrl_arm_basis * m_ctrl_arm_pivot;
-    auto coilover_dir = pivotA - (ctrl_armA + ctrl_arm_pivot_rel);
+    auto ctrl_arm_pivot = ctrl_armA + ctrl_arm_pivot_rel;
+    auto coilover_dir = pivotA - ctrl_arm_pivot;
     auto distance = length(coilover_dir);
     auto spring_len = distance - m_spring_offset - m_spring_perch_offset - m_damper_body_offset - m_spring_divider_length;
     auto error = spring_len - (m_spring_rest_length + m_second_spring_rest_length);
@@ -213,10 +231,10 @@ vector3 springdamper_constraint::get_world_ctrl_arm_pivot(entt::registry &regist
     ctrl_arm_dir /= ctrl_arm_len;
 
     scalar side = m_ctrl_arm_pivotA.x > 0 ? 1 : -1;
-    auto chassis_z = rotate(ornA, vector3_z);
+    auto ctrl_arm_z = rotate(ornA, vector3_z);
     auto ctrl_arm_x = ctrl_arm_dir * side;
-    auto ctrl_arm_y = cross(chassis_z, ctrl_arm_x);
-    auto ctrl_arm_basis = matrix3x3_columns(ctrl_arm_x, ctrl_arm_y, chassis_z);
+    auto ctrl_arm_y = cross(ctrl_arm_z, ctrl_arm_x);
+    auto ctrl_arm_basis = matrix3x3_columns(ctrl_arm_x, ctrl_arm_y, ctrl_arm_z);
     auto ctrl_arm_pivot_rel = ctrl_arm_basis * m_ctrl_arm_pivot;
     auto ctrl_arm_pivot = ctrl_armA + ctrl_arm_pivot_rel;
 
