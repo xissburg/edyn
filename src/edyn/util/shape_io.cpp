@@ -66,22 +66,17 @@ static void read_face(std::istringstream &iss,
     faces.push_back(count);
 }
 
-bool load_meshes_from_obj(const std::string &path,
-                          std::vector<obj_mesh> &meshes,
-                          vector3 pos,
-                          quaternion orn,
-                          vector3 scale) {
-    auto file = std::ifstream(path);
-
-    if (!file.is_open()) {
-        return false;
-    }
-
+template<typename Stream>
+void load_meshes_from_obj_stream(Stream &stream,
+                                 std::vector<obj_mesh> &meshes,
+                                 vector3 pos,
+                                 quaternion orn,
+                                 vector3 scale) {
     std::string line;
     auto mesh = obj_mesh{};
     uint32_t index_offset = 0;
 
-    while (std::getline(file, line)) {
+    while (std::getline(stream, line)) {
         auto pos_space = line.find(" ");
 
         if (pos_space == std::string::npos) {
@@ -132,26 +127,43 @@ bool load_meshes_from_obj(const std::string &path,
     if (!mesh.vertices.empty()) {
         meshes.emplace_back(std::move(mesh));
     }
-
-    return true;
 }
 
-bool load_tri_mesh_from_obj(const std::string &path,
-                        std::vector<vector3> &vertices,
-                        std::vector<uint32_t> &indices,
-                        std::vector<vector3> *colors,
-                        vector3 pos,
-                        quaternion orn,
-                        vector3 scale) {
+bool load_meshes_from_obj(const std::string &path,
+                          std::vector<obj_mesh> &meshes,
+                          vector3 pos,
+                          quaternion orn,
+                          vector3 scale) {
     auto file = std::ifstream(path);
 
     if (!file.is_open()) {
         return false;
     }
 
+    load_meshes_from_obj_stream(file, meshes, pos, orn, scale);
+
+    return true;
+}
+
+void load_meshes_from_obj(std::stringstream &ss,
+                          std::vector<obj_mesh> &meshes,
+                          vector3 pos,
+                          quaternion orn,
+                          vector3 scale) {
+    load_meshes_from_obj_stream(ss, meshes, pos, orn, scale);
+}
+
+template<typename Stream>
+void load_tri_mesh_from_obj_stream(Stream &stream,
+                                   std::vector<vector3> &vertices,
+                                   std::vector<uint32_t> &indices,
+                                   std::vector<vector3> *colors,
+                                   vector3 pos,
+                                   quaternion orn,
+                                   vector3 scale) {
     std::string line;
 
-    while (std::getline(file, line)) {
+    while (std::getline(stream, line)) {
         auto pos_space = line.find(" ");
 
         if (pos_space == std::string::npos) {
@@ -191,21 +203,45 @@ bool load_tri_mesh_from_obj(const std::string &path,
             read_face_indices(iss, indices, 0, true);
         }
     }
+}
 
+bool load_tri_mesh_from_obj(const std::string &path,
+                            std::vector<vector3> &vertices,
+                            std::vector<uint32_t> &indices,
+                            std::vector<vector3> *colors,
+                            vector3 pos,
+                            quaternion orn,
+                            vector3 scale) {
+    auto file = std::ifstream(path);
+
+    if (!file.is_open()) {
+        return false;
+    }
+
+    load_tri_mesh_from_obj_stream(file, vertices, indices, colors, pos, orn, scale);
     return true;
 }
 
-std::vector<polyhedron_with_center> load_convex_polyhedrons_from_obj(
-    const std::string &path_to_obj,
+void load_tri_mesh_from_obj(std::stringstream &stream,
+                            std::vector<vector3> &vertices,
+                            std::vector<uint32_t> &indices,
+                            std::vector<vector3> *colors,
+                            vector3 pos,
+                            quaternion orn,
+                            vector3 scale) {
+    load_tri_mesh_from_obj_stream(stream, vertices, indices, colors, pos, orn, scale);
+}
+
+template<typename Stream>
+std::vector<polyhedron_with_center> load_convex_polyhedrons_from_obj_stream(
+    Stream &stream,
     const vector3 &pos,
     const quaternion &orn,
     const vector3 &scale) {
 
     auto meshes = std::vector<obj_mesh>{};
 
-    if (!load_meshes_from_obj(path_to_obj, meshes, pos, orn, scale)) {
-        return {};
-    }
+    load_meshes_from_obj_stream(stream, meshes, pos, orn, scale);
 
     EDYN_ASSERT(!meshes.empty());
     auto polyhedrons = std::vector<polyhedron_with_center>{};
@@ -239,13 +275,37 @@ std::vector<polyhedron_with_center> load_convex_polyhedrons_from_obj(
     return polyhedrons;
 }
 
-compound_shape load_compound_shape_from_obj(
+std::vector<polyhedron_with_center> load_convex_polyhedrons_from_obj(
     const std::string &path_to_obj,
     const vector3 &pos,
     const quaternion &orn,
     const vector3 &scale) {
 
-    auto polyhedrons = load_convex_polyhedrons_from_obj(path_to_obj, pos, orn, scale);
+    auto file = std::ifstream(path_to_obj);
+
+    if (!file.is_open()) {
+        return {};
+    }
+
+    return load_convex_polyhedrons_from_obj_stream(file, pos, orn, scale);
+}
+
+std::vector<polyhedron_with_center> load_convex_polyhedrons_from_obj(
+    std::stringstream &ss,
+    const vector3 &pos,
+    const quaternion &orn,
+    const vector3 &scale) {
+    return load_convex_polyhedrons_from_obj_stream(ss, pos, orn, scale);
+}
+
+template<typename Stream>
+compound_shape load_compound_shape_from_obj_stream(
+    Stream &stream,
+    const vector3 &pos,
+    const quaternion &orn,
+    const vector3 &scale) {
+
+    auto polyhedrons = load_convex_polyhedrons_from_obj_stream(stream, pos, orn, scale);
     EDYN_ASSERT(!polyhedrons.empty());
 
     auto compound = compound_shape{};
@@ -257,6 +317,29 @@ compound_shape load_compound_shape_from_obj(
 
     compound.finish();
     return compound;
+}
+
+compound_shape load_compound_shape_from_obj(
+    const std::string &path_to_obj,
+    const vector3 &pos,
+    const quaternion &orn,
+    const vector3 &scale) {
+
+    auto file = std::ifstream(path_to_obj);
+
+    if (!file.is_open()) {
+        return {};
+    }
+
+    return load_compound_shape_from_obj_stream(file, pos, orn, scale);
+}
+
+compound_shape load_compound_shape_from_obj(
+    std::stringstream &ss,
+    const vector3 &pos,
+    const quaternion &orn,
+    const vector3 &scale) {
+    return load_compound_shape_from_obj_stream(ss, pos, orn, scale);
 }
 
 }

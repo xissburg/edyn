@@ -35,6 +35,12 @@ bool load_meshes_from_obj(const std::string &path,
                           quaternion orn = quaternion_identity,
                           vector3 scale = vector3_one);
 
+void load_meshes_from_obj(std::stringstream &ss,
+                          std::vector<obj_mesh> &meshes,
+                          vector3 pos = vector3_zero,
+                          quaternion orn = quaternion_identity,
+                          vector3 scale = vector3_one);
+
 /**
  * @brief Loads a triangle mesh from a *.obj file which must've been
  * triangulated during export.
@@ -48,6 +54,14 @@ bool load_meshes_from_obj(const std::string &path,
  * @return Success or failure.
  */
 bool load_tri_mesh_from_obj(const std::string &path,
+                            std::vector<vector3> &vertices,
+                            std::vector<uint32_t> &indices,
+                            std::vector<vector3> *colors = nullptr,
+                            vector3 pos = vector3_zero,
+                            quaternion orn = quaternion_identity,
+                            vector3 scale = vector3_one);
+
+void load_tri_mesh_from_obj(std::stringstream &ss,
                             std::vector<vector3> &vertices,
                             std::vector<uint32_t> &indices,
                             std::vector<vector3> *colors = nullptr,
@@ -78,6 +92,12 @@ std::vector<polyhedron_with_center> load_convex_polyhedrons_from_obj(
     const quaternion &orn = quaternion_identity,
     const vector3 &scale = vector3_one);
 
+std::vector<polyhedron_with_center> load_convex_polyhedrons_from_obj(
+    const std::stringstream &ss,
+    const vector3 &pos = vector3_zero,
+    const quaternion &orn = quaternion_identity,
+    const vector3 &scale = vector3_one);
+
 /**
  * @brief Loads a compound shape from an obj file. All child shapes are created
  * as polyhedrons.
@@ -91,6 +111,12 @@ std::vector<polyhedron_with_center> load_convex_polyhedrons_from_obj(
  */
 compound_shape load_compound_shape_from_obj(
     const std::string &path_to_obj,
+    const vector3 &pos = vector3_zero,
+    const quaternion &orn = quaternion_identity,
+    const vector3 &scale = vector3_one);
+
+compound_shape load_compound_shape_from_obj(
+    std::stringstream &ss,
     const vector3 &pos = vector3_zero,
     const quaternion &orn = quaternion_identity,
     const vector3 &scale = vector3_one);

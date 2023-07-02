@@ -12,11 +12,19 @@ void exclude_collision_one_way(entt::registry &registry, entt::entity first, ent
     if (!registry.all_of<collision_exclusion>(first)) {
         registry.emplace<collision_exclusion>(first);
     }
-    registry.patch<collision_exclusion>(first,
-        [&](collision_exclusion &exclusion) {
-            EDYN_ASSERT(exclusion.num_entities() + 1 < collision_exclusion::max_exclusions);
-            exclusion.entity[exclusion.num_entities()] = second;
-        });
+
+    auto &exclusion = registry.get<collision_exclusion>(first);
+    const auto size = exclusion.num_entities();
+
+    for (unsigned i = 0; i < size; ++i) {
+        if (exclusion.entity[i] == second) {
+            return;
+        }
+    }
+
+    EDYN_ASSERT(size < collision_exclusion::max_exclusions);
+    exclusion.entity[size] = second;
+    registry.patch<collision_exclusion>(first);
 }
 
 void exclude_collision(entt::registry &registry, entt::entity first, entt::entity second) {
@@ -50,8 +58,9 @@ void remove_collision_exclusion(entt::registry &registry, entt::entity first, en
 
 void clear_collision_exclusion(entt::registry &registry, entt::entity entity) {
     auto &exclude = registry.get<collision_exclusion>(entity);
+    const auto size = exclude.num_entities();
 
-    for (unsigned i = 0; i < exclude.num_entities(); ++i) {
+    for (unsigned i = 0; i < size; ++i) {
         auto other = exclude.entity[i];
         remove_collision_exclusion_one_way(registry, other, entity);
     }
