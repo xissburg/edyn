@@ -7,6 +7,7 @@
 #include "edyn/comp/child_list.hpp"
 #include "edyn/comp/collision_exclusion.hpp"
 #include "edyn/comp/island.hpp"
+#include "edyn/config/config.h"
 #include "edyn/config/execution_mode.hpp"
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/constraints/null_constraint.hpp"
@@ -17,7 +18,6 @@
 #include "edyn/simulation/stepper_async.hpp"
 #include "edyn/simulation/stepper_sequential.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
-#include "edyn/time/time.hpp"
 #include <entt/meta/factory.hpp>
 #include <entt/core/hashed_string.hpp>
 
@@ -95,7 +95,7 @@ void attach(entt::registry &registry, const init_config &config) {
     registry.ctx().emplace<contact_manifold_map>(registry);
     registry.ctx().emplace<contact_event_emitter>(registry);
     registry.ctx().emplace<registry_operation_context>();
-    auto timestamp = config.timestamp ? *config.timestamp : performance_time();
+    auto timestamp = config.timestamp ? *config.timestamp : (*settings.time_func)();
 
     switch (config.execution_mode) {
     case execution_mode::sequential:
@@ -169,7 +169,8 @@ void set_paused(entt::registry &registry, bool paused) {
 }
 
 void update(entt::registry &registry) {
-    auto time = performance_time();
+    auto &settings = registry.ctx().at<edyn::settings>();
+    auto time = (*settings.time_func)();
     update(registry, time);
 }
 
@@ -190,7 +191,8 @@ void step_simulation(entt::registry &registry) {
     if (auto *stepper = registry.ctx().find<stepper_async>()) {
         stepper->step_simulation();
     } else {
-        auto time = performance_time();
+        auto &settings = registry.ctx().at<edyn::settings>();
+        auto time = (*settings.time_func)();
         registry.ctx().at<stepper_sequential>().step_simulation(time);
     }
 }
@@ -208,6 +210,21 @@ void step_simulation(entt::registry &registry, double time) {
 execution_mode get_execution_mode(const entt::registry &registry) {
     auto &settings = registry.ctx().at<edyn::settings>();
     return settings.execution_mode;
+}
+
+void set_time_source(entt::registry &registry, double(*time_func)(void)) {
+    EDYN_ASSERT(time_func != nullptr);
+
+    auto &settings = registry.ctx().at<edyn::settings>();
+    settings.time_func = time_func;
+
+    if (auto *stepper = registry.ctx().find<stepper_async>()) {
+        stepper->settings_changed();
+    }
+
+    if (auto *ctx = registry.ctx().find<client_network_context>()) {
+        ctx->extrapolator->set_settings(settings);
+    }
 }
 
 }

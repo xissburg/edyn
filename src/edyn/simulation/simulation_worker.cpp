@@ -25,7 +25,6 @@
 #include "edyn/sys/update_aabbs.hpp"
 #include "edyn/sys/update_inertias.hpp"
 #include "edyn/sys/update_rotated_meshes.hpp"
-#include "edyn/time/time.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/parallel/message.hpp"
 #include "edyn/core/entity_graph.hpp"
@@ -317,15 +316,18 @@ void simulation_worker::update() {
     auto &settings = m_registry.ctx().at<edyn::settings>();
     const auto fixed_dt = settings.fixed_dt;
     const auto num_steps = static_cast<int64_t>(std::floor(m_accumulated_time / fixed_dt));
-    m_accumulated_time -= static_cast<double>(num_steps) * fixed_dt;
+    auto advance_dt = static_cast<double>(num_steps) * fixed_dt;
+    m_accumulated_time -= advance_dt;
 
     auto effective_steps = num_steps;
-    auto sim_dt = fixed_dt;
+    auto step_dt = fixed_dt;
 
     if (num_steps > settings.max_steps_per_update) {
         effective_steps = settings.max_steps_per_update;
-        // Adjust sim time to account for steps skipped.
-        sim_dt = (elapsed - m_accumulated_time) / effective_steps;
+        // Scale up the effective delta time of each step. Physics will be
+        // updated using fixed dt always but the presentation step dt will be
+        // greater thus slowing down the simulation.
+        step_dt = advance_dt / effective_steps;
     }
 
     m_poly_initializer.init_new_shapes();
@@ -344,7 +346,7 @@ void simulation_worker::update() {
         nphase.update(true);
         m_solver.update(true);
 
-        m_sim_time += sim_dt;
+        m_sim_time += step_dt;
 
         if (settings.clear_actions_func) {
             (*settings.clear_actions_func)(m_registry);
@@ -368,11 +370,11 @@ void simulation_worker::run() {
     auto integral_term = 0.06;
     auto i_term = 0.0;
 
-    m_current_time = performance_time();
+    m_current_time = (*m_registry.ctx().at<settings>().time_func)();
     init();
 
     while (m_running.load(std::memory_order_relaxed)) {
-        auto t1 = performance_time();
+        auto t1 = (*m_registry.ctx().at<settings>().time_func)();
         auto dt = t1 - m_current_time;
         m_current_time = t1;
         update();
@@ -459,6 +461,10 @@ void simulation_worker::on_set_settings(message<msg::set_settings> &msg) {
 
     if (settings.init_callback && settings.init_callback != current.init_callback) {
         (*settings.init_callback)(m_registry);
+    }
+
+    if (settings.time_func != current.time_func) {
+        m_current_time = (*settings.time_func)();
     }
 
     current = settings;

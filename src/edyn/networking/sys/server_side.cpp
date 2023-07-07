@@ -32,7 +32,6 @@
 #include "edyn/networking/util/snap_to_pool_snapshot.hpp"
 #include "edyn/simulation/stepper_async.hpp"
 #include "edyn/parallel/message.hpp"
-#include "edyn/time/time.hpp"
 #include "edyn/replication/entity_map.hpp"
 #include "edyn/util/island_util.hpp"
 #include "edyn/util/vector_util.hpp"
@@ -99,7 +98,8 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     }
 
     if (!emap_packet.pairs.empty()) {
-        emap_packet.timestamp = performance_time();
+        auto &settings = registry.ctx().at<edyn::settings>();
+        emap_packet.timestamp = (*settings.time_func)();
         ctx.packet_signal.publish(client_entity, packet::edyn_packet{emap_packet});
     }
 
@@ -210,14 +210,17 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
 }
 
 static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::time_request &req) {
-    auto res = packet::time_response{req.id, performance_time()};
+    auto &settings = registry.ctx().at<edyn::settings>();
+    auto res = packet::time_response{req.id, (*settings.time_func)()};
     auto &ctx = registry.ctx().at<server_network_context>();
     ctx.packet_signal.publish(client_entity, packet::edyn_packet{res});
 }
 
 static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::time_response &res) {
     auto &client = registry.get<remote_client>(client_entity);
-    clock_sync_process_time_response(client.clock_sync, res);
+    auto &settings = registry.ctx().at<edyn::settings>();
+    const auto time = (*settings.time_func)();
+    clock_sync_process_time_response(client.clock_sync, res, time);
 }
 
 static void process_packet(entt::registry &registry, entt::entity client_entity, const packet::set_aabb_of_interest &aabb) {
@@ -568,7 +571,8 @@ void update_server_snapshot_exporter(entt::registry &registry, double time) {
 }
 
 void update_network_server(entt::registry &registry) {
-    auto time = performance_time();
+    auto &settings = registry.ctx().at<edyn::settings>();
+    const auto time = (*settings.time_func)();
     server_update_clock_sync(registry, time);
     server_process_timed_packets(registry, time);
     update_server_snapshot_exporter(registry, time);
@@ -650,7 +654,8 @@ void server_receive_packet(entt::registry &registry, entt::entity client_entity,
         // If it's a timed packet, enqueue for later execution. Process
         // immediately otherwise.
         if constexpr(tuple_has_type<PacketType, packet::timed_packets_tuple_t>::value) {
-            auto time = performance_time();
+            auto &settings = registry.ctx().at<edyn::settings>();
+            const auto time = (*settings.time_func)();
             enqueue_packet(registry, client_entity, decoded_packet, time);
         } else {
             process_packet(registry, client_entity, decoded_packet);

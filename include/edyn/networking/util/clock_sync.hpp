@@ -5,8 +5,6 @@
 #include "edyn/networking/packet/edyn_packet.hpp"
 #include "edyn/networking/packet/time_request.hpp"
 #include "edyn/networking/packet/time_response.hpp"
-#include "edyn/time/time.hpp"
-#include <cstdlib>
 #include <entt/signal/fwd.hpp>
 
 namespace edyn {
@@ -61,7 +59,7 @@ struct clock_sync_data {
     entt::delegate<void(const packet::edyn_packet &)> send_packet;
 };
 
-void clock_sync_process_time_response(clock_sync_data &clock_sync, const packet::time_response &res);
+void clock_sync_process_time_response(clock_sync_data &clock_sync, const packet::time_response &res, double time);
 void update_clock_sync(clock_sync_data &clock_sync, double time, double avg_rtt);
 
 }

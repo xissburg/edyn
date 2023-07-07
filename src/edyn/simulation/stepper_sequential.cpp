@@ -38,18 +38,20 @@ void stepper_sequential::update(double time) {
     auto &settings = m_registry->ctx().at<edyn::settings>();
     const auto fixed_dt = settings.fixed_dt;
     const auto num_steps = static_cast<uint64_t>(std::floor(m_accumulated_time / fixed_dt));
-    m_accumulated_time -= static_cast<double>(num_steps) * fixed_dt;
+    auto advance_dt = static_cast<double>(num_steps) * fixed_dt;
+    m_accumulated_time -= advance_dt;
 
     auto &bphase = m_registry->ctx().at<broadphase>();
     auto &nphase = m_registry->ctx().at<narrowphase>();
     auto &emitter = m_registry->ctx().at<contact_event_emitter>();
 
     auto effective_steps = num_steps;
+    auto step_dt = fixed_dt;
 
     if (effective_steps > settings.max_steps_per_update) {
         effective_steps = settings.max_steps_per_update;
-        // Advance sim time to account for steps skipped.
-        sim_time += (num_steps - effective_steps) * fixed_dt;
+        // Scale up the effective delta time in each step.
+        step_dt = advance_dt / effective_steps;
     }
 
     // Initialize new AABBs and shapes even in case num_steps is zero.
@@ -57,7 +59,7 @@ void stepper_sequential::update(double time) {
     bphase.init_new_aabb_entities();
 
     for (unsigned i = 0; i < effective_steps; ++i) {
-        auto step_time = sim_time + fixed_dt * i;
+        auto step_time = sim_time + step_dt * i;
 
         if (settings.pre_step_callback) {
             (*settings.pre_step_callback)(*m_registry);

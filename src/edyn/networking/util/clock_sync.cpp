@@ -11,7 +11,7 @@ static void start_clock_sync(clock_sync_data &clock_sync, double time) {
     clock_sync.send_packet(packet::edyn_packet{packet});
 }
 
-void clock_sync_process_time_response(clock_sync_data &clock_sync, const packet::time_response &res) {
+void clock_sync_process_time_response(clock_sync_data &clock_sync, const packet::time_response &res, double time) {
     if (clock_sync.state != clock_sync_state::time_req0 &&
         clock_sync.state != clock_sync_state::time_req1) {
         return;
@@ -20,8 +20,6 @@ void clock_sync_process_time_response(clock_sync_data &clock_sync, const packet:
     if (res.id != clock_sync.time_req_id) {
         return;
     }
-
-    auto time = performance_time();
 
     if (clock_sync.state == clock_sync_state::time_req0) {
         clock_sync.state = clock_sync_state::time_req1;
