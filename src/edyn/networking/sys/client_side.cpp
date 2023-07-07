@@ -34,7 +34,6 @@
 #include "edyn/simulation/stepper_async.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/serialization/std_s11n.hpp"
-#include "edyn/time/time.hpp"
 #include "edyn/util/island_util.hpp"
 #include "edyn/util/vector_util.hpp"
 #include "edyn/util/aabb_util.hpp"
@@ -342,7 +341,8 @@ void update_client_snapshot_exporter(entt::registry &registry, double time) {
 }
 
 void update_network_client(entt::registry &registry) {
-    auto time = performance_time();
+    auto &settings = registry.ctx().at<edyn::settings>();
+    auto time = (*settings.time_func)();
 
     client_update_clock_sync(registry, time);
     process_client_created_entities(registry, time);
@@ -359,6 +359,7 @@ void update_network_client(entt::registry &registry) {
 
 static void process_packet(entt::registry &registry, const packet::client_created &packet) {
     auto &ctx = registry.ctx().at<client_network_context>();
+    auto &settings = registry.ctx().at<edyn::settings>();
 
     auto remote_entity = packet.client_entity;
     auto local_entity = registry.create();
@@ -367,7 +368,7 @@ static void process_packet(entt::registry &registry, const packet::client_create
     ctx.entity_map.insert(remote_entity, local_entity);
 
     auto emap_packet = packet::update_entity_map{};
-    emap_packet.timestamp = performance_time();
+    emap_packet.timestamp = (*settings.time_func)();
     emap_packet.pairs.emplace_back(remote_entity, local_entity);
     ctx.packet_signal.publish(packet::edyn_packet{std::move(emap_packet)});
 
@@ -432,7 +433,8 @@ static void process_packet(entt::registry &registry, const packet::create_entity
     }
 
     if (!emap_packet.pairs.empty()) {
-        emap_packet.timestamp = performance_time();
+        auto &settings = registry.ctx().at<edyn::settings>();
+        emap_packet.timestamp = (*settings.time_func)();
         ctx.packet_signal.publish(packet::edyn_packet{std::move(emap_packet)});
     }
 
@@ -617,7 +619,8 @@ static void process_packet(entt::registry &registry, packet::entity_entered &pac
     }
 
     if (!emap_packet.pairs.empty()) {
-        emap_packet.timestamp = performance_time();
+        auto &settings = registry.ctx().at<edyn::settings>();
+        emap_packet.timestamp = (*settings.time_func)();
         ctx.packet_signal.publish(packet::edyn_packet{std::move(emap_packet)});
     }
 
@@ -705,7 +708,7 @@ static void process_packet(entt::registry &registry, packet::registry_snapshot &
     // main registry space.
     snapshot.convert_remloc(registry, ctx.entity_map);
 
-    const auto time = performance_time();
+    const auto time = (*settings.time_func)();
     double snapshot_time;
     double client_server_time_difference;
 
@@ -762,14 +765,17 @@ static void process_packet(entt::registry &registry, packet::set_playout_delay &
 }
 
 static void process_packet(entt::registry &registry, const packet::time_request &req) {
-    auto res = packet::time_response{req.id, performance_time()};
+    auto &settings = registry.ctx().at<edyn::settings>();
+    auto res = packet::time_response{req.id, (*settings.time_func)()};
     auto &ctx = registry.ctx().at<client_network_context>();
     ctx.packet_signal.publish(packet::edyn_packet{res});
 }
 
 static void process_packet(entt::registry &registry, const packet::time_response &res) {
     auto &ctx = registry.ctx().at<client_network_context>();
-    clock_sync_process_time_response(ctx.clock_sync, res);
+    auto &settings = registry.ctx().at<edyn::settings>();
+    const auto time = (*settings.time_func)();
+    clock_sync_process_time_response(ctx.clock_sync, res, time);
 }
 
 static void process_packet(entt::registry &registry, const packet::server_settings &server) {
@@ -872,7 +878,8 @@ void client_link_asset_impl(entt::registry &registry, entt::entity asset_entity,
     registry.emplace<asset_linked_tag>(asset_entity);
     ctx.importing_entities = importing_entities_prev;
 
-    emap_packet.timestamp = performance_time();
+    auto &settings = registry.ctx().at<edyn::settings>();
+    emap_packet.timestamp = (*settings.time_func)();
     ctx.packet_signal.publish(packet::edyn_packet{std::move(emap_packet)});
 }
 

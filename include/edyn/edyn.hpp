@@ -129,6 +129,18 @@ void step_simulation(entt::registry &registry, double time);
 
 execution_mode get_execution_mode(const entt::registry &registry);
 
+/**
+ * @brief Assign a custom time source function to be used by the engine
+ * internally. The same time source must be used to generate a timestamp
+ * when calling any function that needs one in their arguments, such as
+ * `edyn::update` and `edyn::step_simulation`.
+ * @remark The default time source is `edyn::performance_time`.
+ * @param registry Data source.
+ * @param time_func Pointer to a function that returns a timestamp in seconds.
+ * Must be thread-safe.
+ */
+void set_time_source(entt::registry &registry, double(*time_func)(void));
+
 }
 
 #endif // EDYN_EDYN_HPP

@@ -10,6 +10,7 @@
 #include "edyn/collision/should_collide.hpp"
 #include "edyn/networking/settings/client_network_settings.hpp"
 #include "edyn/networking/settings/server_network_settings.hpp"
+#include "edyn/time/time.hpp"
 
 namespace edyn {
 
@@ -34,6 +35,9 @@ struct settings {
 
     using clear_actions_func_t = void(entt::registry &);
     clear_actions_func_t *clear_actions_func {nullptr};
+
+    using time_func_t = double(void);
+    time_func_t *time_func {&performance_time};
 
     std::variant<
         std::monostate,

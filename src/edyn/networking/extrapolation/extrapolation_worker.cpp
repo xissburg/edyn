@@ -31,7 +31,6 @@
 #include "edyn/sys/update_rotated_meshes.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/math/transform.hpp"
-#include "edyn/time/time.hpp"
 #include "edyn/util/island_util.hpp"
 #include <entt/entity/registry.hpp>
 #include <entt/entity/utility.hpp>
@@ -280,7 +279,8 @@ void extrapolation_worker::apply_history() {
 }
 
 bool extrapolation_worker::begin_extrapolation(const extrapolation_request &request) {
-    m_init_time = performance_time();
+    auto &settings = m_registry.ctx().at<edyn::settings>();
+    m_init_time = (*settings.time_func)();
     m_current_time = request.start_time;
     m_step_count = 0;
     m_island_manager.set_last_time(m_current_time);
@@ -367,7 +367,6 @@ bool extrapolation_worker::begin_extrapolation(const extrapolation_request &requ
     m_modified_comp->export_remote_state(snapshot_entities);
 
     // Invoke pre-extrapolation callback after setting up initial state.
-    auto &settings = m_registry.ctx().at<edyn::settings>();
     auto &client_settings = std::get<client_network_settings>(settings.network_settings);
 
     if (client_settings.extrapolation_begin_callback) {
@@ -460,7 +459,8 @@ void extrapolation_worker::finish_extrapolation(const extrapolation_request &req
 }
 
 bool extrapolation_worker::should_step(const extrapolation_request &request) {
-    auto time = performance_time();
+    auto &settings = m_registry.ctx().at<edyn::settings>();
+    auto time = (*settings.time_func)();
 
     if (time - m_init_time > request.execution_time_limit) {
         // Timeout.
