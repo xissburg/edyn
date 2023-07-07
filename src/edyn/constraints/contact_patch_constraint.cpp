@@ -1,4 +1,5 @@
 #include "edyn/constraints/contact_patch_constraint.hpp"
+#include "edyn/config/config.h"
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/math/quaternion.hpp"
@@ -314,40 +315,39 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
         auto [lon_dir, lat_dir] = get_tire_directions(axis, normal, bodyA.orn);
 
         // Calculate starting point of contact patch on the contact plane.
-        auto point_on_circle = project_plane(patch.pivot, bodyA.pos, axis);
-        auto point_on_cylinder = normalize(point_on_circle - bodyA.pos) * cyl.radius + bodyA.pos;
-        auto point_on_edge = point_on_cylinder + axis * cyl.half_length * (sin_camber > 0 ? -1 : 1);
-        auto circle_center = bodyA.pos + axis * cyl.half_length * (sin_camber > 0 ? -1 : 1);
-        auto radial_dir = point_on_edge - circle_center;
-        auto radial_dir_norm = normalize(radial_dir);
-        bool is_parallel = std::abs(dot(radial_dir_norm, normal)) < 0.001;
+        auto point_on_yz_plane = project_plane(patch.pivot, bodyA.origin, axis);
+        auto radial_dir = normalize(point_on_yz_plane - bodyA.origin);
+        auto axial_offset = axis * cyl.half_length * (sin_camber > 0 ? -1 : 1);
+        auto circle_center = bodyA.origin + axial_offset;
+        auto point_on_edge = circle_center + radial_dir * cyl.radius;
+
+        bool is_parallel = std::abs(dot(radial_dir, normal)) < 0.001;
         vector3 patch_lat_pos0;
 
         if (is_parallel) {
             // The contact patch starting point is at the top of the
             // sidewall in this case.
-            patch_lat_pos0 = circle_center + radial_dir - radial_dir_norm * (cyl.radius - m_sidewall_height);
+            patch_lat_pos0 = circle_center + radial_dir * (cyl.radius - m_sidewall_height);
         } else {
             // The starting point is at the intersection between the line
             // connecting the center of the cylinder cap face closest to the
             // contact plane and the support point along -normal with the
             // contact plane up to the height of the sidewall.
-            auto fraction = dot(patch.pivot - circle_center, normal) / dot(radial_dir, normal);
-
-            if (fraction * cyl.radius > cyl.radius - m_sidewall_height) {
-                patch_lat_pos0 = circle_center + radial_dir * fraction;
-            } else {
-                patch_lat_pos0 = circle_center + radial_dir_norm * (cyl.radius - m_sidewall_height);
-            }
+            auto min_fraction = scalar(1) - m_sidewall_height / cyl.radius ;
+            auto fraction = dot(patch.pivot - circle_center, normal) / dot(radial_dir * cyl.radius, normal);
+            fraction = std::clamp(fraction, min_fraction, scalar(1));
+            patch_lat_pos0 = circle_center + radial_dir * cyl.radius * fraction;
         }
 
         // Push the pivot downwards to match the height of the patch
         // position in case they differ in level.
-        patch.pivot += normal * dot(normal, patch_lat_pos0 - patch.pivot);
+        const auto patch_pivot_correction = normal * dot(normal, patch_lat_pos0 - patch.pivot);
+        patch.pivot += patch_pivot_correction;
 
         // Recalculate deflection in case it's been clamped since deformation
         // is limited by the sidewall height.
         patch.deflection = dot(normal, patch_lat_pos0 - point_on_edge);
+        EDYN_ASSERT(!(patch.deflection < 0));
 
         auto normal_force = patch.normal_impulse / dt;
         patch.applied_impulse.normal = patch.normal_impulse;
@@ -433,7 +433,7 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
                     sin_contact_angle * cyl.radius,
                     cos_contact_angle * cyl.radius
                 };
-                auto row_start_pos = project_plane(to_world_space(row_start_pos_local, bodyA.pos, spin_ornA), contact_center, normal);
+                auto row_start_pos = project_plane(to_world_space(row_start_pos_local, bodyA.origin, spin_ornA), contact_center, normal);
                 auto row_start_posB = to_object_space(row_start_pos, bodyB.pos, bodyB.orn);
                 tread_row.start_posB = tread_row.end_posB = row_start_posB;
 
@@ -487,8 +487,8 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
 
             auto row_start_pos_local = row_mid_pos_local - row_dir_local * row_half_length;
             auto row_end_pos_local = row_mid_pos_local + row_dir_local * row_half_length;
-            auto row_start_pos = project_plane(to_world_space(row_start_pos_local, bodyA.pos, spin_ornA), contact_center, normal);
-            auto row_end_pos   = project_plane(to_world_space(row_end_pos_local, bodyA.pos, spin_ornA), contact_center, normal);
+            auto row_start_pos = project_plane(to_world_space(row_start_pos_local, bodyA.origin, spin_ornA), contact_center, normal);
+            auto row_end_pos   = project_plane(to_world_space(row_end_pos_local, bodyA.origin, spin_ornA), contact_center, normal);
 
             auto prev_row_start_pos = to_world_space(tread_row.start_posB, bodyB.pos, bodyB.orn);
             auto prev_row_end_pos   = to_world_space(tread_row.end_posB, bodyB.pos, bodyB.orn);
@@ -525,7 +525,7 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
                 // remove the offset from the tread row segment.
                 auto camber_offset = std::sqrt(cyl.radius * cyl.radius - bristle_z_local * bristle_z_local) * sin_camber - (cyl.radius - defl) * sin_camber;
                 auto bristle_root = lerp(row_start_pos, row_end_pos, bristle_root_fraction) + lat_dir * camber_offset;
-                bristle.pivotA = to_object_space(bristle_root, bodyA.pos, spin_ornA);
+                bristle.pivotA = to_object_space(bristle_root, bodyA.origin, spin_ornA);
 
                 // Calculate bristle tip position and relative velocity between
                 // root and tip.
