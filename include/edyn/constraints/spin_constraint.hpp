@@ -4,7 +4,7 @@
 #include <vector>
 #include "edyn/constraints/constraint_base.hpp"
 #include "edyn/constraints/constraint_body.hpp"
-#include "edyn/math/scalar.hpp"
+#include "edyn/math/vector3.hpp"
 
 namespace edyn {
 
@@ -18,6 +18,8 @@ struct constraint_row_prep_cache;
 struct spin_constraint : public constraint_base {
     scalar m_max_torque {};
     scalar m_target_spin {};
+    vector3 m_axisA {vector3_x};
+    vector3 m_axisB {vector3_x};
     bool m_use_spinA {true};
     bool m_use_spinB {true};
 
@@ -36,8 +38,8 @@ void serialize(Archive &archive, spin_constraint &con) {
     archive(con.body);
     archive(con.m_max_torque);
     archive(con.m_target_spin);
-    archive(con.m_use_spinA);
-    archive(con.m_use_spinB);
+    archive(con.m_axisA, con.m_axisB);
+    archive(con.m_use_spinA, con.m_use_spinB);
     archive(con.applied_impulse);
 }
 

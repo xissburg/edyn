@@ -7,8 +7,8 @@ namespace edyn {
 void spin_constraint::prepare(const entt::registry &, entt::entity,
                               constraint_row_prep_cache &cache, scalar dt,
                               const constraint_body &bodyA, const constraint_body &bodyB) {
-    auto axisA = rotate(bodyA.orn, vector3_x);
-    auto axisB = rotate(bodyB.orn, vector3_x);
+    auto axisA = rotate(bodyA.orn, m_axisA);
+    auto axisB = rotate(bodyB.orn, m_axisB);
     auto torque_impulse = m_max_torque * dt;
 
     auto &row = cache.add_row_with_spin();
