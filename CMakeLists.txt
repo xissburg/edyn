@@ -79,6 +79,7 @@ add_library(Edyn
     src/edyn/constraints/antiroll_constraint.cpp
     src/edyn/constraints/doublewishbone_constraint.cpp
     src/edyn/constraints/differential_constraint.cpp
+    src/edyn/constraints/triple_spin_constraint.cpp
     src/edyn/constraints/tierod_constraint.cpp
     src/edyn/constraints/hinge_constraint.cpp
     src/edyn/constraints/generic_constraint.cpp

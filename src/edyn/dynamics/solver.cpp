@@ -100,6 +100,8 @@ void invoke_prepare_constraint(entt::registry &registry, entt::entity entity, C 
         third_entity = con.m_third_entity;
     } else if constexpr(std::is_same_v<std::decay_t<C>, differential_constraint>) {
         third_entity = con.body[2];
+    } else if constexpr(std::is_same_v<std::decay_t<C>, triple_spin_constraint>) {
+        third_entity = con.body[2];
     }
 
     scalar spinC = {};
@@ -126,7 +128,8 @@ void invoke_prepare_constraint(entt::registry &registry, entt::entity entity, C 
         EDYN_ASSERT(manifold.body[1] == con.body[1]);
         con.prepare(registry, entity, manifold, cache, dt, bodyA, bodyB);
     } else if constexpr(std::disjunction_v<std::is_same<std::decay_t<C>, antiroll_constraint>,
-                                           std::is_same<std::decay_t<C>, differential_constraint>>) {
+                                           std::is_same<std::decay_t<C>, differential_constraint>,
+                                           std::is_same<std::decay_t<C>, triple_spin_constraint>>) {
         auto [posC, ornC, linvelC, angvelC, inv_mC, inv_IC, dvC, dwC] = body_view.get(third_entity);
 
         auto originC = origin_view.contains(third_entity) ?

@@ -75,6 +75,7 @@ static const auto networked_components = std::tuple_cat(std::tuple<
     cvjoint_constraint,
     antiroll_constraint,
     differential_constraint,
+    triple_spin_constraint,
     doublewishbone_constraint,
     spin_angle_constraint,
     spin_constraint,

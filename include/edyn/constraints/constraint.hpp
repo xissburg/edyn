@@ -19,6 +19,7 @@
 #include "edyn/constraints/antiroll_constraint.hpp"
 #include "edyn/constraints/doublewishbone_constraint.hpp"
 #include "edyn/constraints/differential_constraint.hpp"
+#include "edyn/constraints/triple_spin_constraint.hpp"
 #include "edyn/constraints/tierod_constraint.hpp"
 #include "edyn/constraints/contact_patch_constraint.hpp"
 #include "edyn/dynamics/row_cache.hpp"
@@ -44,6 +45,7 @@ using constraints_tuple_t = std::tuple<
     spin_constraint,
     antiroll_constraint,
     doublewishbone_constraint,
+    triple_spin_constraint,
     differential_constraint,
     tierod_constraint,
     contact_patch_constraint,
