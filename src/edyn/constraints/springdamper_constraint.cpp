@@ -2,6 +2,7 @@
 #include "edyn/comp/angvel.hpp"
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/orientation.hpp"
+#include "edyn/comp/position.hpp"
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/math/math.hpp"
 #include "edyn/math/transform.hpp"
@@ -186,7 +187,7 @@ scalar springdamper_constraint::get_spring_deflection(entt::registry &registry) 
     auto pivotA = to_world_space(m_pivotA, posA, ornA);
     auto ctrl_armA = to_world_space(m_ctrl_arm_pivotA, posA, ornA);
     auto ctrl_armB = to_world_space(m_ctrl_arm_pivotB, posB, ornB);
-    auto ctrl_arm_dir = ctrl_armA - ctrl_armB;
+    auto ctrl_arm_dir = ctrl_armB - ctrl_armA;
     auto ctrl_arm_len = length(ctrl_arm_dir);
     ctrl_arm_dir /= ctrl_arm_len;
 
@@ -227,7 +228,7 @@ vector3 springdamper_constraint::get_world_ctrl_arm_pivot(entt::registry &regist
 
     auto ctrl_armA = to_world_space(m_ctrl_arm_pivotA, posA, ornA);
     auto ctrl_armB = to_world_space(m_ctrl_arm_pivotB, posB, ornB);
-    auto ctrl_arm_dir = ctrl_armA - ctrl_armB;
+    auto ctrl_arm_dir = ctrl_armB - ctrl_armA;
     auto ctrl_arm_len = length(ctrl_arm_dir);
     ctrl_arm_dir /= ctrl_arm_len;
 
@@ -261,22 +262,24 @@ scalar springdamper_constraint::get_damping_force(scalar speed) const {
 }
 
 scalar springdamper_constraint::get_relative_speed(entt::registry &registry) const {
-    auto posA = get_rigidbody_origin(registry, body[0]);
+    auto posA = registry.get<position>(body[0]);
     auto ornA = registry.get<orientation>(body[0]);
+    auto originA = get_rigidbody_origin(registry, body[0]);
 
-    auto posB = get_rigidbody_origin(registry, body[1]);
+    auto posB = registry.get<position>(body[1]);
     auto ornB = registry.get<orientation>(body[1]);
+    auto originB = get_rigidbody_origin(registry, body[1]);
 
-    auto ctrl_armA = to_world_space(m_ctrl_arm_pivotA, posA, ornA);
-    auto ctrl_armB = to_world_space(m_ctrl_arm_pivotB, posB, ornB);
-    auto ctrl_arm_dir = ctrl_armA - ctrl_armB;
+    auto ctrl_armA = to_world_space(m_ctrl_arm_pivotA, originA, ornA);
+    auto ctrl_armB = to_world_space(m_ctrl_arm_pivotB, originB, ornB);
+    auto ctrl_arm_dir = ctrl_armB - ctrl_armA;
     auto ctrl_arm_len = length(ctrl_arm_dir);
     ctrl_arm_dir /= ctrl_arm_len;
 
     // Build control arm basis to calculate world space pivot location.
     scalar side = m_ctrl_arm_pivotA.x > 0 ? 1 : -1;
-    auto ctrl_arm_x = ctrl_arm_dir * side;
     auto ctrl_arm_z = rotate(ornA, vector3_z);
+    auto ctrl_arm_x = ctrl_arm_dir * side;
     auto ctrl_arm_y = cross(ctrl_arm_z, ctrl_arm_x);
     auto ctrl_arm_basis = matrix3x3_columns(ctrl_arm_x, ctrl_arm_y, ctrl_arm_z);
     auto ctrl_arm_pivot_rel = ctrl_arm_basis * m_ctrl_arm_pivot;
@@ -297,7 +300,7 @@ scalar springdamper_constraint::get_relative_speed(entt::registry &registry) con
     auto ang_spd_ctrl_arm = length(vel_rel_ctrl_arm) / ctrl_arm_len;
     auto ang_vel_ctrl_arm = ctrl_arm_z * (ang_spd_ctrl_arm * ang_vel_sign);
 
-    auto coiloverA = to_world_space(m_pivotA, posA, ornA);
+    auto coiloverA = to_world_space(m_pivotA, originA, ornA);
     auto coilover_dir = coiloverA - ctrl_arm_pivot;
     auto coilover_len = length(coilover_dir);
     coilover_dir /= coilover_len;
