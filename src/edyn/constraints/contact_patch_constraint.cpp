@@ -67,12 +67,11 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
     // Wheel spin axis in world space.
     const auto axis = quaternion_x(bodyA.orn);
     auto spin_axisA = axis;
-    auto spinvelA = spin_axisA * bodyA.spin;
     auto spin_axisB = quaternion_x(bodyB.orn);
-    auto spinvelB = spin_axisB * bodyB.spin;
 
     auto spin_ornA = bodyA.orn * quaternion_axis_angle(vector3_x, bodyA.spin_angle);
-    auto spin_angvelA = bodyA.angvel + spinvelA;
+
+    auto &cyl = registry.get<cylinder_shape>(body[0]);
 
     // Create non-penetration constraint rows for each contact point.
     // Ignore spin for normal constraint since it only affects tangential
@@ -97,12 +96,10 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
         row.spin_axis[1] = spin_axisB;
         row.lower_limit = 0;
 
-        auto vA = bodyA.linvel + cross(bodyA.angvel, rA);
-        auto vB = bodyB.linvel + cross(bodyB.angvel, rB);
-        auto relvel = vA - vB;
-        auto normal_relspd = dot(relvel, normal);
+        auto deflection = std::max(-cp.distance, scalar(0));
+        auto local_travel_speed = bodyA.spin * (cyl.radius - deflection);
         auto stiffness = velocity_dependent_vertical_stiffness(m_normal_stiffness,
-                                                               std::max(normal_relspd, scalar(0)));
+                                                               std::abs(local_travel_speed));
 
         // Divide stiffness by number of points in the same contact plane
         // for correct force distribution.
@@ -117,17 +114,19 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
             }
         }
 
-        auto deflection = std::max(-cp.distance, scalar(0));
         auto spring_force = deflection * stiffness / num_points_in_same_plane;
+
+        auto vA = bodyA.linvel + cross(bodyA.angvel, rA);
+        auto vB = bodyB.linvel + cross(bodyB.angvel, rB);
+        auto relvel = vA - vB;
+        auto normal_relspd = dot(relvel, normal);
         auto damper_force = m_normal_damping * -normal_relspd / num_points_in_same_plane;
 
-        row.upper_limit = std::abs(spring_force + damper_force) * dt;
+        row.upper_limit = std::max(spring_force + damper_force, scalar(0)) * dt;
 
         auto &options = cache.get_options();
-        options.error = -large_scalar;
+        options.error = -deflection / dt;
     }
-
-    auto &cyl = registry.get<cylinder_shape>(body[0]);
 
     struct point_info {
         scalar angle;
@@ -661,11 +660,9 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
                     auto f1 = m_lon_tread_stiffness * area1 * (midpoint_defl + bristle_defl) * scalar(0.5);
                     spring_force = f0 + f1;
 
-                    bristle_tip = bristle_root + bristle_defl;
-
-                    auto vel_tipA = project_direction(bodyA.linvel + cross(spin_angvelA, bristle_tip - bodyA.pos), normal);
-                    auto vel_tipB = project_direction(bodyB.linvel + cross(bodyB.angvel + spinvelB, bristle_tip - bodyB.pos), normal);
-                    bristle.sliding_spd = length(vel_tipA - vel_tipB);
+                    auto bristle_tip_next = bristle_root + bristle_defl;
+                    bristle.sliding_spd = distance(bristle_tip, bristle_tip_next) / dt;
+                    bristle_tip = bristle_tip_next;
 
                     // Move pivot in B to match new tip location.
                     bristle.pivotB = to_object_space(bristle_tip, bodyB.pos, bodyB.orn);
