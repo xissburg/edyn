@@ -19,21 +19,24 @@ namespace edyn {
 
 inline
 void update_tire_state(entt::registry &registry, scalar dt) {
-    auto ts_view = registry.view<graph_node, tire_state>();
+    auto state_view = registry.view<graph_node, tire_state>();
     auto tr_view = registry.view<position, orientation>();
     auto vel_view = registry.view<linvel, angvel>();
     auto spin_view = registry.view<spin>();
     auto patch_view = registry.view<contact_patch_constraint>();
     auto &graph = registry.ctx().at<entity_graph>();
 
-    for (auto [entity, node, ts] : ts_view.each()) {
-        ts.other_entity = entt::null;
+    for (auto [entity, node, state] : state_view.each()) {
+        state.other_entity = entt::null;
 
         auto &posA = tr_view.get<position>(entity);
         auto &ornA = tr_view.get<orientation>(entity);
         auto &linvelA = vel_view.get<linvel>(entity);
         auto &angvelA = vel_view.get<angvel>(entity);
         auto spinvelA = quaternion_x(ornA) * spin_view.get<spin>(entity).s;
+        // Must create another reference to circumvent the compiler limitation:
+        // "Reference to local binding declared in enclosing function".
+        auto &ts = state;
 
         graph.visit_edges(node.node_index, [&](auto edge_index) {
             auto edge_entity = graph.edge_entity(edge_index);
