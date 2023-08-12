@@ -96,10 +96,12 @@ void update_tire_state(entt::registry &registry, scalar dt) {
                 tire_cs.pivot = patch.pivot;
                 tire_cs.position = patch.center;
                 tire_cs.lin_vel = linvel_rel;
-                tire_cs.Fz = patch.applied_impulse.normal / dt;
-                tire_cs.Fx = patch.applied_impulse.longitudinal / dt;
-                tire_cs.Fy = patch.applied_impulse.lateral / dt;
-                tire_cs.Mz = patch.applied_impulse.aligning / dt;
+
+                const auto &impulse = patch.applied_impulse;
+                tire_cs.Fz = impulse.normal / dt;
+                tire_cs.Fx = (impulse.lon_spring + impulse.lon_damping) / dt;
+                tire_cs.Fy = (impulse.lat_spring + impulse.lat_damping) / dt;
+                tire_cs.Mz = (impulse.align_spring + impulse.align_damping) / dt;
 
                 for (size_t i = 0; i < patch.tread_rows.size(); ++i) {
                     auto &tread_row = patch.tread_rows[i];

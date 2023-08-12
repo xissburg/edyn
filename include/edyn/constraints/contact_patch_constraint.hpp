@@ -63,9 +63,12 @@ struct contact_patch_constraint : public constraint_base {
 
         struct {
             scalar normal {};
-            scalar longitudinal {};
-            scalar lateral {};
-            scalar aligning {};
+            scalar lon_spring {};
+            scalar lon_damping {};
+            scalar lat_spring {};
+            scalar lat_damping {};
+            scalar align_spring {};
+            scalar align_damping {};
         } applied_impulse {};
     };
 
@@ -79,7 +82,9 @@ struct contact_patch_constraint : public constraint_base {
     scalar m_load_sensitivity{0.03};
     scalar m_lon_tread_stiffness{3000000};
     scalar m_lat_tread_stiffness{1800000};
+    scalar m_tread_damping{50000};
     scalar m_sidewall_height{0.13};
+    scalar m_max_tread_deflection{0.03};
 
     void prepare(const entt::registry &, entt::entity, const contact_manifold &,
                  constraint_row_prep_cache &cache, scalar dt,
