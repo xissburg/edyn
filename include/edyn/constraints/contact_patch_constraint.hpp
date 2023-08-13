@@ -75,17 +75,6 @@ struct contact_patch_constraint : public constraint_base {
     uint8_t num_patches {0};
     std::array<contact_patch, max_contacts> patches;
 
-    // Tire material properties.
-    scalar m_normal_stiffness{100000};
-    scalar m_normal_damping{400};
-    scalar m_speed_sensitivity{0.05};
-    scalar m_load_sensitivity{0.03};
-    scalar m_lon_tread_stiffness{3000000};
-    scalar m_lat_tread_stiffness{1800000};
-    scalar m_tread_damping{50000};
-    scalar m_sidewall_height{0.13};
-    scalar m_max_tread_deflection{0.03};
-
     void prepare(const entt::registry &, entt::entity, const contact_manifold &,
                  constraint_row_prep_cache &cache, scalar dt,
                  const constraint_body &bodyA, const constraint_body &bodyB);

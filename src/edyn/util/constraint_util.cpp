@@ -85,17 +85,11 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
 
     auto &material_table = registry.ctx().at<material_mix_table>();
     auto restitution = scalar(0);
-    auto stiffness = scalar(0);
-    auto damping = scalar(0);
 
     if (auto *material = material_table.try_get({material0.id, material1.id})) {
         restitution = material->restitution;
-        stiffness = material->stiffness;
-        damping = material->damping;
     } else {
         restitution = material_mix_restitution(material0.restitution, material1.restitution);
-        stiffness = material_mix_stiffness(material0.stiffness, material1.stiffness);
-        damping = material_mix_damping(material0.damping, material1.damping);
     }
 
     if (restitution > EDYN_EPSILON) {
@@ -103,26 +97,8 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
     }
 
     // Assign contact constraint to manifold.
-    auto *tire0 = registry.try_get<tire_material>(body0);
-    auto *tire1 = registry.try_get<tire_material>(body1);
-    auto *tire = tire0 ? tire0 : tire1;
-
-    if (tire) {
-        // Contact patch is always a soft contact since it needs deflection
-        // to generate friction forces.
-        EDYN_ASSERT(stiffness < large_scalar);
-
-        make_constraint<contact_patch_constraint>(registry, manifold_entity, body0, body1,
-                                                  [&](contact_patch_constraint &contact) {
-            contact.m_normal_stiffness = stiffness;
-            contact.m_normal_damping = damping;
-            contact.m_speed_sensitivity = tire->speed_sensitivity;
-            contact.m_load_sensitivity = tire->load_sensitivity;
-            contact.m_lat_tread_stiffness = tire->lat_tread_stiffness;
-            contact.m_lon_tread_stiffness = tire->lon_tread_stiffness;
-            contact.m_tread_damping = tire->tread_damping;
-            contact.m_sidewall_height = tire->tire_radius - tire->rim_radius;
-        });
+    if (registry.any_of<tire_material>(body0) || registry.any_of<tire_material>(body1)) {
+        make_constraint<contact_patch_constraint>(registry, manifold_entity, body0, body1);
     } else {
         make_constraint<contact_constraint>(registry, manifold_entity, body0, body1);
     }
