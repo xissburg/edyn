@@ -50,8 +50,8 @@ struct tire_contact_state {
     // Self-aligning moment and rolling moment.
     scalar Mz {0}, Mx {0};
 
-    // Velocity-proportional sliding factor.
-    scalar slide_factor {0};
+    // Average sliding speed of all bristles.
+    scalar slide_speed {0};
 
     // Percentage of treads which are sliding in [0, 1].
     scalar slide_ratio {0};

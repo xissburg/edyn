@@ -740,8 +740,9 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
             }
         }
 
-        patch.sliding_spd_avg /= num_tread_rows * bristles_per_row;
-        patch.sliding_ratio = scalar(num_sliding_bristles) / scalar(num_tread_rows * bristles_per_row);
+        constexpr auto num_bristles_inv = scalar(1) / scalar(num_tread_rows * bristles_per_row);
+        patch.sliding_spd_avg *= num_bristles_inv;
+        patch.sliding_ratio = scalar(num_sliding_bristles) * num_bristles_inv;
         auto rA = contact_center - bodyA.pos;
         auto rB = contact_center - bodyB.pos;
 

@@ -86,7 +86,7 @@ void update_tire_state(entt::registry &registry, scalar dt) {
                 auto vsx = dot(tan_relvel, patch.lon_dir);
                 tire_cs.slip_ratio = -vsx / (to_sign(vx > 0) * std::max(std::abs(vx), scalar(0.001)));
                 tire_cs.yaw_rate = dot(angvelA, patch.normal);
-                tire_cs.slide_factor = patch.sliding_spd_avg;
+                tire_cs.slide_speed = patch.sliding_spd_avg;
                 tire_cs.slide_ratio = patch.sliding_ratio;
                 tire_cs.contact_patch_width = patch.width;
                 tire_cs.contact_lifetime = patch.lifetime;
