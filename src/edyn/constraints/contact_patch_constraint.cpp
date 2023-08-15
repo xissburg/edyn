@@ -5,7 +5,6 @@
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/math/quaternion.hpp"
 #include "edyn/math/transform.hpp"
-#include "edyn/math/vector3.hpp"
 #include "edyn/util/tire_util.hpp"
 #include "edyn/shapes/cylinder_shape.hpp"
 
@@ -324,14 +323,11 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
         auto [lon_dir, lat_dir] = get_tire_directions(axis, normal, bodyA.orn);
 
         // Calculate contact patch width.
-        // TODO: Use constant patch width for now. Variations in width require
-        // laterally interpolating tire tread state over into new tread rows
-        // since they refer to different sections of the contact patch along
-        // the lateral axis.
-        auto normalized_contact_width = 1.f;
-            // std::max(scalar(0.08),
-            //scalar(1) - scalar(1) /
-            //(normal_force * scalar(0.001) * (half_pi - std::abs(camber_angle)) / (std::abs(camber_angle) + scalar(0.001)) + 1));
+        // TODO: Variations in width require laterally interpolating tire
+        // tread state over into new tread rows since they refer to different
+        // sections of the contact patch along the lateral axis.
+        auto normalized_contact_width = std::max(scalar(0.08), scalar(1) - scalar(1) /
+            (normal_force * scalar(0.001) * (half_pi - std::abs(camber_angle)) / (std::abs(camber_angle) + scalar(0.001)) + 1));
         patch.width = cyl.half_length * 2 * normalized_contact_width;
 
         // Calculate starting point of contact patch on the contact plane.
@@ -392,10 +388,10 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
 
         if (sin_camber > 0) {
             deflection0 = patch.deflection;
-            deflection1 = deflection0 - sin_camber * patch.width;
+            deflection1 = patch.deflection - sin_camber * patch.width;
         } else {
             deflection1 = patch.deflection;
-            deflection0 = deflection1 + sin_camber * patch.width;
+            deflection0 = patch.deflection + sin_camber * patch.width;
         }
 
         // Make the smaller deflection at least 10% of the bigger deflection.
@@ -410,9 +406,6 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
         auto lon_force = scalar(0);
         auto lat_force = scalar(0);
         auto aligning_torque = scalar(0);
-        auto lon_damping = scalar(0);
-        auto lat_damping = scalar(0);
-        auto aligning_damping = scalar(0);
         auto tread_width = patch.width / num_tread_rows;
         auto normal_pressure = normal_force / (patch.width * patch.length);
 
@@ -435,7 +428,7 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
             auto row_fraction = (row_x - row_start) / patch.width;
             auto defl = lerp(deflection0, deflection1, row_fraction);
 
-            if (defl < 0.001) {
+            if (defl < 0.0001) {
                 // Reset tread and bristles.
                 tread_row.half_length = 0;
                 tread_row.half_angle = 0;
@@ -461,12 +454,9 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
                 continue;
             }
 
-            auto max_row_half_length = cyl.radius * scalar(0.9);
-            auto row_half_length = std::min(scalar(0.4) * cyl.radius *
-                                            (defl * r0_inv + scalar(2.25) *
-                                            std::sqrt(defl * r0_inv)),
-                                            max_row_half_length);
-            auto row_length = scalar(2) * row_half_length;
+            //auto max_row_half_length = cyl.radius * scalar(0.9);
+            auto row_length = patch.length;
+            auto row_half_length = row_length / scalar(2);
             auto row_half_angle = std::asin(row_half_length / cyl.radius);
             auto row_angle = scalar(2) * row_half_angle;
 
@@ -509,7 +499,6 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
 
             const auto is_new_row = tread_row.half_length < EDYN_EPSILON;
             auto prev_bristle_defl = vector3_zero;
-            auto prev_bristle_defl_vel = vector3_zero;
             auto prev_row_bristle_pivotB = std::array<vector3, contact_patch_constraint::bristles_per_row>{};
             auto prev_row_bristle_defl = std::array<vector3, contact_patch_constraint::bristles_per_row>{};
 
@@ -652,23 +641,20 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
                 auto tread_length = (bristle_idx == 0 ? scalar(0.5) : scalar(1)) * bristle_length_delta;
                 auto tread_area = tread_width * tread_length;
 
-                // TODO: handle anisotropic stiffness.
                 // The force is calculated as an integral from the previous deflection until the
                 // current deflection along the row.
                 auto bristle_defl = bristle_tip - bristle_root;
                 auto bristle_defl_len = length(bristle_defl);
 
-                auto bristle_defl_vel = (bristle_defl - bristle_defl0) / bristle_lifetime_dt;
-
                 // Perform calculations with a scaling factor to avoid the large
                 // numbers that result from using units such as N/m^2.
                 const auto pressure_scaling = scalar(1e-6);
                 const auto lon_tread_stiffness_scaled = material.lon_tread_stiffness * pressure_scaling;
-                const auto tread_damping_scaled = material.tread_damping * pressure_scaling;
+                const auto lat_tread_stiffness_scaled = material.lat_tread_stiffness * pressure_scaling;
                 const auto max_friction_pressure_scaled = bristle.friction * normal_pressure * pressure_scaling;
 
-                auto bristle_pressure_scaled = length(lon_tread_stiffness_scaled * bristle_defl +
-                                                      tread_damping_scaled * bristle_defl_vel);
+                auto bristle_pressure_scaled = std::sqrt(square(lon_tread_stiffness_scaled * dot(bristle_defl, lon_dir)) +
+                                                         square(lat_tread_stiffness_scaled * dot(bristle_defl, lat_dir)));
 
                 if (bristle_pressure_scaled < max_friction_pressure_scaled && bristle_defl_len < material.max_tread_deflection) {
                     bristle.sliding_spd = 0;
@@ -678,41 +664,22 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
                     // Thus, move the bristle tip closer to its root so that the
                     // tangential deflection force is equals to the maximum friction force.
                     auto bristle_dir = bristle_defl / bristle_defl_len;
+                    bristle_defl_len = max_friction_pressure_scaled /
+                        std::sqrt(square(lon_tread_stiffness_scaled * dot(bristle_dir, lon_dir)) +
+                                  square(lat_tread_stiffness_scaled * dot(bristle_dir, lat_dir)));
+                    bristle_defl_len = std::min(bristle_defl_len, material.max_tread_deflection);
+                    bristle_defl = bristle_dir * bristle_defl_len;
 
-                    const auto v = bristle_dir;
-                    const auto w = bristle_defl0;
-                    const float x = lon_tread_stiffness_scaled + tread_damping_scaled / bristle_lifetime_dt;
-                    const float y = tread_damping_scaled / bristle_lifetime_dt;
-                    const float a = x * x;
-                    const float b = scalar(-2) * x * y * dot(v, w);
-                    const float c = y * y * dot(w, w) - square(max_friction_pressure_scaled);
-                    scalar s = 0;
-                    // Solve quadratic `as^2 + bs + c = 0`. Only the positive solution
-                    // should be considered.
-                    auto d = b * b - scalar(4) * a * c;
-
-                    if (d < 0) {
-                        bristle_defl = vector3_zero;
-                        bristle_defl_vel = max_friction_pressure_scaled / tread_damping_scaled * bristle_dir;
-                    } else {
-                        s = (-b + std::sqrt(d)) / (scalar(2) * a);
-                        bristle_defl = bristle_dir * std::min(s, material.max_tread_deflection);
-                        bristle_defl_vel = (bristle_defl - bristle_defl0) / bristle_lifetime_dt;
-                    }
-
-                    bristle_pressure_scaled = length(lon_tread_stiffness_scaled * bristle_defl +
-                                              tread_damping_scaled * bristle_defl_vel);
+                    bristle_pressure_scaled = std::sqrt(square(lon_tread_stiffness_scaled * dot(bristle_defl, lon_dir)) +
+                                                        square(lat_tread_stiffness_scaled * dot(bristle_defl, lat_dir)));
                     EDYN_ASSERT(bristle_pressure_scaled <= max_friction_pressure_scaled * 1.01);
 
                     auto bristle_tip_next = bristle_root + bristle_defl;
-                    bristle.sliding_spd = distance(bristle_tip, bristle_tip_next) / dt;
+                    bristle.sliding_spd = distance(bristle_tip, bristle_tip_next) / bristle_lifetime_dt;
                     bristle_tip = bristle_tip_next;
 
                     ++num_sliding_bristles;
                 }
-
-                auto spring_force = material.lon_tread_stiffness * tread_area * (prev_bristle_defl + bristle_defl) * scalar(0.5);
-                auto damper_force = material.tread_damping * tread_area * (prev_bristle_defl_vel + bristle_defl_vel) * scalar(0.5);
 
                 // Point of force application.
                 auto prev_bristle_root = bristle_idx > 0 ?
@@ -720,13 +687,14 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
                     row_start_pos;
                 auto midpoint = (bristle_root + prev_bristle_root) * scalar(0.5);
 
-                lon_force += dot(lon_dir, spring_force);
-                lat_force += dot(lat_dir, spring_force);
-                aligning_torque += dot(cross(midpoint - contact_center, spring_force), normal);
+                auto bristle_lon_force = material.lon_tread_stiffness * tread_area * dot(prev_bristle_defl + bristle_defl, lon_dir) * scalar(0.5);
+                lon_force += bristle_lon_force;
 
-                lon_damping += dot(lon_dir, damper_force);
-                lat_damping += dot(lat_dir, damper_force);
-                aligning_damping += dot(cross(midpoint - contact_center, damper_force), normal);
+                auto bristle_lat_force = material.lat_tread_stiffness * tread_area * dot(prev_bristle_defl + bristle_defl, lat_dir) * scalar(0.5);
+                lat_force += bristle_lat_force;
+
+                auto bristle_force = bristle_lon_force * lon_dir + bristle_lat_force * lat_dir;
+                aligning_torque += dot(cross(midpoint - contact_center, bristle_force), normal);
 
                 // Assign new root and tip.
                 bristle.tip = bristle_tip;
@@ -736,7 +704,6 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
                 bristle.pivotB = to_object_space(bristle_tip, bodyB.pos, bodyB.orn);
 
                 prev_bristle_defl = bristle_defl;
-                prev_bristle_defl_vel = bristle_defl_vel;
             }
 
             // Add force from last bristle until end of patch.
@@ -746,15 +713,14 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
                 auto bristle_root = tread_row.bristles.back().root;
                 auto midpoint = (row_end_pos + bristle_root) * scalar(0.5);
 
-                auto spring_force = material.lon_tread_stiffness * tread_area * prev_bristle_defl * scalar(0.5);
-                lon_force += dot(lon_dir, spring_force);
-                lat_force += dot(lat_dir, spring_force);
-                aligning_torque += dot(cross(midpoint - contact_center, spring_force), normal);
+                auto bristle_lon_force = material.lon_tread_stiffness * tread_area * dot(prev_bristle_defl, lon_dir) * scalar(0.5);
+                lon_force += bristle_lon_force;
 
-                auto damper_force = material.tread_damping * tread_area * prev_bristle_defl_vel * scalar(0.5);
-                lon_damping += dot(lon_dir, damper_force);
-                lat_damping += dot(lat_dir, damper_force);
-                aligning_damping += dot(cross(midpoint - contact_center, damper_force), normal);
+                auto bristle_lat_force = material.lat_tread_stiffness * tread_area * dot(prev_bristle_defl, lat_dir) * scalar(0.5);
+                lat_force += bristle_lat_force;
+
+                auto bristle_force = bristle_lon_force * lon_dir + bristle_lat_force * lat_dir;
+                aligning_torque += dot(cross(midpoint - contact_center, bristle_force), normal);
             }
 
             tread_row.half_angle = row_half_angle;
@@ -784,35 +750,19 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
             auto p = cross(rA, lon_dir);
             auto q = cross(rB, lon_dir);
             auto spring_impulse = lon_force * dt;
-            auto damper_impulse = std::abs(lon_damping) * dt;
-            auto J = std::array<vector3, 4>{lon_dir, p, -lon_dir, -q};
 
-            {
-                auto &row = cache.add_row_with_spin();
-                row.J = J;
-                row.lower_limit = std::min(spring_impulse, scalar(0));
-                row.upper_limit = std::max(scalar(0), spring_impulse);
-                row.impulse = patch.applied_impulse.lon_spring;
-                row.use_spin[0] = true;
-                row.use_spin[1] = true;
-                row.spin_axis[0] = spin_axisA;
-                row.spin_axis[1] = spin_axisB;
+            auto &row = cache.add_row_with_spin();
+            row.J = {lon_dir, p, -lon_dir, -q};
+            row.lower_limit = std::min(spring_impulse, scalar(0));
+            row.upper_limit = std::max(scalar(0), spring_impulse);
+            row.impulse = patch.applied_impulse.longitudinal;
+            row.use_spin[0] = true;
+            row.use_spin[1] = true;
+            row.spin_axis[0] = spin_axisA;
+            row.spin_axis[1] = spin_axisB;
 
-                auto &options = cache.get_options();
-                options.error = spring_impulse > 0 ? -large_scalar : large_scalar;
-            }
-
-            {
-                auto &row = cache.add_row_with_spin();
-                row.J = J;
-                row.lower_limit = -damper_impulse;
-                row.upper_limit =  damper_impulse;
-                row.impulse = patch.applied_impulse.lon_damping;
-                row.use_spin[0] = true;
-                row.use_spin[1] = true;
-                row.spin_axis[0] = spin_axisA;
-                row.spin_axis[1] = spin_axisB;
-            }
+            auto &options = cache.get_options();
+            options.error = spring_impulse > 0 ? -large_scalar : large_scalar;
         }
 
         // Lateral stiffness.
@@ -820,52 +770,29 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
             auto p = cross(rA, lat_dir);
             auto q = cross(rB, lat_dir);
             auto spring_impulse = lat_force * dt;
-            auto damper_impulse = std::abs(lat_damping) * dt;
-            auto J = std::array<vector3, 4>{lat_dir, p, -lat_dir, -q};
 
-            {
-                auto &row = cache.add_row();
-                row.J = J;
-                row.lower_limit = std::min(spring_impulse, scalar(0));
-                row.upper_limit = std::max(scalar(0), spring_impulse);
-                row.impulse = patch.applied_impulse.lat_spring;
+            auto &row = cache.add_row();
+            row.J = {lat_dir, p, -lat_dir, -q};
+            row.lower_limit = std::min(spring_impulse, scalar(0));
+            row.upper_limit = std::max(scalar(0), spring_impulse);
+            row.impulse = patch.applied_impulse.lateral;
 
-                auto &options = cache.get_options();
-                options.error = spring_impulse > 0 ? -large_scalar : large_scalar;
-            }
-
-            {
-                auto &row = cache.add_row();
-                row.J = J;
-                row.lower_limit = -damper_impulse;
-                row.upper_limit =  damper_impulse;
-                row.impulse = patch.applied_impulse.lat_damping;
-            }
+            auto &options = cache.get_options();
+            options.error = spring_impulse > 0 ? -large_scalar : large_scalar;
         }
 
         // Aligning moment.
         {
             auto spring_impulse = aligning_torque * dt;
-            auto damper_impulse = std::abs(aligning_damping) * dt;
 
-            {
-                auto &row = cache.add_row();
-                row.J = {vector3_zero, normal, vector3_zero, -normal};
-                row.lower_limit = std::min(spring_impulse, scalar(0));
-                row.upper_limit = std::max(scalar(0), spring_impulse);
-                row.impulse = patch.applied_impulse.align_spring;
+            auto &row = cache.add_row();
+            row.J = {vector3_zero, normal, vector3_zero, -normal};
+            row.lower_limit = std::min(spring_impulse, scalar(0));
+            row.upper_limit = std::max(scalar(0), spring_impulse);
+            row.impulse = patch.applied_impulse.aligning;
 
-                auto &options = cache.get_options();
-                options.error = spring_impulse > 0 ? -large_scalar : large_scalar;
-            }
-
-            {
-                auto &row = cache.add_row();
-                row.J = {vector3_zero, normal, vector3_zero, -normal};
-                row.lower_limit = -damper_impulse;
-                row.upper_limit =  damper_impulse;
-                row.impulse = patch.applied_impulse.align_damping;
-            }
+            auto &options = cache.get_options();
+            options.error = spring_impulse > 0 ? -large_scalar : large_scalar;
         }
 
         patch.sin_camber = sin_camber;
@@ -886,12 +813,9 @@ void contact_patch_constraint::store_applied_impulses(const std::vector<scalar> 
 
     for (unsigned i = 0; i < num_patches; ++i) {
         auto &patch = patches[i];
-        patch.applied_impulse.lon_spring = impulses[row_idx++];
-        patch.applied_impulse.lon_damping = impulses[row_idx++];
-        patch.applied_impulse.lat_spring = impulses[row_idx++];
-        patch.applied_impulse.lat_damping = impulses[row_idx++];
-        patch.applied_impulse.align_spring = impulses[row_idx++];
-        patch.applied_impulse.align_damping = impulses[row_idx++];
+        patch.applied_impulse.longitudinal = impulses[row_idx++];
+        patch.applied_impulse.lateral = impulses[row_idx++];
+        patch.applied_impulse.aligning = impulses[row_idx++];
     }
 }
 

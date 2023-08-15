@@ -63,12 +63,9 @@ struct contact_patch_constraint : public constraint_base {
 
         struct {
             scalar normal {};
-            scalar lon_spring {};
-            scalar lon_damping {};
-            scalar lat_spring {};
-            scalar lat_damping {};
-            scalar align_spring {};
-            scalar align_damping {};
+            scalar longitudinal {};
+            scalar lateral {};
+            scalar aligning {};
         } applied_impulse {};
     };
 
