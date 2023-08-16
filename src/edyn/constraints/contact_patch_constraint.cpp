@@ -454,7 +454,6 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
                 continue;
             }
 
-            //auto max_row_half_length = cyl.radius * scalar(0.9);
             auto row_length = patch.length;
             auto row_half_length = row_length / scalar(2);
             auto row_half_angle = std::asin(row_half_length / cyl.radius);
