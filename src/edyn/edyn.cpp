@@ -224,4 +224,22 @@ void set_time_source(entt::registry &registry, double(*time_func)(void)) {
     }
 }
 
+double get_time(entt::registry &registry) {
+    auto &settings = registry.ctx().at<edyn::settings>();
+    auto time = (*settings.time_func)();
+    return time;
+}
+
+double get_simulation_timestamp(entt::registry &registry) {
+    if (auto *stepper = registry.ctx().find<stepper_async>()) {
+        return stepper->get_simulation_timestamp();
+    }
+
+    if (auto *stepper = registry.ctx().find<stepper_sequential>()) {
+        return stepper->get_simulation_timestamp();
+    }
+
+    return 0;
+}
+
 }
