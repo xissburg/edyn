@@ -71,10 +71,10 @@ void hinge_constraint::prepare(
     // Handle angular limits and friction.
     auto has_limit = angle_min < angle_max;
     auto has_spring = stiffness > 0;
-    auto has_friction = friction_torque > 0 || damping > 0;
+    auto has_torque = torque > 0 || damping > 0;
     vector3 hinge_axis;
 
-    if (has_limit || has_spring || has_friction) {
+    if (has_limit || has_spring || has_torque) {
         hinge_axis = rotate(bodyA.orn, frame[0].column(0));
     }
 
@@ -156,22 +156,25 @@ void hinge_constraint::prepare(
         options.error = -deflection / dt;
     }
 
-    if (has_friction) {
+    if (has_torque) {
         // Since damping acts as a speed-dependent friction, a single row
         // is employed for both damping and constant friction.
         auto &row = cache.add_row();
         row.J = {vector3_zero, hinge_axis, vector3_zero, -hinge_axis};
-        row.impulse = applied_impulse.friction_damping;
+        row.impulse = applied_impulse.torque;
 
-        auto friction_impulse = friction_torque * dt;
+        auto torque_impulse = torque * dt;
 
         if (damping > 0) {
             auto relvel = dot(bodyA.angvel, hinge_axis) - dot(bodyB.angvel, hinge_axis);
-            friction_impulse += std::abs(relvel) * damping * dt;
+            torque_impulse += std::abs(relvel) * damping * dt;
         }
 
-        row.lower_limit = -friction_impulse;
-        row.upper_limit = friction_impulse;
+        row.lower_limit = -torque_impulse;
+        row.upper_limit = torque_impulse;
+
+        auto &options = cache.get_options();
+        options.error = -speed;
     }
 }
 
@@ -223,7 +226,7 @@ void hinge_constraint::store_applied_impulses(const std::vector<scalar> &impulse
 
     auto has_limit = angle_min < angle_max;
     auto has_spring = stiffness > 0;
-    auto has_friction = friction_torque > 0 || damping > 0;
+    auto has_torque = torque > 0 || damping > 0;
 
     if (has_limit) {
         applied_impulse.limit = impulses[row_idx++];
@@ -249,8 +252,8 @@ void hinge_constraint::store_applied_impulses(const std::vector<scalar> &impulse
         applied_impulse.spring = impulses[row_idx++];
     }
 
-    if (has_friction) {
-        applied_impulse.friction_damping = impulses[row_idx++];
+    if (has_torque) {
+        applied_impulse.torque = impulses[row_idx++];
     }
 }
 

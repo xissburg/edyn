@@ -43,7 +43,8 @@ struct hinge_constraint : public constraint_base {
 
     // Torque applied in the opposite direction of the angular velocity along
     // the hinge axis, simulating resistance to motion in the hinge.
-    scalar friction_torque{};
+    scalar torque{};
+    scalar speed{};
 
     // Relative angle between the two frames along the hinge axis that the
     // spring force should try to maintain.
@@ -65,7 +66,7 @@ struct hinge_constraint : public constraint_base {
         scalar limit {};
         scalar bump_stop {};
         scalar spring {};
-        scalar friction_damping {};
+        scalar torque {};
     } applied_impulse {};
 
     /**
@@ -100,7 +101,7 @@ void serialize(Archive &archive, hinge_constraint &c) {
     archive(c.frame);
     archive(c.angle_min, c.angle_max, c.limit_restitution);
     archive(c.bump_stop_angle, c.bump_stop_stiffness);
-    archive(c.friction_torque);
+    archive(c.torque, c.speed);
     archive(c.rest_angle, c.stiffness, c.damping);
     archive(c.angle);
     archive(c.applied_impulse.linear);
@@ -108,7 +109,7 @@ void serialize(Archive &archive, hinge_constraint &c) {
     archive(c.applied_impulse.limit);
     archive(c.applied_impulse.bump_stop);
     archive(c.applied_impulse.spring);
-    archive(c.applied_impulse.friction_damping);
+    archive(c.applied_impulse.torque);
 }
 
 }
