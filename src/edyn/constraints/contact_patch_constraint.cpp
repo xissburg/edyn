@@ -98,9 +98,9 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
         row.lower_limit = 0;
 
         auto deflection = std::max(-cp.distance, scalar(0));
-        auto local_travel_speed = bodyA.spin * (cyl.radius - deflection);
+        auto local_travel_speed_kph = bodyA.spin * (cyl.radius - deflection) * scalar(3.6);
         auto stiffness = velocity_dependent_vertical_stiffness(cp.stiffness,
-                                                               std::abs(local_travel_speed));
+                                                               std::abs(local_travel_speed_kph));
 
         // Divide stiffness by number of points in the same contact plane
         // for correct force distribution.
