@@ -6,8 +6,10 @@
 namespace edyn {
 
 struct tire_material {
-    scalar lon_tread_stiffness {3000000};
-    scalar lat_tread_stiffness {1800000};
+    scalar vertical_stiffness {250000};
+    scalar vertical_damping {1200};
+    scalar lon_tread_stiffness {10e6};
+    scalar lat_tread_stiffness {6e6};
     scalar max_tread_deflection{0.03};
     scalar speed_sensitivity {0.03};
     scalar load_sensitivity {0.05};
@@ -17,11 +19,10 @@ struct tire_material {
 
 template<typename Archive>
 void serialize(Archive &archive, tire_material &mat) {
-    archive(mat.lon_tread_stiffness);
-    archive(mat.lat_tread_stiffness);
+    archive(mat.vertical_stiffness, mat.vertical_damping);
+    archive(mat.lon_tread_stiffness, mat.lat_tread_stiffness);
     archive(mat.max_tread_deflection);
-    archive(mat.speed_sensitivity);
-    archive(mat.load_sensitivity);
+    archive(mat.speed_sensitivity, mat.load_sensitivity);
     archive(mat.tire_radius, mat.rim_radius);
 }
 

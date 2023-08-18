@@ -5,6 +5,7 @@
 #include <array>
 #include <utility>
 #include <vector>
+#include "edyn/collision/contact_manifold.hpp"
 #include "edyn/config/constants.hpp"
 #include "edyn/constraints/constraint_body.hpp"
 #include "edyn/math/vector3.hpp"
@@ -47,7 +48,6 @@ struct contact_patch_constraint : public constraint_base {
 
         // Read-only stats.
         vector3 normal;
-        scalar normal_impulse;
         scalar friction;
         uint32_t lifetime {0};
         vector3 lon_dir; // Longitudinal tire direction.
@@ -60,6 +60,9 @@ struct contact_patch_constraint : public constraint_base {
         scalar sliding_ratio; // Percentage of bristles which are sliding.
         scalar width; // Width of contact patch.
         scalar length; // Average length of contact patch.
+        contact_manifold::contact_id_type contact_id;
+        vector3 centerA;
+        vector3 normalA;
 
         struct {
             scalar normal {};

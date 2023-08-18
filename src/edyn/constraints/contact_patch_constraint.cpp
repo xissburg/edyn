@@ -1,8 +1,10 @@
 #include "edyn/constraints/contact_patch_constraint.hpp"
 #include "edyn/comp/tire_material.hpp"
 #include "edyn/config/config.h"
+#include "edyn/config/constants.hpp"
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/collision/contact_manifold.hpp"
+#include "edyn/math/math.hpp"
 #include "edyn/math/quaternion.hpp"
 #include "edyn/math/transform.hpp"
 #include "edyn/util/tire_util.hpp"
@@ -26,37 +28,6 @@ std::pair<vector3, vector3> get_tire_directions(vector3 axis, vector3 normal, qu
     return {lon_dir, lat_dir};
 }
 
-bool intervals_intersect(scalar min_a, scalar max_a, scalar min_b, scalar max_b) {
-    EDYN_ASSERT(min_a <= max_a);
-    EDYN_ASSERT(min_b <= max_b);
-    return min_a <= max_b && max_a >= min_b;
-}
-
-bool intervals_intersect_wrap_around(scalar min_a, scalar max_a, scalar min_b, scalar max_b, scalar range_min, scalar range_max) {
-    EDYN_ASSERT(min_a >= range_min && min_a <= range_max);
-    EDYN_ASSERT(min_b >= range_min && min_b <= range_max);
-    EDYN_ASSERT(max_a >= range_min && max_a <= range_max);
-    EDYN_ASSERT(max_b >= range_min && max_b <= range_max);
-
-    if (min_a <= max_a && min_b <= max_b) {
-        return intervals_intersect(min_a, max_a, min_b, max_b);
-    }
-
-    if (min_a > max_a) {
-        if (min_b > max_b) {
-            // If both wrap around then they intersect as a consequence.
-            return true;
-        } else {
-            return intervals_intersect(range_min, max_a, min_b, max_b) ||
-                   intervals_intersect(min_a, range_max, min_b, max_b);
-        }
-    }
-
-    EDYN_ASSERT(min_b > max_b);
-    return intervals_intersect(min_a, max_a, range_min, max_b) ||
-           intervals_intersect(min_a, max_a, min_b, range_max);
-}
-
 void contact_patch_constraint::prepare(const entt::registry &registry, entt::entity entity, const contact_manifold &manifold,
                                        constraint_row_prep_cache &cache, scalar dt,
                                        const constraint_body &bodyA, const constraint_body &bodyB) {
@@ -69,254 +40,144 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
     const auto axis = quaternion_x(bodyA.orn);
     auto spin_axisA = axis;
     auto spin_axisB = quaternion_x(bodyB.orn);
-
     auto spin_ornA = bodyA.orn * quaternion_axis_angle(vector3_x, bodyA.spin_angle);
 
-    auto &cyl = registry.get<cylinder_shape>(body[0]);
+    // Remove patches that do not have a nearby contact point. Points are
+    // considered similar if the difference between their angle on the local
+    // wheel yz-plane is below a threshold and their normals point in the
+    // same general direction.
+    for (auto i = num_patches; i > 0; --i) {
+        auto patch_idx = i - 1;
+        auto &patch = patches[patch_idx];
+        auto should_delete = true;
 
-    // Create non-penetration constraint rows for each contact point.
-    // Ignore spin for normal constraint since it only affects tangential
-    // directions and for cylinders the normal always points towards the
-    // spin axis.
-    for (unsigned pt_idx = 0; pt_idx < manifold.num_points; ++pt_idx) {
-        auto &cp = manifold.get_point(pt_idx);
+        for (auto pt_idx = 0u; pt_idx < manifold.num_points; ++pt_idx) {
+            auto &cp = manifold.get_point(pt_idx);
+            auto normalA = rotate(conjugate(bodyA.orn), cp.normal);
 
-        EDYN_ASSERT(length_sqr(cp.normal) > EDYN_EPSILON);
-        auto normal = cp.normal;
-        auto pivotA = to_world_space(cp.pivotA, bodyA.origin, bodyA.orn);
-        auto pivotB = to_world_space(cp.pivotB, bodyB.origin, bodyB.orn);
-        auto rA = pivotA - bodyA.pos;
-        auto rB = pivotB - bodyB.pos;
-
-        auto &row = cache.add_row_with_spin();
-        row.J = {normal, cross(rA, normal), -normal, -cross(rB, normal)};
-        row.impulse = cp.normal_impulse;
-        row.use_spin[0] = true;
-        row.use_spin[1] = true;
-        row.spin_axis[0] = spin_axisA;
-        row.spin_axis[1] = spin_axisB;
-        row.lower_limit = 0;
-
-        auto deflection = std::max(-cp.distance, scalar(0));
-        auto local_travel_speed_kph = bodyA.spin * (cyl.radius - deflection) * scalar(3.6);
-        auto stiffness = velocity_dependent_vertical_stiffness(cp.stiffness,
-                                                               std::abs(local_travel_speed_kph));
-
-        // Divide stiffness by number of points in the same contact plane
-        // for correct force distribution.
-        unsigned num_points_in_same_plane = 0;
-
-        for (unsigned i = 0; i < manifold.num_points; ++i) {
-            auto &other_cp = manifold.get_point(i);
-            auto other_pivotB = to_world_space(other_cp.pivotB, bodyB.origin, bodyB.orn);
-
-            if (std::abs(dot(pivotB - other_pivotB, normal)) < collision_threshold) {
-                ++num_points_in_same_plane;
-            }
-        }
-
-        auto spring_force = deflection * stiffness / num_points_in_same_plane;
-
-        auto vA = bodyA.linvel + cross(bodyA.angvel, rA);
-        auto vB = bodyB.linvel + cross(bodyB.angvel, rB);
-        auto relvel = vA - vB;
-        auto normal_relspd = dot(relvel, normal);
-        auto damper_force = cp.damping * -normal_relspd / num_points_in_same_plane;
-
-        row.upper_limit = std::max(spring_force + damper_force, scalar(0)) * dt;
-
-        auto &options = cache.get_options();
-        options.error = -deflection / dt;
-    }
-
-    struct point_info {
-        scalar angle;
-        scalar half_length;
-        scalar deflection;
-        vector3 normal;
-        vector3 pivot;
-        scalar impulse;
-        scalar friction;
-        uint32_t lifetime;
-    };
-
-    std::array<point_info, max_contacts> infos;
-
-    auto max_row_half_length = cyl.radius * scalar(0.9);
-    auto r0_inv = scalar(1) / cyl.radius;
-    auto num_points = size_t{};
-
-    for (unsigned pt_idx = 0; pt_idx < manifold.num_points; ++pt_idx) {
-        auto &cp = manifold.get_point(pt_idx);
-        auto defl = std::max(-cp.distance, scalar(0));
-
-        if (!(defl > EDYN_EPSILON)) {
-            continue;
-        }
-
-        scalar angle = std::atan2(cp.pivotA.y, cp.pivotA.z);
-
-        // Transform angle from [-π, π] to [0, 2π] because in spin space
-        // angles are represented by a value in that range plus a number of
-        // complete turns.
-        if (angle < 0) {
-            angle += 2 * pi;
-        }
-
-        // Add spin angle to bring the contact angle into spin space.
-        angle += bodyA.spin_angle;
-
-        auto &info = infos[num_points++];
-        info.angle = angle;
-
-        info.deflection = defl;
-        info.half_length = std::min(scalar(0.4) * cyl.radius *
-                                    (defl * r0_inv + scalar(2.25) *
-                                    std::sqrt(defl * r0_inv)),
-                                    max_row_half_length);
-        info.normal = cp.normal;
-        // Project A's pivot onto contact plane.
-        auto pivotA_world = to_world_space(cp.pivotA, bodyA.origin, bodyA.orn);
-        auto pivotB_world = to_world_space(cp.pivotB, bodyB.origin, bodyB.orn);
-        info.pivot = project_plane(pivotA_world, pivotB_world, cp.normal);
-        info.friction = cp.friction;
-        info.lifetime = cp.lifetime;
-        info.impulse = cp.normal_impulse;
-    }
-
-    if (num_points == 0) {
-        num_patches = 0;
-        return;
-    }
-
-    // Merge points together into a single patch based on their distance
-    // along the circumference of the tire.
-    for (unsigned i = 0; i < num_points; ++i) {
-        auto &info_i = infos[i];
-        auto min_i = normalize_angle(info_i.angle - info_i.half_length / cyl.radius);
-        auto max_i = normalize_angle(info_i.angle + info_i.half_length / cyl.radius);
-        unsigned patch_points = 1;
-
-        auto weighted_angle = info_i.angle * info_i.deflection;
-        auto weighted_normal = info_i.normal * info_i.deflection;
-        auto weighted_pivot = info_i.pivot * info_i.deflection;
-        auto defl_accum = info_i.deflection;
-
-        // Look for nearby points ignoring the ones that were already
-        // processed previously.
-        for (unsigned k = i + 1; k < num_points;) {
-            auto &info_k = infos[k];
-            auto min_k = normalize_angle(info_k.angle - info_k.half_length / cyl.radius);
-            auto max_k = normalize_angle(info_k.angle + info_k.half_length / cyl.radius);
-
-            // Check if intervals intersect, considering they're in the [-π, π]
-            // range and they wrap around.
-            if (intervals_intersect_wrap_around(min_i, max_i, min_k, max_k, -pi, pi)) {
-                weighted_angle += info_k.angle * info_k.deflection;
-                weighted_normal += info_k.normal * info_k.deflection;
-                weighted_pivot += info_k.pivot * info_k.deflection;
-                defl_accum += info_k.deflection;
-                info_i.impulse += info_k.impulse;
-                info_i.friction += info_k.friction;
-                info_i.lifetime = std::max(info_i.lifetime, info_k.lifetime);
-                ++patch_points;
-
-                // Remove k-th element by replacing with last and
-                // decrementing size.
-                info_k = infos[--num_points];
-            } else {
-                ++k;
-            }
-        }
-
-        info_i.angle = weighted_angle / defl_accum;
-        info_i.normal = normalize(weighted_normal / defl_accum);
-        info_i.pivot = weighted_pivot / defl_accum;
-        info_i.deflection = defl_accum / patch_points;
-        info_i.friction /= patch_points;
-    }
-
-    // Look for an existing contact patch that is at about the same angle
-    // as the newly calculated locations. Remove patches that are at locations
-    // that do not have a close match among the new locations.
-
-    // Keep track of which of the existing points have been merged into a patch
-    // so they can be skipped later when creating new patches.
-    auto merged_infos = make_array<max_contacts>(false);
-
-    // Store the angle of each patch before assigning their new angle so the
-    // delta can be calculated.
-    std::array<scalar, max_contacts> prev_patch_angles;
-
-    auto init_patch_with_info = [] (contact_patch_constraint::contact_patch &patch, const point_info &info) {
-        patch.angle          = info.angle;
-        patch.deflection     = info.deflection;
-        patch.normal         = info.normal;
-        patch.pivot          = info.pivot;
-        patch.normal_impulse = info.impulse;
-        patch.friction       = info.friction;
-        patch.lifetime       = info.lifetime;
-        patch.length         = info.half_length * 2;
-    };
-
-    for (unsigned i = 0; i < num_patches;) {
-        auto &patch = patches[i];
-        // Predict what is most likely to be the current angle of a patch
-        // by subtracting the angle change over one step from the previous
-        // angle.
-        auto predicted_angle = normalize_angle(patch.angle - bodyA.spin * dt);
-
-        bool found = false;
-
-        for (unsigned j = 0; j < num_points; ++j) {
-            auto &info = infos[j];
-
-            // Consider wrap around.
-            auto new_angle = normalize_angle(info.angle);
-            auto a = std::min(predicted_angle, new_angle);
-            auto b = std::max(predicted_angle, new_angle);
-            auto dist = std::min(b - a, a + pi2 - b);
-
-            if (dist < to_radians(5)) {
-                prev_patch_angles[i] = patch.angle;
-                init_patch_with_info(patch, info);
-                merged_infos[j] = true;
-                found = true;
+            if (dot(normalA, patch.normalA) > 0.77f && cp.distance < 0) {
+                should_delete = false;
                 break;
             }
         }
 
-        if (found) {
-            ++i;
-        } else {
-            // Remove patch by assigning last and decrementing count.
-            patch = patches[--num_patches];
+        if (should_delete) {
+            --num_patches;
+            patches[patch_idx] = patches[num_patches];
         }
     }
 
-    // Insert new contact patches.
-    for (unsigned i = 0; i < num_points; ++i) {
-        if (merged_infos[i]) continue;
-
-        auto &info = infos[i];
-        auto k = num_patches++;
-        auto &patch = patches[k];
-        prev_patch_angles[k] = patch.angle;
-        init_patch_with_info(patch, info);
+    // Store the angle of each patch before assigning their new angle so the
+    // delta can be calculated.
+    std::array<scalar, max_contacts> prev_patch_angles;
+    for (auto patch_idx = 0u; patch_idx < num_patches; ++patch_idx) {
+        prev_patch_angles[patch_idx] = patches[patch_idx].angle;
     }
 
-    EDYN_ASSERT(num_patches > 0 && num_patches <= max_contacts);
+    auto &cyl = registry.get<cylinder_shape>(body[0]);
+    const auto max_row_half_length = cyl.radius * scalar(0.9);
+    const auto r0_inv = scalar(1) / cyl.radius;
+    auto replaced_patches = std::array<int, max_contacts>{};
 
     const auto &material = registry.get<tire_material>(body[0]);
     const auto sidewall_height = material.tire_radius - material.rim_radius;
 
+    const auto init_patch_with_cp = [&](contact_patch &patch, unsigned pt_idx) {
+        auto &cp = manifold.get_point(pt_idx);
+        patch.contact_id = manifold.ids[pt_idx];
+        patch.angle = std::atan2(cp.pivotA.y, cp.pivotA.z);
+
+        // Transform angle from [-π, π] to [0, 2π] because in spin space
+        // angles are represented by a value in that range plus a number of
+        // complete turns.
+        if (patch.angle < 0) {
+            patch.angle += 2 * pi;
+        }
+
+        // Add spin angle to bring the contact angle into spin space.
+        patch.angle += bodyA.spin_angle;
+
+        patch.deflection = std::max(-cp.distance, scalar(0));
+        patch.normal = cp.normal;
+
+        auto pivotA_world = to_world_space(cp.pivotA, bodyA.origin, bodyA.orn);
+        auto pivotB_world = to_world_space(cp.pivotB, bodyB.origin, bodyB.orn);
+        patch.pivot = project_plane(pivotA_world, pivotB_world, cp.normal);
+
+        patch.friction = cp.friction;
+        patch.length = scalar(2) * std::min(scalar(0.4) * cyl.radius *
+                        (patch.deflection * r0_inv + scalar(2.25) *
+                        std::sqrt(patch.deflection * r0_inv)),
+                        max_row_half_length);
+    };
+
+    // Match contact points with contact patches. Either merge them with
+    // existing patches or create new ones. A patch should be persisted and
+    // updated with a new point if its previous pivot in wheel space lies
+    // near the same angle in the yz-plane and their normals are near parallel.
+    for (auto pt_idx = 0u; pt_idx < manifold.num_points; ++pt_idx) {
+        auto &cp = manifold.get_point(pt_idx);
+
+        if (cp.distance >= 0) {
+            continue;
+        }
+
+        bool found_patch = false;
+
+        // Find existing contact patch which is a continuation of this contact point.
+        for (auto patch_idx = 0u; patch_idx < num_patches; ++patch_idx) {
+            auto &patch = patches[patch_idx];
+            auto normalA = rotate(conjugate(bodyA.orn), cp.normal);
+
+            if (dot(normalA, patch.normalA) > 0.77f) {
+                found_patch = true;
+                bool should_replace = true;
+
+                // Only replace _again_ if deeper.
+                if (replaced_patches[patch_idx] > 0) {
+                    auto defl = std::max(-cp.distance, scalar(0));
+
+                    if (defl < patch.deflection) {
+                        should_replace = false;
+                    }
+                }
+
+                if (should_replace) {
+                    init_patch_with_cp(patch, pt_idx);
+                    replaced_patches[patch_idx] += 1;
+                }
+            }
+        }
+
+        if (!found_patch && num_patches < max_contacts) {
+            auto patch_idx = num_patches++;
+            auto &patch = patches[patch_idx];
+            init_patch_with_cp(patch, pt_idx);
+            patch.lifetime = 0;
+            patch.applied_impulse.normal = patch.deflection * material.vertical_stiffness * dt;
+
+            for (auto &row : patch.tread_rows) {
+                row.half_angle = 0;
+                row.half_length = 0;
+            }
+
+            prev_patch_angles[patch_idx] = patch.angle;
+            replaced_patches[patch_idx] += 1;
+        }
+    }
+
+    EDYN_ASSERT(num_patches <= max_contacts);
+
+    for (auto i = 0u; i < num_patches; ++i) {
+        EDYN_ASSERT(replaced_patches[i] > 0);
+    }
+
     // Create constraint rows for each contact patch.
     for (unsigned i = 0; i < num_patches; ++i) {
         auto &patch = patches[i];
+        patch.lifetime += 1;
 
-        const auto normal_force = patch.normal_impulse / dt;
-        patch.applied_impulse.normal = patch.normal_impulse;
-
+        const auto normal_force = patch.applied_impulse.normal / dt;
         const auto normal = patch.normal;
         auto sin_camber = std::clamp(dot(axis, normal), scalar(-1), scalar(1));
         auto camber_angle = std::asin(sin_camber);
@@ -326,8 +187,9 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
         // TODO: Variations in width require laterally interpolating tire
         // tread state over into new tread rows since they refer to different
         // sections of the contact patch along the lateral axis.
-        auto normalized_contact_width = std::max(scalar(0.08), scalar(1) - scalar(1) /
-            (normal_force * scalar(0.001) * (half_pi - std::abs(camber_angle)) / (std::abs(camber_angle) + scalar(0.001)) + 1));
+        auto normalized_contact_width = scalar(1);
+            /*std::max(scalar(0.08), scalar(1) - scalar(1) /
+            (normal_force * scalar(0.001) * (half_pi - std::abs(camber_angle)) / (std::abs(camber_angle) + scalar(0.001)) + 1));*/
         patch.width = cyl.half_length * 2 * normalized_contact_width;
 
         // Calculate starting point of contact patch on the contact plane.
@@ -368,8 +230,7 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
 
         // Recalculate deflection in case it's been clamped since deformation
         // is limited by the sidewall height.
-        patch.deflection = dot(normal, patch_lat_pos[patch_lat_deeper_index] - point_on_edge);
-        EDYN_ASSERT(!(patch.deflection < 0));
+        patch.deflection = std::max(dot(normal, patch_lat_pos[patch_lat_deeper_index] - point_on_edge), scalar(0));
 
         // Calculate center of pressure.
         auto normalized_center_offset = -std::sin(std::atan(camber_angle));
@@ -662,6 +523,12 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
                     // for the current normal load, which means the bristle must slide.
                     // Thus, move the bristle tip closer to its root so that the
                     // tangential deflection force is equals to the maximum friction force.
+                    // The tread will begin to slide between the two discrete bristles,
+                    // thus the integral has to be split in two piecewise integrals.
+                    // It starts to slide when `f(s) = |v0 * (1 - s) + v1 * s|` is
+                    // equals to `max_defl`, which becomes a quadratic equation,
+                    // where `v0` and `v1` are the previous and current bristle deflections,
+                    // respectively. If `dot(v1, v0)` is zero, then it is a linear equation.
                     auto bristle_dir = bristle_defl / bristle_defl_len;
                     bristle_defl_len = max_friction_pressure_scaled /
                         std::sqrt(square(lon_tread_stiffness_scaled * dot(bristle_dir, lon_dir)) +
@@ -742,8 +609,32 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
         constexpr auto num_bristles_inv = scalar(1) / scalar(num_tread_rows * bristles_per_row);
         patch.sliding_spd_avg *= num_bristles_inv;
         patch.sliding_ratio = scalar(num_sliding_bristles) * num_bristles_inv;
+
         auto rA = contact_center - bodyA.pos;
         auto rB = contact_center - bodyB.pos;
+
+        // Normal stiffness.
+        {
+            auto local_travel_speed_kph = bodyA.spin * (cyl.radius - patch.deflection) * scalar(3.6);
+            auto stiffness = velocity_dependent_vertical_stiffness(material.vertical_stiffness,
+                                                                   std::abs(local_travel_speed_kph));
+            auto spring_force = patch.deflection * stiffness;
+
+            auto vA = bodyA.linvel + cross(bodyA.angvel, rA);
+            auto vB = bodyB.linvel + cross(bodyB.angvel, rB);
+            auto relvel = vA - vB;
+            auto normal_relspd = dot(relvel, normal);
+            auto damper_force = material.vertical_damping * -normal_relspd;
+
+            auto &row = cache.add_row();
+            row.J = {normal, cross(rA, normal), -normal, -cross(rB, normal)};
+            row.impulse = patch.applied_impulse.normal;
+            row.lower_limit = 0;
+            row.upper_limit = std::max(spring_force + damper_force, scalar(0)) * dt;
+
+            auto &options = cache.get_options();
+            options.error = -patch.deflection / dt;
+        }
 
         // Longitudinal stiffness.
         {
@@ -801,21 +692,22 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
         patch.lat_dir = lat_dir;
         patch.lon_dir = lon_dir;
         patch.spin_count = bodyA.spin_count;
+        patch.centerA = to_object_space(patch.center, bodyA.pos, bodyA.orn);
+        patch.normalA = rotate(conjugate(bodyA.orn), normal);
     }
 }
 
 void contact_patch_constraint::store_applied_impulses(const std::vector<scalar> &impulses, contact_manifold &manifold) {
     int row_idx = 0;
 
-    manifold.each_point([&](contact_point &cp) {
-        cp.normal_impulse = impulses[row_idx++];
-    });
-
     for (unsigned i = 0; i < num_patches; ++i) {
         auto &patch = patches[i];
+        patch.applied_impulse.normal = impulses[row_idx++];
         patch.applied_impulse.longitudinal = impulses[row_idx++];
         patch.applied_impulse.lateral = impulses[row_idx++];
         patch.applied_impulse.aligning = impulses[row_idx++];
+
+        manifold.point[patch.contact_id].normal_impulse = patch.applied_impulse.normal;
     }
 }
 
