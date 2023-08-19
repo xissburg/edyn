@@ -694,7 +694,7 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
                 hinge.angle_min = to_radians(-140);
                 hinge.angle_max = 0;
                 hinge.damping = 2;
-                hinge.friction_torque = 1;
+                hinge.torque = 1;
                 hinge.bump_stop_angle = to_radians(10);
                 hinge.bump_stop_stiffness = 30;
                 hinge.reset_angle(
@@ -859,7 +859,7 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
                 hinge.angle_min = 0;
                 hinge.angle_max = to_radians(140);
                 hinge.damping = 0.1;
-                hinge.friction_torque = 0.02;
+                hinge.torque = 0.02;
                 hinge.bump_stop_angle = to_radians(10);
                 hinge.bump_stop_stiffness = to_Nm_per_radian(5);
                 hinge.reset_angle(
@@ -883,7 +883,7 @@ ragdoll_entities make_ragdoll(entt::registry &registry, const ragdoll_def &rag_d
                 hinge.angle_min = -pi_half;
                 hinge.angle_max = pi_half;
                 hinge.damping = 0.1;
-                hinge.friction_torque = 0.02;
+                hinge.torque = 0.02;
                 hinge.bump_stop_angle = to_radians(10);
                 hinge.bump_stop_stiffness = to_Nm_per_radian(5);
                 hinge.reset_angle(

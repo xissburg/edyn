@@ -141,6 +141,20 @@ execution_mode get_execution_mode(const entt::registry &registry);
  */
 void set_time_source(entt::registry &registry, double(*time_func)(void));
 
+/**
+ * @brief Get timestamp from time source.
+ * @param registry Data source.
+ * @return Current time.
+ */
+double get_time(entt::registry &registry);
+
+/**
+ * @brief Get timestamp of the last simulation step.
+ * @param registry Data source.
+ * @return Simulation timestamp.
+ */
+double get_simulation_timestamp(entt::registry &registry);
+
 }
 
 #endif // EDYN_EDYN_HPP

@@ -398,7 +398,6 @@ intersect_ray_cylinder_result intersect_ray_cylinder(vector3 p0, vector3 p1,
  * @param p0 First point in the ray.
  * @param p1 Second point in the ray.
  * @param pos Sphere position.
- * @param orn Sphere orientation.
  * @param radius Sphere radius.
  * @param t Output intersection parameter.
  * @return Whether ray intersects sphere.
