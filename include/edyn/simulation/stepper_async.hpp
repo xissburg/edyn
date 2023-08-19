@@ -27,7 +27,7 @@ class stepper_async final {
 
     void sync();
 
-    void calculate_presentation_delay(double current_time, double elapsed);
+    void calculate_presentation_delay(double current_time, double elapsed, scalar fixed_dt);
 
     struct worker_raycast_context {
         vector3 p0, p1;
