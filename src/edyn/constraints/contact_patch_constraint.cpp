@@ -152,14 +152,9 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
         if (!found_patch && num_patches < max_contacts) {
             auto patch_idx = num_patches++;
             auto &patch = patches[patch_idx];
+            patch = {}; // Reset to default.
             init_patch_with_cp(patch, pt_idx);
-            patch.lifetime = 0;
             patch.applied_impulse.normal = patch.deflection * material.vertical_stiffness * dt;
-
-            for (auto &row : patch.tread_rows) {
-                row.half_angle = 0;
-                row.half_length = 0;
-            }
 
             prev_patch_angles[patch_idx] = patch.angle;
             replaced_patches[patch_idx] += 1;
@@ -187,6 +182,8 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
         // TODO: Variations in width require laterally interpolating tire
         // tread state over into new tread rows since they refer to different
         // sections of the contact patch along the lateral axis.
+        // TODO: Develop a new contact patch width model. Avoid generating
+        // narrow patches.
         auto normalized_contact_width = scalar(1);
             /*std::max(scalar(0.08), scalar(1) - scalar(1) /
             (normal_force * scalar(0.001) * (half_pi - std::abs(camber_angle)) / (std::abs(camber_angle) + scalar(0.001)) + 1));*/
@@ -405,6 +402,7 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
                 if (is_new_row) {
                     bristle_tip = bristle_root;
                     bristle.pivotB = to_object_space(bristle_tip, bodyB.pos, bodyB.orn);
+                    bristle.sliding_spd = 0;
                 } else if (intersects && bristle_angle >= intersection_start_angle && bristle_angle <= intersection_end_angle) {
                     // Bristle lies in the intersection.
                     // Find index of bristles in the previous patch which surround this bristle.
