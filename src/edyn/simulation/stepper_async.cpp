@@ -227,7 +227,7 @@ void stepper_async::sync() {
     }
 }
 
-void stepper_async::calculate_presentation_delay(double current_time, double elapsed) {
+void stepper_async::calculate_presentation_delay(double current_time, double elapsed, scalar fixed_dt) {
     // Keep a history of differences between current time and simulation time.
     // Adjust presentation delay to keep it close to the highest time difference,
     // with the goal of having the presentation interpolation happen backwards,
@@ -245,17 +245,13 @@ void stepper_async::calculate_presentation_delay(double current_time, double ela
 
     // Average absolute deviation of time differences.
     auto time_diff_dev_avg = std::accumulate(time_diff_dev.begin(), time_diff_dev.end(), 0.0) / time_diff_dev.size();
-    auto target_presentation_delay = time_diff_avg + time_diff_dev_avg;
+    // Keep presentation delay in a fixed_dt boundary.
+    auto target_presentation_delay = std::ceil((time_diff_avg + time_diff_dev_avg) / fixed_dt) * fixed_dt;
     auto presentation_error = target_presentation_delay - m_presentation_delay;
 
-    // Avoid adjusting presentation delay every time. Try to find a stable value.
-    // Only start adjusting if the target moves away significantly.
-    // TODO: Using a bunch of magic numbers for now. Still needs tuning and a
-    // more solid logic.
-    if (!m_adjusting_presentation_delay &&
-        (presentation_error > time_diff_dev_avg * 0.8 || presentation_error < -time_diff_dev_avg * 1.3))
-    {
-        m_adjusting_presentation_delay = true;
+    if (!m_adjusting_presentation_delay) {
+        // Only start adjusting if the target moves away significantly.
+        m_adjusting_presentation_delay = std::abs(presentation_error) > fixed_dt;
     }
 
     if (m_adjusting_presentation_delay) {
@@ -263,7 +259,8 @@ void stepper_async::calculate_presentation_delay(double current_time, double ela
         auto rate = presentation_error > 0 ? 5 : 2;
         m_presentation_delay += presentation_error * std::min(rate * elapsed, 1.0);
 
-        if (std::abs(presentation_error) < time_diff_dev_avg * 0.6) {
+        if (std::abs(target_presentation_delay - m_presentation_delay) < 0.00001) {
+            m_presentation_delay = target_presentation_delay;
             m_adjusting_presentation_delay = false;
         }
     }
@@ -284,7 +281,7 @@ void stepper_async::update(double current_time) {
         const auto elapsed = std::min(current_time - m_last_time, 1.0);
 
         if (m_should_calculate_presentation_delay) {
-            calculate_presentation_delay(current_time, elapsed);
+            calculate_presentation_delay(current_time, elapsed, settings.fixed_dt);
         }
 
         update_presentation(*m_registry, m_sim_time, current_time, elapsed, m_presentation_delay);
