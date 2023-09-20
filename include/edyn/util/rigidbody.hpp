@@ -34,6 +34,7 @@ struct rigidbody_def {
     vector3 position {vector3_zero};
     quaternion orientation {quaternion_identity};
     scalar spin_angle {0};
+    long spin_count {0};
 
     // Mass for dynamic entities.
     scalar mass {1};
