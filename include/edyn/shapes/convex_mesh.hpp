@@ -34,12 +34,15 @@ struct convex_mesh {
     // Face normals.
     std::vector<vector3> normals;
 
+    // Each subsequent pair of integers refer to the two incident faces for an
+    // edge. Boundary edges will have `UINT_MAX` in the second value.
+    std::vector<uint32_t> edge_faces;
+
     // Data which is relevant in collision detection using SAT, i.e. unique
     // face normals and an index of a vertex on respective face and unique
     // edge directions.
-    std::vector<uint32_t> relevant_indices;
-    std::vector<vector3> relevant_normals;
-    std::vector<vector3> relevant_edges;
+    std::vector<uint32_t> relevant_faces;
+    std::vector<uint32_t> relevant_edges;
 
     /**
      * @brief Initializes calculated properties. Call this after vertices,
@@ -110,10 +113,18 @@ struct convex_mesh {
      */
     std::array<vector3, 2> get_rotated_edge(const rotated_mesh &, size_t idx) const;
 
+    vector3 get_edge_direction(size_t idx) const;
+
+    vector3 get_rotated_edge_direction(size_t idx) const;
+
+    std::array<uint32_t, 2> get_edge_vertices(size_t idx) const;
+    std::array<uint32_t, 2> get_edge_faces(size_t idx) const;
+    std::array<vector3, 2> get_edge_face_normals(size_t idx) const;
+
     void shift_to_centroid();
     void calculate_normals();
     void calculate_edges();
-    void calculate_relevant_normals();
+    void calculate_relevant_faces();
     void calculate_relevant_edges();
 
     bool validate() const;
@@ -126,8 +137,7 @@ struct convex_mesh {
  */
 struct rotated_mesh {
     std::vector<vector3> vertices;
-    std::vector<vector3> relevant_normals;
-    std::vector<vector3> relevant_edges;
+    std::vector<vector3> normals;
 };
 
 /**

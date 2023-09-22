@@ -23,9 +23,9 @@ void collide(const polyhedron_shape &shA, const capsule_shape &shB,
     auto sep_axis = vector3_zero;
 
     // Face normals of polyhedron.
-    for (size_t i = 0; i < meshA.relevant_normals.size(); ++i) {
-        auto normalA = -meshA.relevant_normals[i]; // Point towards polyhedron.
-        auto &vertexA = meshA.vertices[meshA.relevant_indices[i]];
+    for (auto face_idx : shA.mesh->relevant_faces) {
+        auto normalA = -shA.mesh->normals[face_idx]; // Point towards polyhedron.
+        auto vertexA = shA.mesh->vertices[shA.mesh->first_vertex_index(face_idx)];
 
         auto projA = dot(vertexA, normalA);
         auto projB = capsule_support_projection(capsule_vertices, shB.radius, normalA);

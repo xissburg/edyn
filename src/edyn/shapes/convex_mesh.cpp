@@ -2,6 +2,7 @@
 #include "edyn/sys/update_rotated_meshes.hpp"
 #include "edyn/util/shape_util.hpp"
 #include "edyn/config/constants.hpp"
+#include <limits>
 
 namespace edyn {
 
@@ -14,7 +15,7 @@ void convex_mesh::initialize() {
 void convex_mesh::update_calculated_properties() {
     calculate_normals();
     calculate_edges();
-    calculate_relevant_normals();
+    calculate_relevant_faces();
     calculate_relevant_edges();
 }
 
@@ -41,6 +42,30 @@ std::array<vector3, 2> convex_mesh::get_rotated_edge(const rotated_mesh &rmesh,
     return {
         rmesh.vertices[edges[idx * 2 + 0]],
         rmesh.vertices[edges[idx * 2 + 1]]
+    };
+}
+
+std::array<uint32_t, 2> convex_mesh::get_edge_vertices(size_t idx) const {
+    EDYN_ASSERT(idx * 2 + 1 < edges.size());
+    return {
+        edges[idx * 2],
+        edges[idx * 2 + 1]
+    };
+}
+
+std::array<uint32_t, 2> convex_mesh::get_edge_faces(size_t idx) const {
+    EDYN_ASSERT(idx * 2 + 1 < edges.size());
+    return {
+        edge_faces[idx * 2],
+        edge_faces[idx * 2 + 1]
+    };
+}
+
+std::array<vector3, 2> convex_mesh::get_edge_face_normals(size_t idx) const {
+    EDYN_ASSERT(idx * 2 + 1 < edges.size());
+    return {
+        normals[edge_faces[idx * 2]],
+        normals[edge_faces[idx * 2 + 1]],
     };
 }
 
@@ -84,43 +109,48 @@ void convex_mesh::calculate_normals() {
 void convex_mesh::calculate_edges() {
     edges.clear();
 
-    for (size_t i = 0; i < num_faces(); ++i) {
-        const auto first = faces[i * 2];
-        const auto count = faces[i * 2 + 1];
+    for (size_t face_idx = 0; face_idx < num_faces(); ++face_idx) {
+        const auto first = faces[face_idx * 2];
+        const auto count = faces[face_idx * 2 + 1];
 
-        for (size_t j = 0; j < count; ++j) {
+        for (size_t face_vertex_idx = 0; face_vertex_idx < count; ++face_vertex_idx) {
+            auto vertex_idx0 = indices[first + face_vertex_idx];
+            auto vertex_idx1 = indices[first + (face_vertex_idx + 1) % count];
             auto contains = false;
-            auto i0 = indices[first + j];
-            auto i1 = indices[first + (j + 1) % count];
 
-            for (size_t k = 0; k < edges.size(); k += 2) {
-                if ((edges[k] == i0 && edges[k + 1] == i1) ||
-                    (edges[k] == i1 && edges[k + 1] == i0)) {
+            for (size_t edge_idx = 0; edge_idx < num_edges(); ++edge_idx) {
+                auto edge_vertex_idx = get_edge_vertices(edge_idx);
+
+                if ((edge_vertex_idx[0] == vertex_idx0 && edge_vertex_idx[1] == vertex_idx1) ||
+                    (edge_vertex_idx[0] == vertex_idx1 && edge_vertex_idx[1] == vertex_idx0)) {
                     contains = true;
+                    // Assign second incident face index to known edge.
+                    edge_faces[edge_idx * 2 + 1] = face_idx;
                     break;
                 }
             }
 
             if (!contains) {
-                edges.push_back(i0);
-                edges.push_back(i1);
+                edges.push_back(vertex_idx0);
+                edges.push_back(vertex_idx1);
+                edge_faces.push_back(face_idx);
+                edge_faces.push_back(std::numeric_limits<uint32_t>::max());
             }
         }
     }
 }
 
-void convex_mesh::calculate_relevant_normals() {
+void convex_mesh::calculate_relevant_faces() {
     // Find unique face normals.
-    for (size_t face_idx = 0; face_idx < normals.size(); ++face_idx) {
+    for (size_t face_idx = 0; face_idx < num_faces(); ++face_idx) {
         auto &normal = normals[face_idx];
-        auto found_it = std::find_if(relevant_normals.begin(), relevant_normals.end(), [normal](auto &&relevant) {
-            return !(dot(normal, relevant) < scalar(1) - convex_mesh_relevant_direction_tolerance);
+        auto found_it = std::find_if(relevant_faces.begin(), relevant_faces.end(), [&](auto other_face_idx) {
+            auto other_normal = normals[other_face_idx];
+            return !(dot(normal, other_normal) < scalar(1) - convex_mesh_relevant_direction_tolerance);
         });
 
-        if (found_it == relevant_normals.end()) {
-            relevant_normals.push_back(normal);
-            auto v_idx = first_vertex_index(face_idx);
-            relevant_indices.push_back(v_idx);
+        if (found_it == relevant_faces.end()) {
+            relevant_faces.push_back(face_idx);
         }
     }
 }
@@ -129,19 +159,18 @@ void convex_mesh::calculate_relevant_edges() {
     // Find unique edge directions. Parallel edges that point in opposite
     // directions are considered similar since the direction doesn't matter
     // when doing edge vs edge in SAT.
-    for (size_t i = 0; i < edges.size(); i += 2) {
-        auto i0 = edges[i];
-        auto i1 = edges[i + 1];
-        auto v0 = vertices[i0];
-        auto v1 = vertices[i1];
-        auto edge = normalize(v1 - v0);
+    for (size_t edge_idx = 0; edge_idx < num_edges(); ++edge_idx) {
+        auto vertices = get_edge(edge_idx);
+        auto edge = normalize(vertices[1] - vertices[0]);
 
-        auto found_it = std::find_if(relevant_edges.begin(), relevant_edges.end(), [edge](auto &&relevant) {
-            return !(std::abs(dot(edge, relevant)) < scalar(1) - convex_mesh_relevant_direction_tolerance);
+        auto found_it = std::find_if(relevant_edges.begin(), relevant_edges.end(), [this, edge](auto other_edge_idx) {
+            auto vertices = get_edge(other_edge_idx);
+            auto other_edge = normalize(vertices[1] - vertices[0]);
+            return !(std::abs(dot(edge, other_edge)) < scalar(1) - convex_mesh_relevant_direction_tolerance);
         });
 
         if (found_it == relevant_edges.end()) {
-            relevant_edges.push_back(edge);
+            relevant_edges.push_back(edge_idx);
         }
     }
 }
@@ -187,8 +216,7 @@ bool convex_mesh::validate() const {
 rotated_mesh make_rotated_mesh(const convex_mesh &mesh, const quaternion &orn) {
     auto rotated = rotated_mesh{};
     rotated.vertices.resize(mesh.vertices.size());
-    rotated.relevant_normals.resize(mesh.relevant_normals.size());
-    rotated.relevant_edges.resize(mesh.relevant_edges.size());
+    rotated.normals.resize(mesh.normals.size());
 
     update_rotated_mesh(rotated, mesh, orn);
 

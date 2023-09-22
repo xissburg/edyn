@@ -26,19 +26,22 @@ static void collide_polyhedron_triangle(
 
     // Shift vertices into A's positional object space.
     auto tri_vertices = tri_vertices_original;
+    auto tri_center = vector3_zero;
     for (auto &v : tri_vertices) {
         v -= pos_poly;
+        tri_center += v;
     }
+    tri_center /= 3;
 
     auto sep_axis = vector3_zero;
     auto distance = -EDYN_SCALAR_MAX;
-    auto projection_tri = scalar{};
     auto projection_poly = scalar{};
+    auto projection_tri = scalar{};
 
     // Polyhedron face normals.
-    for (size_t i = 0; i < rmesh.relevant_normals.size(); ++i) {
-        auto dir = -rmesh.relevant_normals[i]; // Point towards polyhedron.
-        auto &poly_vertex = rmesh.vertices[poly.mesh->relevant_indices[i]];
+    for (auto face_idx : poly.mesh->relevant_faces) {
+        auto dir = -rmesh.normals[face_idx]; // Point towards polyhedron.
+        auto poly_vertex = rmesh.vertices[poly.mesh->first_vertex_index(face_idx)];
 
         auto proj_poly = dot(poly_vertex, dir);
         auto proj_tri = get_triangle_support_projection(tri_vertices, dir);
@@ -68,34 +71,58 @@ static void collide_polyhedron_triangle(
         }
     }
 
-    auto add_direction = [&](vector3 dir) {
-        auto proj_poly = -point_cloud_support_projection(rmesh.vertices, -dir);
-        auto proj_tri = get_triangle_support_projection(tri_vertices, dir);
-        auto dist = proj_poly - proj_tri;
-
-        if (dist > distance) {
-            distance = dist;
-            sep_axis = dir;
-            projection_tri = proj_tri;
-            projection_poly = proj_poly;
-        }
-    };
-
     // Edge vs edge.
-    for (auto &poly_edge : rmesh.relevant_edges) {
+    scalar min_edge_dist = -EDYN_SCALAR_MAX;
+    scalar edge_projection_poly, edge_projection_tri;
+    vector3 edge_dir;
+
+    for (auto edge_idxA = 0u; edge_idxA < poly.mesh->num_edges(); ++edge_idxA) {
+        auto vertex_idxA = poly.mesh->get_edge_vertices(edge_idxA);
+        auto face_idxA = poly.mesh->get_edge_faces(edge_idxA);
+
+        vector3 normals[] = {rmesh.normals[face_idxA[0]], rmesh.normals[face_idxA[1]]};
+        vector3 vertices[] = {rmesh.vertices[vertex_idxA[0]], rmesh.vertices[vertex_idxA[1]]};
+        auto poly_edge = vertices[1] - vertices[0];
+
         for (size_t j = 0; j < 3; ++j) {
-            auto v0 = tri_vertices[j];
-            auto v1 = tri_vertices[(j + 1) % 3];
-            auto tri_edge = v1 - v0;
-            auto dir = cross(poly_edge, tri_edge);
+            auto tri_v0 = tri_vertices[j];
+            auto tri_v1 = tri_vertices[(j + 1) % 3];
+            auto tri_edge = tri_v1 - tri_v0;
 
-            if (!try_normalize(dir)) {
-                continue;
+            if (is_minkowski_face(normals[0], normals[1], -tri_normal, tri_normal, poly_edge, tri_edge)) {
+                auto dir = cross(poly_edge, tri_edge);
+
+                if (try_normalize(dir)) {
+                    if (dot(vertices[0], dir) < 0) {
+                        dir *= -1;
+                    }
+
+                    auto edge_dist = dot(tri_v0 - vertices[0], dir);
+
+                    if (edge_dist > min_edge_dist) {
+                        min_edge_dist = edge_dist;
+
+                        if (dot(tri_center, dir) > 0) {
+                            // Make it point towards A.
+                            dir *= -1;
+                        }
+
+                        edge_projection_poly = dot(vertices[0], dir);
+                        edge_projection_tri = dot(tri_v0, dir);
+                        edge_dir = dir;
+                    }
+                }
             }
-
-            add_direction(dir);
-            add_direction(-dir);
         }
+    }
+
+    auto edge_distance = edge_projection_poly - edge_projection_tri;
+
+    if (edge_distance > distance) {
+        distance = edge_distance;
+        projection_poly = edge_projection_poly;
+        projection_tri = edge_projection_tri;
+        sep_axis = edge_dir;
     }
 
     if (distance > ctx.threshold) {
@@ -177,7 +204,7 @@ static void collide_polyhedron_triangle(
             }
         }
     } else if (polygon.hull.size() > 2) {
-       point.normal_attachment = contact_normal_attachment::normal_on_A;
+        point.normal_attachment = contact_normal_attachment::normal_on_A;
     }
 
     // If the boundary points of the polyhedron from a polygon (i.e. more than

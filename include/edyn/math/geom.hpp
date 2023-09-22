@@ -414,6 +414,8 @@ bool intersect_segment_triangle(const vector3 &p0, const vector3 &p1,
                                 const std::array<vector3, 3> &vertices,
                                 const vector3 &normal, scalar &t) noexcept;
 
+bool is_minkowski_face(vector3 A, vector3 B, vector3 C, vector3 D, vector3 B_x_A, vector3 D_x_C);
+
 }
 
 #endif // EDYN_MATH_GEOM_HPP
