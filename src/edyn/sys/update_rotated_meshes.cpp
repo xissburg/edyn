@@ -55,7 +55,8 @@ void update_rotated_mesh(entt::registry &registry, entt::entity entity) {
 
 void update_rotated_meshes(entt::registry &registry) {
     auto rotated_view = registry.view<rotated_mesh_list>();
-    auto view = registry.view<orientation, rotated_mesh_list>(exclude_sleeping_disabled);
+    auto exclude = entt::exclude_t<sleeping_tag, disabled_tag, static_tag>{};
+    auto view = registry.view<orientation, rotated_mesh_list>(exclude);
 
     for (auto entity : view) {
         update_rotated_mesh(entity, rotated_view, view);
