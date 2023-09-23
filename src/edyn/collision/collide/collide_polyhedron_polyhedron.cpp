@@ -112,10 +112,17 @@ void collide(const polyhedron_shape &shA, const polyhedron_shape &shB,
                                    rmeshB.vertices[vertex_idxB[1]] + posB};
             auto edge_dirB = verticesB[1] - verticesB[0];
 
-            if (is_minkowski_face(normalsA[0], normalsA[1], -normalsB[0], -normalsB[1], edge_dirA, edge_dirB)) {
+            // Negate normals due to the Minkowski _difference_.
+            // Negate `edge_dir` because the argument is BxA and DxC, whereas
+            // `edge_dir` points in the same direction as `cross(normals[0], normals[1])`.
+            if (edges_generate_minkowski_face(normalsA[0], normalsA[1],
+                                              -normalsB[0], -normalsB[1],
+                                              -edge_dirA, -edge_dirB))
+            {
                 auto dir = cross(edge_dirA, edge_dirB);
 
                 if (try_normalize(dir)) {
+                    // Make direction point outside of shape A.
                     if (dot(verticesA[0] - posA, dir) < 0) {
                         dir *= -1;
                     }
@@ -124,12 +131,8 @@ void collide(const polyhedron_shape &shA, const polyhedron_shape &shB,
 
                     if (edge_dist > min_edge_dist) {
                         min_edge_dist = edge_dist;
-
-                        if (dot(posA - posB, dir) < 0) {
-                            // Make it point towards A.
-                            dir *= -1;
-                        }
-
+                        // Make it point towards A as per the global standard.
+                        dir *= -1;
                         edge_projectionA = dot(verticesA[0], dir);
                         edge_projectionB = dot(verticesB[0], dir);
                         edge_dir = dir;

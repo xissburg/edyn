@@ -89,10 +89,12 @@ static void collide_polyhedron_triangle(
             auto tri_v1 = tri_vertices[(j + 1) % 3];
             auto tri_edge = tri_v1 - tri_v0;
 
-            if (is_minkowski_face(normals[0], normals[1], -tri_normal, tri_normal, poly_edge, tri_edge)) {
+            if (edges_generate_minkowski_face(normals[0], normals[1], -tri_normal, tri_normal, -poly_edge, -tri_edge)) {
                 auto dir = cross(poly_edge, tri_edge);
 
                 if (try_normalize(dir)) {
+                    // Make it point outside of polyhedron. Remember the
+                    // polyhedron is centered at the origin.
                     if (dot(vertices[0], dir) < 0) {
                         dir *= -1;
                     }
@@ -101,12 +103,8 @@ static void collide_polyhedron_triangle(
 
                     if (edge_dist > min_edge_dist) {
                         min_edge_dist = edge_dist;
-
-                        if (dot(tri_center, dir) > 0) {
-                            // Make it point towards A.
-                            dir *= -1;
-                        }
-
+                        // Make it point towards polyhedron, i.e. shape A.
+                        dir *= -1;
                         edge_projection_poly = dot(vertices[0], dir);
                         edge_projection_tri = dot(tri_v0, dir);
                         edge_dir = dir;

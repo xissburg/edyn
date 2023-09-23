@@ -113,12 +113,40 @@ struct convex_mesh {
      */
     std::array<vector3, 2> get_rotated_edge(const rotated_mesh &, size_t idx) const;
 
+    /**
+     * @brief Get the difference between the two edge vertices.
+     * @param idx Edge index.
+     * @return Difference between the two edge vertices.
+     */
     vector3 get_edge_direction(size_t idx) const;
 
-    vector3 get_rotated_edge_direction(size_t idx) const;
+    /**
+     * @brief Get the difference between the two rotated edge vertices.
+     * @param rmesh The rotated mesh associated with this convex shape.
+     * @param idx Edge index.
+     * @return Difference between the two rotated edge vertices.
+     */
+    vector3 get_rotated_edge_direction(const rotated_mesh &, size_t idx) const;
 
+    /**
+     * @brief Get indices of vertices of an edge.
+     * @param idx Edge index.
+     * @return Vertex indices.
+     */
     std::array<uint32_t, 2> get_edge_vertices(size_t idx) const;
+
+    /**
+     * @brief Get indices of incident faces of an edge.
+     * @param idx Edge index.
+     * @return Face indices.
+     */
     std::array<uint32_t, 2> get_edge_faces(size_t idx) const;
+
+    /**
+     * @brief Get normals of incident faces of an edge.
+     * @param idx Edge index.
+     * @return Face normals.
+     */
     std::array<vector3, 2> get_edge_face_normals(size_t idx) const;
 
     void shift_to_centroid();

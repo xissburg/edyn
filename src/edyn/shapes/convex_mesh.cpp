@@ -1,4 +1,5 @@
 #include "edyn/shapes/convex_mesh.hpp"
+#include "edyn/config/config.h"
 #include "edyn/sys/update_rotated_meshes.hpp"
 #include "edyn/util/shape_util.hpp"
 #include "edyn/config/constants.hpp"
@@ -43,6 +44,17 @@ std::array<vector3, 2> convex_mesh::get_rotated_edge(const rotated_mesh &rmesh,
         rmesh.vertices[edges[idx * 2 + 0]],
         rmesh.vertices[edges[idx * 2 + 1]]
     };
+}
+
+vector3 convex_mesh::get_edge_direction(size_t idx) const {
+    auto vertices = get_edge(idx);
+    return vertices[1] - vertices[0];
+}
+
+vector3 convex_mesh::get_rotated_edge_direction(const rotated_mesh &rmesh,
+                                                size_t idx) const {
+    auto vertices = get_rotated_edge(rmesh, idx);
+    return vertices[1] - vertices[0];
 }
 
 std::array<uint32_t, 2> convex_mesh::get_edge_vertices(size_t idx) const {
@@ -124,7 +136,15 @@ void convex_mesh::calculate_edges() {
                 if ((edge_vertex_idx[0] == vertex_idx0 && edge_vertex_idx[1] == vertex_idx1) ||
                     (edge_vertex_idx[0] == vertex_idx1 && edge_vertex_idx[1] == vertex_idx0)) {
                     contains = true;
+
                     // Assign second incident face index to known edge.
+                    // The cross product of incident face normals point in the same
+                    // direction as the edge, because due to convexity and ccw
+                    // winding order in all faces, the second normal will always
+                    // point outside of the face that was processed first and the
+                    // edge will be directed along the circumference of the first face
+                    // as well.
+                    EDYN_ASSERT(edge_faces[edge_idx * 2 + 1] == std::numeric_limits<uint32_t>::max());
                     edge_faces[edge_idx * 2 + 1] = face_idx;
                     break;
                 }
@@ -160,12 +180,10 @@ void convex_mesh::calculate_relevant_edges() {
     // directions are considered similar since the direction doesn't matter
     // when doing edge vs edge in SAT.
     for (size_t edge_idx = 0; edge_idx < num_edges(); ++edge_idx) {
-        auto vertices = get_edge(edge_idx);
-        auto edge = normalize(vertices[1] - vertices[0]);
+        auto edge = normalize(get_edge_direction(edge_idx));
 
         auto found_it = std::find_if(relevant_edges.begin(), relevant_edges.end(), [this, edge](auto other_edge_idx) {
-            auto vertices = get_edge(other_edge_idx);
-            auto other_edge = normalize(vertices[1] - vertices[0]);
+            auto other_edge = normalize(get_edge_direction(other_edge_idx));
             return !(std::abs(dot(edge, other_edge)) < scalar(1) - convex_mesh_relevant_direction_tolerance);
         });
 

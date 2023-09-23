@@ -61,8 +61,7 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
 
     // Polyhedron edges vs cylinder side edges.
     for (auto edge_idx : meshA.relevant_edges) {
-        auto edge_vertices = shA.mesh->get_edge(edge_idx);
-        auto poly_edge = edge_vertices[1] - edge_vertices[0];
+        auto poly_edge = shA.mesh->get_edge_direction(edge_idx);
         auto dir = cross(poly_edge, cyl_axis);
 
         if (!try_normalize(dir)) {

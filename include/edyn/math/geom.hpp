@@ -414,7 +414,22 @@ bool intersect_segment_triangle(const vector3 &p0, const vector3 &p1,
                                 const std::array<vector3, 3> &vertices,
                                 const vector3 &normal, scalar &t) noexcept;
 
-bool is_minkowski_face(vector3 A, vector3 B, vector3 C, vector3 D, vector3 B_x_A, vector3 D_x_C);
+/**
+ * @brief Tests whether two edges would generate a face in the Minkowski
+ * difference of two convex shapes. This utility function is part of the
+ * Gauss Map trick presented by Dirk Gregorius at GDC 2013:
+ * "Physics for Game Programmers: The Separating Axis Test between Convex Polyhedra"
+ * https://www.gdcvault.com/play/1017646/Physics-for-Game-Programmers-The
+ * The key idea is: only pairs of edges that generate a face in the Minkowski
+ * difference could ever produce a relevant separating axis.
+ * @param A Normal of first incident face on the first edge.
+ * @param B Normal of second incident face on the first edge.
+ * @param C Normal of first incident face on the second edge.
+ * @param D Normal of second incident face on the second edge.
+ * @param B_x_A Cross product of B and A, which is parallel to the first edge.
+ * @param D_x_C Cross product of D and C, which is parallel to the second edge.
+ */
+bool edges_generate_minkowski_face(vector3 A, vector3 B, vector3 C, vector3 D, vector3 B_x_A, vector3 D_x_C);
 
 }
 

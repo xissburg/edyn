@@ -71,8 +71,7 @@ void collide(const polyhedron_shape &shA, const box_shape &shB,
 
     // Edge vs edge.
     for (auto edge_idx : shA.mesh->relevant_edges) {
-        auto edge_vertices = shA.mesh->get_edge(edge_idx);
-        auto poly_edge = edge_vertices[1] - edge_vertices[0];
+        auto poly_edge = shA.mesh->get_edge_direction(edge_idx);
 
         for (auto &box_edge : box_axes) {
             auto dir = cross(poly_edge, box_edge);
