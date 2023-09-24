@@ -240,6 +240,28 @@ struct box_shape {
      * @return Feature and feature index.
      */
     std::pair<box_feature, size_t> get_closest_feature_on_face(size_t face_idx, vector3 point, scalar tolerance) const;
+
+    /**
+     * Get indices of faces incident on an edge.
+     * @param edge_idx Edge index.
+     * @return Face indices.
+     */
+    std::array<size_t, 2> get_edge_face_indices(size_t edge_idx) const;
+
+    /**
+     * Get normals of faces incident on a edge.
+     * @param edge_idx Edge index.
+     * @return Face normals.
+     */
+    std::array<vector3, 2> get_edge_face_normals(size_t edge_idx) const;
+
+    /**
+     * Get rotated normals of faces incident on a edge.
+     * @param edge_idx Edge index.
+     * @return Rotated face normals.
+     */
+    std::array<vector3, 2> get_edge_face_normals(size_t edge_idx, const quaternion &orn) const;
+
 };
 
 constexpr size_t get_box_num_features(box_feature feature) {

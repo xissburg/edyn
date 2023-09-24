@@ -20,21 +20,11 @@ static void update_rotated_mesh_vertices(rotated_mesh &rotated, const convex_mes
 
 static void update_rotated_mesh_normals(rotated_mesh &rotated, const convex_mesh &mesh,
                                         const quaternion &orn) {
-    EDYN_ASSERT(mesh.relevant_normals.size() == rotated.relevant_normals.size());
+    EDYN_ASSERT(mesh.normals.size() == rotated.normals.size());
 
-    for (size_t i = 0; i < mesh.relevant_normals.size(); ++i) {
-        auto &normal_local = mesh.relevant_normals[i];
-        rotated.relevant_normals[i] = rotate(orn, normal_local);
-    }
-}
-
-static void update_rotated_mesh_edges(rotated_mesh &rotated, const convex_mesh &mesh,
-                                      const quaternion &orn) {
-    EDYN_ASSERT(mesh.relevant_edges.size() == rotated.relevant_edges.size());
-
-    for (size_t i = 0; i < mesh.relevant_edges.size(); ++i) {
-        auto &edge_local = mesh.relevant_edges[i];
-        rotated.relevant_edges[i] = rotate(orn, edge_local);
+    for (size_t i = 0; i < mesh.normals.size(); ++i) {
+        auto &normal_local = mesh.normals[i];
+        rotated.normals[i] = rotate(orn, normal_local);
     }
 }
 
@@ -42,7 +32,6 @@ void update_rotated_mesh(rotated_mesh &rotated, const convex_mesh &mesh,
                          const quaternion &orn) {
     update_rotated_mesh_vertices(rotated, mesh, orn);
     update_rotated_mesh_normals(rotated, mesh, orn);
-    update_rotated_mesh_edges(rotated, mesh, orn);
 }
 
 template<typename RotatedView, typename OrientationView>
@@ -66,7 +55,8 @@ void update_rotated_mesh(entt::registry &registry, entt::entity entity) {
 
 void update_rotated_meshes(entt::registry &registry) {
     auto rotated_view = registry.view<rotated_mesh_list>();
-    auto view = registry.view<orientation, rotated_mesh_list>(exclude_sleeping_disabled);
+    auto exclude = entt::exclude_t<sleeping_tag, disabled_tag, static_tag>{};
+    auto view = registry.view<orientation, rotated_mesh_list>(exclude);
 
     for (auto entity : view) {
         update_rotated_mesh(entity, rotated_view, view);

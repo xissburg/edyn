@@ -12,7 +12,6 @@
 #include "edyn/math/coordinate_axis.hpp"
 #include <vector>
 #include <cstdint>
-#include <string>
 
 namespace edyn {
 
@@ -148,7 +147,7 @@ scalar point_cloud_support_projection(const std::vector<vector3> &points, const 
  * @return An array of indices of the convex hull vertices oriented
  * counter-clockwise. It can be modified as a result of this call.
  */
-std::vector<size_t> calculate_convex_hull(std::vector<vector2> &points, scalar tolerance);
+std::vector<size_t> calculate_convex_hull(const std::vector<vector2> &points, scalar tolerance);
 
 /**
  * @brief Checks if a point lies inside a convex polygon.
@@ -159,13 +158,24 @@ std::vector<size_t> calculate_convex_hull(std::vector<vector2> &points, scalar t
 bool point_inside_convex_polygon(const std::vector<vector2> &vertices, const vector2 &point);
 
 /**
+ * @brief Checks whether the given triangle vertices are sorted in a
+ * counter-clockwise winding order.
+ * @param v0 A vertex of a triangle.
+ * @param v1 Another vertex of a triangle.
+ * @param v2 Yet another vertex of a triangle.
+ * @return Whether vertices are sorted CCW.
+ */
+bool is_triangle_ccw(const vector2 &v0, const vector2 &v1, const vector2 &v2);
+
+/**
  * @brief Swaps vertices to make the winding of the sequence (v0, v1, v2)
  * counter-clockwise.
  * @param v0 A vertex of a triangle.
  * @param v1 Another vertex of a triangle.
  * @param v2 Yet another vertex of a triangle.
+ * @return Whether vertices have been sorted.
  */
-void sort_triangle_ccw(vector2 &v0, vector2 &v1, vector2 &v2);
+bool sort_triangle_ccw(vector2 &v0, vector2 &v1, vector2 &v2);
 
 /**
  * Useful information describing a support polygon on a polyhedron.

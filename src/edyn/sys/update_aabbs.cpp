@@ -49,7 +49,8 @@ void update_aabb(entt::registry &registry, entt::entity entity) {
 
 template<typename ShapeType>
 void update_aabbs(entt::registry &registry) {
-    auto tr_view = registry.view<position, orientation, ShapeType, AABB>(exclude_sleeping_disabled);
+    auto exclude = entt::exclude_t<sleeping_tag, disabled_tag, static_tag>{};
+    auto tr_view = registry.view<position, orientation, ShapeType, AABB>(exclude);
     auto origin_view = registry.view<origin>();
 
     for (auto entity : tr_view) {

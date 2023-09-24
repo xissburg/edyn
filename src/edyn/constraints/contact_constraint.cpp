@@ -51,8 +51,8 @@ void contact_constraint::prepare(
                 auto normal_relvel = dot(relvel, normal);
                 // Divide stiffness by number of points for correct force
                 // distribution. All points have the same stiffness.
-                auto spring_force = cp.distance * cp.stiffness / manifold.num_points;
-                auto damper_force = normal_relvel * cp.damping / manifold.num_points;
+                auto spring_force = -cp.distance * cp.stiffness / manifold.num_points;
+                auto damper_force = -normal_relvel * cp.damping / manifold.num_points;
                 normal_row.upper_limit = std::max(spring_force + damper_force, scalar(0)) * dt;
                 normal_options.error = -large_scalar;
             } else {
