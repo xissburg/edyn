@@ -26,12 +26,9 @@ static void collide_polyhedron_triangle(
 
     // Shift vertices into A's positional object space.
     auto tri_vertices = tri_vertices_original;
-    auto tri_center = vector3_zero;
     for (auto &v : tri_vertices) {
         v -= pos_poly;
-        tri_center += v;
     }
-    tri_center /= 3;
 
     auto sep_axis = vector3_zero;
     auto distance = -EDYN_SCALAR_MAX;
