@@ -53,8 +53,8 @@ scalar point_cloud_support_projection(const std::vector<vector3> &points, const 
 }
 
 size_t split_hull_edge(const std::vector<vector2> &points,
-                     std::vector<size_t> &hull,
-                     size_t i0, size_t i1, scalar tolerance) {
+                       std::vector<size_t> &hull,
+                       size_t i0, size_t i1, scalar tolerance) {
 
     auto v0 = points[hull[i0]];
     auto v1 = points[hull[i1]];
@@ -90,17 +90,21 @@ size_t split_hull_edge(const std::vector<vector2> &points,
     return 0;
 }
 
-std::vector<size_t> calculate_convex_hull(std::vector<vector2> &points, scalar tolerance) {
+std::vector<size_t> calculate_convex_hull(const std::vector<vector2> &points, scalar tolerance) {
     if (points.size() <= 3) {
         if (points.size() == 3) {
             // It is a triangle, just have to make sure vertices are
             // oriented counter-clockwise.
-            sort_triangle_ccw(points[0], points[1], points[2]);
+            if (is_triangle_ccw(points[0], points[1], points[2])) {
+                return {0, 1, 2};
+            } else {
+                return {2, 1, 0};
+            }
+        } else if (points.size() == 2) {
+            return {0, 1};
+        } else {
+            return {0};
         }
-
-        std::vector<size_t> hull(points.size());
-        std::iota(hull.begin(), hull.end(), 0);
-        return hull;
     }
 
     // Quickhull algorithm.
@@ -182,13 +186,19 @@ bool point_inside_convex_polygon(const std::vector<vector2> &vertices, const vec
     return true;
 }
 
-void sort_triangle_ccw(vector2 &v0, vector2 &v1, vector2 &v2) {
+bool is_triangle_ccw(const vector2 &v0, const vector2 &v1, const vector2 &v2) {
     auto e = v1 - v0;
     auto t = orthogonal(e);
+    return dot(v2 - v0, t) > 0;
+}
 
-    if (dot(v2 - v0, t) < 0) {
+bool sort_triangle_ccw(vector2 &v0, vector2 &v1, vector2 &v2) {
+    if (!is_triangle_ccw(v0, v1, v2)) {
         std::swap(v0, v2);
+        return true;
     }
+
+    return false;
 }
 
 bool closest_point_convex_polygon(const std::vector<vector2> &vertices,

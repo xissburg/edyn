@@ -31,9 +31,9 @@ void collide(const polyhedron_shape &shA, const box_shape &shB,
     auto sep_axis = vector3_zero;
 
     // Face normals of polyhedron.
-    for (size_t i = 0; i < meshA.relevant_normals.size(); ++i) {
-        auto normalA = -meshA.relevant_normals[i]; // Point towards polyhedron.
-        auto vertexA = meshA.vertices[meshA.relevant_indices[i]];
+    for (auto face_idx : shA.mesh->relevant_faces) {
+        auto normalA = -meshA.normals[face_idx]; // Point towards polyhedron.
+        auto vertexA = meshA.vertices[shA.mesh->first_vertex_index(face_idx)];
 
         // Find point on box that's furthest along the opposite direction
         // of the face normal.
@@ -70,27 +70,58 @@ void collide(const polyhedron_shape &shA, const box_shape &shB,
     }
 
     // Edge vs edge.
-    for (auto &poly_edge : meshA.relevant_edges) {
-        for (auto &box_edge : box_axes) {
-            auto dir = cross(poly_edge, box_edge);
+    scalar min_edge_dist = -EDYN_SCALAR_MAX;
+    scalar edge_projectionA, edge_projectionB;
+    auto edge_dir = vector3_zero;
 
-            if (!try_normalize(dir)) {
-                continue;
+    for (auto edge_idxA = 0u; edge_idxA < shA.mesh->num_edges(); ++edge_idxA) {
+        auto vertex_idxA = shA.mesh->get_edge_vertices(edge_idxA);
+        auto face_idxA = shA.mesh->get_edge_faces(edge_idxA);
+
+        vector3 normalsA[] = {shA.mesh->normals[face_idxA[0]], shA.mesh->normals[face_idxA[1]]};
+        vector3 verticesA[] = {shA.mesh->vertices[vertex_idxA[0]],
+                               shA.mesh->vertices[vertex_idxA[1]]};
+        auto edge_dirA = verticesA[1] - verticesA[0];
+
+        for (auto edge_idxB = 0u; edge_idxB < get_box_num_features(box_feature::edge); ++edge_idxB) {
+            auto normalsB = shB.get_edge_face_normals(edge_idxB, ornB);
+            auto verticesB = shB.get_edge(edge_idxB, posB, ornB);
+            auto edge_dirB = verticesB[1] - verticesB[0];
+
+            if (edges_generate_minkowski_face(normalsA[0], normalsA[1],
+                                              -normalsB[0], -normalsB[1],
+                                              -edge_dirA, -edge_dirB))
+            {
+                auto dir = cross(edge_dirA, edge_dirB);
+
+                if (try_normalize(dir)) {
+                    // Make direction point outside of shape A.
+                    if (dot(verticesA[0], dir) < 0) {
+                        dir *= -1;
+                    }
+
+                    auto edge_dist = dot(verticesB[0] - verticesA[0], dir);
+
+                    if (edge_dist > min_edge_dist) {
+                        min_edge_dist = edge_dist;
+                        // Make it point towards A as per the global standard.
+                        dir *= -1;
+                        edge_projectionA = dot(verticesA[0], dir);
+                        edge_projectionB = dot(verticesB[0], dir);
+                        edge_dir = dir;
+                    }
+                }
             }
+        }
+    }
 
-            if (dot(posB, dir) > 0) {
-                dir *= -1; // Make it point towards A.
-            }
+    if (edge_dir != vector3_zero) {
+        auto edge_distance = edge_projectionA - edge_projectionB;
 
-            auto projA = -point_cloud_support_projection(meshA.vertices, -dir);
-            auto projB = shB.support_projection(posB, ornB, dir);
-            auto dist = projA - projB;
-
-            if (dist > distance) {
-                distance = dist;
-                projection_poly = projA;
-                sep_axis = dir;
-            }
+        if (edge_distance > distance) {
+            distance = edge_distance;
+            projection_poly = edge_projectionA;
+            sep_axis = edge_dir;
         }
     }
 

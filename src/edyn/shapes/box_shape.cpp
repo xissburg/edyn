@@ -385,5 +385,33 @@ std::pair<box_feature, size_t> box_shape::get_closest_feature_on_face(size_t fac
     return {feature, index};
 }
 
+std::array<size_t, 2> box_shape::get_edge_face_indices(size_t edge_idx) const {
+    EDYN_ASSERT(edge_idx < get_box_num_features(box_feature::edge));
+    static constexpr size_t indices[] = {
+        0, 4,
+        0, 3,
+        0, 5,
+        0, 2,
+        1, 2,
+        1, 5,
+        1, 3,
+        1, 4,
+        4, 2,
+        3, 4,
+        5, 3,
+        2, 5
+    };
+    return {indices[edge_idx * 2], indices[edge_idx * 2 + 1]};
+}
+
+std::array<vector3, 2> box_shape::get_edge_face_normals(size_t edge_idx) const {
+    auto face_idx = get_edge_face_indices(edge_idx);
+    return {get_face_normal(face_idx[0]), get_face_normal(face_idx[1])};
+}
+
+std::array<vector3, 2> box_shape::get_edge_face_normals(size_t edge_idx, const quaternion &orn) const {
+    auto normals = get_edge_face_normals(edge_idx);
+    return {rotate(orn, normals[0]), rotate(orn, normals[1])};
+}
 
 }

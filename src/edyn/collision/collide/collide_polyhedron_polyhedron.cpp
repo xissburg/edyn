@@ -19,9 +19,9 @@ void max_support_direction(const polyhedron_shape &shA, const rotated_mesh &rota
     scalar max_distance = -EDYN_SCALAR_MAX;
     auto best_dir = vector3_zero;
 
-    for (size_t i = 0; i < rotatedA.relevant_normals.size(); ++i) {
-        auto normal_world = -rotatedA.relevant_normals[i]; // Normal pointing towards A.
-        auto vertexA = rotatedA.vertices[shA.mesh->relevant_indices[i]];
+    for (auto face_idx : shA.mesh->relevant_faces) {
+        auto normal_world = -rotatedA.normals[face_idx]; // Normal pointing towards A.
+        auto vertexA = rotatedA.vertices[shA.mesh->first_vertex_index(face_idx)];
         auto vertex_world = vertexA + posA;
         auto projA = dot(vertex_world, normal_world);
 
@@ -90,30 +90,65 @@ void collide(const polyhedron_shape &shA, const polyhedron_shape &shB,
     }
 
     // Edge vs edge.
-    for (auto &edgeA : rmeshA.relevant_edges) {
-        for (auto &edgeB : rmeshB.relevant_edges) {
-            auto dir = cross(edgeA, edgeB);
+    scalar min_edge_dist = -EDYN_SCALAR_MAX;
+    scalar edge_projectionA, edge_projectionB;
+    vector3 edge_dir;
 
-            if (!try_normalize(dir)) {
-                continue;
-            }
+    for (auto edge_idxA = 0u; edge_idxA < shA.mesh->num_edges(); ++edge_idxA) {
+        auto vertex_idxA = shA.mesh->get_edge_vertices(edge_idxA);
+        auto face_idxA = shA.mesh->get_edge_faces(edge_idxA);
 
-            if (dot(posA - posB, dir) < 0) {
-                // Make it point towards A.
-                dir *= -1;
-            }
+        vector3 normalsA[] = {rmeshA.normals[face_idxA[0]], rmeshA.normals[face_idxA[1]]};
+        vector3 verticesA[] = {rmeshA.vertices[vertex_idxA[0]] + posA,
+                               rmeshA.vertices[vertex_idxA[1]] + posA};
+        auto edge_dirA = verticesA[1] - verticesA[0];
 
-            auto projA = -point_cloud_support_projection(rmeshA.vertices, -dir);
-            auto projB = point_cloud_support_projection(rmeshB.vertices, dir) + dot(posB, dir);
-            auto dist = projA - projB;
+        for (auto edge_idxB = 0u; edge_idxB < shB.mesh->num_edges(); ++edge_idxB) {
+            auto vertex_idxB = shB.mesh->get_edge_vertices(edge_idxB);
+            auto face_idxB = shB.mesh->get_edge_faces(edge_idxB);
 
-            if (dist > distance) {
-                distance = dist;
-                projectionA = projA;
-                projectionB = projB;
-                sep_axis = dir;
+            vector3 normalsB[] = {rmeshB.normals[face_idxB[0]], rmeshB.normals[face_idxB[1]]};
+            vector3 verticesB[] = {rmeshB.vertices[vertex_idxB[0]] + posB,
+                                   rmeshB.vertices[vertex_idxB[1]] + posB};
+            auto edge_dirB = verticesB[1] - verticesB[0];
+
+            // Negate normals due to the Minkowski _difference_.
+            // Negate `edge_dir` because the argument is BxA and DxC, whereas
+            // `edge_dir` points in the same direction as `cross(normals[0], normals[1])`.
+            if (edges_generate_minkowski_face(normalsA[0], normalsA[1],
+                                              -normalsB[0], -normalsB[1],
+                                              -edge_dirA, -edge_dirB))
+            {
+                auto dir = cross(edge_dirA, edge_dirB);
+
+                if (try_normalize(dir)) {
+                    // Make direction point outside of shape A.
+                    if (dot(verticesA[0] - posA, dir) < 0) {
+                        dir *= -1;
+                    }
+
+                    auto edge_dist = dot(verticesB[0] - verticesA[0], dir);
+
+                    if (edge_dist > min_edge_dist) {
+                        min_edge_dist = edge_dist;
+                        // Make it point towards A as per the global standard.
+                        dir *= -1;
+                        edge_projectionA = dot(verticesA[0], dir);
+                        edge_projectionB = dot(verticesB[0], dir);
+                        edge_dir = dir;
+                    }
+                }
             }
         }
+    }
+
+    auto edge_distance = edge_projectionA - edge_projectionB;
+
+    if (edge_distance > distance) {
+        distance = edge_distance;
+        projectionA = edge_projectionA;
+        projectionB = edge_projectionB;
+        sep_axis = edge_dir;
     }
 
     if (distance > threshold) {
@@ -121,7 +156,7 @@ void collide(const polyhedron_shape &shA, const polyhedron_shape &shB,
     }
 
     auto polygonA = point_cloud_support_polygon(
-        rmeshA.vertices.begin(), rmeshA.vertices.end(), vector3_zero,
+        rmeshA.vertices.begin(), rmeshA.vertices.end(), posA,
         sep_axis, projectionA, true, support_feature_tolerance);
     auto polygonB = point_cloud_support_polygon(
         rmeshB.vertices.begin(), rmeshB.vertices.end(), posB,

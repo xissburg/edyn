@@ -21,9 +21,13 @@ struct AABB {
         return (min + max) * scalar(0.5);
     }
 
+    inline vector3 size() const {
+        return max - min;
+    }
+
     // Returns this AABB's surface area.
     inline scalar area() const {
-        auto d = max - min;
+        auto d = size();
         return scalar{2} * (d.x * d.y + d.y * d.z + d.z * d.x);
     }
 

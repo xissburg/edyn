@@ -28,9 +28,9 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
     auto sep_axis = vector3_zero;
 
     // Face normals of polyhedron.
-    for (size_t i = 0; i < meshA.relevant_normals.size(); ++i) {
-        auto normalA = -meshA.relevant_normals[i]; // Point towards polyhedron.
-        auto &vertexA = meshA.vertices[meshA.relevant_indices[i]];
+    for (auto face_idx : shA.mesh->relevant_faces) {
+        auto normalA = -shA.mesh->normals[face_idx]; // Point towards polyhedron.
+        auto vertexA = shA.mesh->vertices[shA.mesh->first_vertex_index(face_idx)];
 
         // Find point on box that's furthest along the opposite direction
         // of the face normal.
@@ -60,7 +60,8 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
     }
 
     // Polyhedron edges vs cylinder side edges.
-    for (auto &poly_edge : meshA.relevant_edges) {
+    for (auto edge_idx : meshA.relevant_edges) {
+        auto poly_edge = shA.mesh->get_edge_direction(edge_idx);
         auto dir = cross(poly_edge, cyl_axis);
 
         if (!try_normalize(dir)) {
