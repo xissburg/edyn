@@ -496,7 +496,8 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
 
                 // The length for the first bristle is halved since it is located in
                 // the middle of the rectangular tread.
-                auto tread_length = (bristle_idx == 0 ? scalar(0.5) : scalar(1)) * bristle_length_delta;
+                const bool is_first_bristle = bristle_idx == 0;
+                auto tread_length = (is_first_bristle ? scalar(0.5) : scalar(1)) * bristle_length_delta;
                 auto tread_area = tread_width * tread_length;
 
                 // The force is calculated as an integral from the previous deflection until the
@@ -546,9 +547,15 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
                 }
 
                 // Point of force application.
-                auto prev_bristle_root = bristle_idx > 0 ?
-                    tread_row.bristles[bristle_idx - 1].root :
-                    row_start_pos;
+                vector3 prev_bristle_root;
+
+                if (is_first_bristle) {
+                    prev_bristle_root = row_start_pos;
+                    prev_bristle_defl = bristle_defl;
+                } else {
+                    prev_bristle_root = tread_row.bristles[bristle_idx - 1].root;
+                }
+
                 auto midpoint = (bristle_root + prev_bristle_root) * scalar(0.5);
 
                 auto bristle_lon_force = material.lon_tread_stiffness * tread_area * dot(prev_bristle_defl + bristle_defl, lon_dir) * scalar(0.5);
@@ -577,10 +584,11 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
                 auto bristle_root = tread_row.bristles.back().root;
                 auto midpoint = (row_end_pos + bristle_root) * scalar(0.5);
 
-                auto bristle_lon_force = material.lon_tread_stiffness * tread_area * dot(prev_bristle_defl, lon_dir) * scalar(0.5);
+                // Assume deflection at end of patch to be the same as the last bristle.
+                auto bristle_lon_force = material.lon_tread_stiffness * tread_area * dot(prev_bristle_defl * 2, lon_dir) * scalar(0.5);
                 lon_force += bristle_lon_force;
 
-                auto bristle_lat_force = material.lat_tread_stiffness * tread_area * dot(prev_bristle_defl, lat_dir) * scalar(0.5);
+                auto bristle_lat_force = material.lat_tread_stiffness * tread_area * dot(prev_bristle_defl * 2, lat_dir) * scalar(0.5);
                 lat_force += bristle_lat_force;
 
                 auto bristle_force = bristle_lon_force * lon_dir + bristle_lat_force * lat_dir;
