@@ -16,7 +16,7 @@ void tirecarcass_constraint::prepare(
 
     // Lateral movement.
     {
-        auto error = dot(bodyA.pos - bodyB.pos, axisB_x);
+        auto error = dot(bodyA.pos - (bodyB.pos + axisB_x * -m_wheel_offset), axisB_x);
         auto spring_force = error * m_lateral_stiffness;
         auto spring_impulse = std::abs(spring_force * dt);
 

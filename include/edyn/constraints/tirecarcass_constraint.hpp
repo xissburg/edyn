@@ -12,6 +12,7 @@ namespace edyn {
 struct constraint_row_prep_cache;
 
 struct tirecarcass_constraint : public constraint_base {
+    scalar m_wheel_offset {0};
     scalar m_lateral_stiffness {120000};
     scalar m_lateral_damping {40};
     scalar m_longitudinal_stiffness {2000};
@@ -38,6 +39,7 @@ struct tirecarcass_constraint : public constraint_base {
 template<typename Archive>
 void serialize(Archive &archive, tirecarcass_constraint &con) {
     archive(con.body);
+    archive(con.m_wheel_offset);
     archive(con.m_lateral_stiffness);
     archive(con.m_lateral_damping);
     archive(con.m_longitudinal_stiffness);
