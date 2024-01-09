@@ -296,6 +296,16 @@ inline size_t max_index_abs(const vector3 &v) noexcept {
     return max_index(abs(v));
 }
 
+// Apply the `floor` function to all elements.
+inline vector3 floor(const vector3 &v) noexcept {
+    return {std::floor(v.x), std::floor(v.y), std::floor(v.z)};
+}
+
+// Apply the `ceil` function to all elements.
+inline vector3 ceil(const vector3 &v) noexcept {
+    return {std::ceil(v.x), std::ceil(v.y), std::ceil(v.z)};
+}
+
 }
 
 #endif // EDYN_MATH_VECTOR3_HPP
