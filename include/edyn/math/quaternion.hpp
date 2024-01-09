@@ -160,6 +160,18 @@ inline quaternion quaternion_axis_angle(const vector3 &v, scalar a) noexcept {
     return {v.x * s, v.y * s, v.z * s, std::cos(a * scalar(0.5))};
 }
 
+/**
+ * @brief Make a quaternion representing a rotation about an unit axis.
+ * @param v Rotation axis assumed to be unit length.
+ * @param a Angle in radians.
+ * @return Quaternion that rotates by `a` about axis `v`.
+ */
+inline quaternion quaternion_axis_angle_unit(const vector3 &v, scalar a) noexcept {
+    EDYN_ASSERT(std::abs(length_sqr(v) - 1) < EDYN_EPSILON);
+    auto s = std::sin(a * scalar(0.5));
+    return {v.x * s, v.y * s, v.z * s, std::cos(a * scalar(0.5))};
+}
+
 // Get rotation angle of a quaternion.
 inline scalar quaternion_angle(const quaternion &q) noexcept {
     return std::acos(q.w) * scalar(2);
