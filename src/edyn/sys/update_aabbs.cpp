@@ -49,13 +49,19 @@ void update_aabb(entt::registry &registry, entt::entity entity) {
 
 template<typename ShapeType>
 void update_aabbs(entt::registry &registry) {
-    auto exclude = entt::exclude_t<sleeping_tag, disabled_tag, static_tag>{};
-    auto tr_view = registry.view<position, orientation, ShapeType, AABB>(exclude);
+    auto tr_view = registry.view<position, orientation, ShapeType, AABB, dynamic_tag>(exclude_sleeping_disabled);
     auto origin_view = registry.view<origin>();
 
     for (auto entity : tr_view) {
         auto &shape = tr_view.template get<ShapeType>(entity);
         update_aabb(entity, shape, tr_view, origin_view);
+    }
+
+    // TODO: only update AABB of kinematic entities that have moved.
+    auto kin_tr_view = registry.view<position, orientation, ShapeType, AABB, kinematic_tag>();
+    for (auto entity : kin_tr_view) {
+        auto &shape = kin_tr_view.template get<ShapeType>(entity);
+        update_aabb(entity, shape, kin_tr_view, origin_view);
     }
 }
 

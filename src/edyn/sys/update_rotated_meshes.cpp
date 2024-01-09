@@ -55,11 +55,15 @@ void update_rotated_mesh(entt::registry &registry, entt::entity entity) {
 
 void update_rotated_meshes(entt::registry &registry) {
     auto rotated_view = registry.view<rotated_mesh_list>();
-    auto exclude = entt::exclude_t<sleeping_tag, disabled_tag, static_tag>{};
-    auto view = registry.view<orientation, rotated_mesh_list>(exclude);
+    auto orn_view = registry.view<orientation>();
 
-    for (auto entity : view) {
-        update_rotated_mesh(entity, rotated_view, view);
+    for (auto entity : registry.view<rotated_mesh_list, dynamic_tag>(exclude_sleeping_disabled)) {
+        update_rotated_mesh(entity, rotated_view, orn_view);
+    }
+
+    // TODO: update only kinematic entities that have rotated.
+    for (auto entity : registry.view<rotated_mesh_list, kinematic_tag>()) {
+        update_rotated_mesh(entity, rotated_view, orn_view);
     }
 }
 
