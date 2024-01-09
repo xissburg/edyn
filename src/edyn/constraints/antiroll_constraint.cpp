@@ -32,7 +32,7 @@ void antiroll_constraint::prepare(
     auto ctrl_arm_x = ctrl_arm_dir * side;
     auto ctrl_arm_y = cross(chassis_z, ctrl_arm_x);
     auto ctrl_arm_basis = matrix3x3_columns(ctrl_arm_x, ctrl_arm_y, chassis_z);
-    auto ctrl_arm_pivot_rel = ctrl_arm_basis * m_ctrl_arm_pivot;
+    auto ctrl_arm_pivot_rel = ctrl_arm_basis * m_pivot_ctrl_arm;
     auto ctrl_arm_pivot = ctrl_armA + ctrl_arm_pivot_rel;
 
     // Do the same for the control arm on the other side.
@@ -45,7 +45,7 @@ void antiroll_constraint::prepare(
     auto other_ctrl_arm_x = other_ctrl_arm_dir * side;
     auto other_ctrl_arm_y = cross(chassis_z, other_ctrl_arm_x);
     auto other_ctrl_arm_basis = matrix3x3_columns(other_ctrl_arm_x, other_ctrl_arm_y, chassis_z);
-    auto other_ctrl_arm_pivot_rel = other_ctrl_arm_basis * m_other_ctrl_arm_pivot;
+    auto other_ctrl_arm_pivot_rel = other_ctrl_arm_basis * m_other_pivot_ctrl_arm;
     auto other_ctrl_arm_pivot = other_ctrl_armA + other_ctrl_arm_pivot_rel;
 
     auto pivotA = to_world_space(m_pivotA, bodyA.origin, bodyA.orn);
@@ -63,6 +63,10 @@ void antiroll_constraint::prepare(
 
     // Force is generated in the direction of lever arm deflection, which
     // attempts to make the angle between them go to zero.
+    // TODO: sounds like an imprecise statement. The force should be applied
+    // in a direction orthogonal to the lever arm, i.e. cross(leverB, chassis_x)
+    // towards the location of the opposite lever arm. Though, perhaps, this
+    // simpler form is close enough. Todo: measure it.
     auto force_dir = leverC - leverB;
     auto force_dir_len_sqr = length_sqr(force_dir);
 
@@ -79,7 +83,7 @@ void antiroll_constraint::prepare(
     // Apply corrective impulse at the wheel pivot along the direction
     // normal to the control arm, similar to spring-damper_constraint.
     auto cos_theta = dot(ctrl_arm_y, force_dir);
-    auto ctrl_arm_pivot_horizontal_dist = m_ctrl_arm_pivot.x * side;
+    auto ctrl_arm_pivot_horizontal_dist = m_pivot_ctrl_arm.x * side;
     auto ctrl_arm_pivot_ratio = ctrl_arm_pivot_horizontal_dist / ctrl_arm_len;
     auto ctrl_arm_pivot_ratio_inv = scalar(1) / ctrl_arm_pivot_ratio;
     auto lever_term = ctrl_arm_pivot_ratio * cos_theta;

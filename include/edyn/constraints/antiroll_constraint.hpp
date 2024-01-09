@@ -16,11 +16,14 @@ class position_solver;
 struct antiroll_constraint : public constraint_base {
     entt::entity m_third_entity;
 
-    // Torsional stiffness in Nm/deg (netwon-meters per degrees)
+    // Torsional stiffness in Nm/deg (newton-meters per degrees)
     scalar m_stiffness;
 
     // Point where it attaches to the chassis.
     vector3 m_pivotA;
+
+    // Point where it attaches to the control arm, in control arm space
+    vector3 m_pivot_ctrl_arm;
 
     // Control arm pivot on chassis.
     vector3 m_ctrl_arm_pivotA;
@@ -28,13 +31,10 @@ struct antiroll_constraint : public constraint_base {
     // Control arm pivot on wheel.
     vector3 m_ctrl_arm_pivotB;
 
-    // Point where it attaches to the control arm, in control arm space
-    vector3 m_ctrl_arm_pivot;
-
     // Same as above for the control arm on the other side
+    vector3 m_other_pivot_ctrl_arm;
     vector3 m_other_ctrl_arm_pivotA;
     vector3 m_other_ctrl_arm_pivotC;
-    vector3 m_other_ctrl_arm_pivot;
 
     scalar applied_impulse;
 
@@ -54,10 +54,10 @@ void serialize(Archive &archive, antiroll_constraint &con) {
     archive(con.m_pivotA);
     archive(con.m_ctrl_arm_pivotA);
     archive(con.m_ctrl_arm_pivotB);
-    archive(con.m_ctrl_arm_pivot);
+    archive(con.m_pivot_ctrl_arm);
     archive(con.m_other_ctrl_arm_pivotA);
     archive(con.m_other_ctrl_arm_pivotC);
-    archive(con.m_other_ctrl_arm_pivot);
+    archive(con.m_other_pivot_ctrl_arm);
     archive(con.applied_impulse);
 }
 
