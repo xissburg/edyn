@@ -11,7 +11,9 @@ static void remove_null_entities_in_sequence(entt::meta_sequence_container &seq)
 
     // Remove null if container is dynamic.
     while (end != seq.end()) {
-        if (!seq.erase(end)) { // Not a dynamic container.
+        end = seq.erase(end);
+
+        if (!end) { // Not a dynamic container.
             break;
         }
     }
