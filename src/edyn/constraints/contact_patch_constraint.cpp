@@ -263,7 +263,7 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
         // Accumulate forces and errors along all bristles.
         auto lon_force = scalar(0);
         auto lat_force = scalar(0);
-        auto aligning_torque = scalar(0);
+        auto aligning_torque = vector3_zero;
         auto tread_width = patch.width / num_tread_rows;
         auto normal_pressure = normal_force / (patch.width * patch.length);
 
@@ -565,7 +565,7 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
                 lat_force += bristle_lat_force;
 
                 auto bristle_force = bristle_lon_force * lon_dir + bristle_lat_force * lat_dir;
-                aligning_torque += dot(cross(midpoint - contact_center, bristle_force), normal);
+                aligning_torque += cross(midpoint - contact_center, bristle_force);
 
                 // Assign new root and tip.
                 bristle.tip = bristle_tip;
@@ -592,7 +592,7 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
                 lat_force += bristle_lat_force;
 
                 auto bristle_force = bristle_lon_force * lon_dir + bristle_lat_force * lat_dir;
-                aligning_torque += dot(cross(midpoint - contact_center, bristle_force), normal);
+                aligning_torque += cross(midpoint - contact_center, bristle_force);
             }
 
             tread_row.half_angle = row_half_angle;
@@ -680,7 +680,7 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
 
         // Aligning moment.
         {
-            auto spring_impulse = aligning_torque * dt;
+            auto spring_impulse = dot(aligning_torque, normal) * dt;
 
             auto &row = cache.add_row();
             row.J = {vector3_zero, normal, vector3_zero, -normal};
