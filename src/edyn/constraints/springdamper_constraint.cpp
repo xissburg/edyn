@@ -68,37 +68,34 @@ void springdamper_constraint::prepare(
         row.lower_limit = 0;
         row.impulse = applied_impulse.spring;
 
-        const auto spring_room = coilover_len -
+        const auto spring_len = coilover_len -
             (m_spring_offset + m_spring_perch_offset + m_damper_body_offset + m_spring_divider_length);
 
         const auto max_spring_deflection = m_spring_min_length + m_second_spring_min_length;
 
-        if (spring_room < max_spring_deflection) {
+        if (spring_len < max_spring_deflection) {
             // Maximum deflection has been reached. Apply hard impulse.
             row.upper_limit = large_scalar;
 
-            auto error = max_spring_deflection - spring_room;
+            auto error = max_spring_deflection - spring_len;
             cache.get_options().error = -error * cos_theta * ctrl_arm_pivot_ratio_inv / dt;
         } else {
             auto rest_len = m_spring_rest_length + m_second_spring_rest_length;
-            auto error = rest_len - spring_room;
+            auto error = std::max(rest_len - spring_len, scalar(0));
             scalar spring_force;
 
             if (m_second_spring_stiffness > 0) {
                 auto combined_stiffness = get_combined_spring_stiffness();
+                spring_force = error * combined_stiffness;
+
+                auto second_defl = spring_force / m_second_spring_stiffness;
                 auto second_max_defl = m_second_spring_rest_length - m_second_spring_min_length;
 
-                // Find total deflection when secondary reaches its maximum deflection.
-                // Create transition from combined stiffness to primary stiffness.
-                auto transition_defl = second_max_defl * m_second_spring_stiffness / combined_stiffness;
-
-                if (error < transition_defl) {
-                    spring_force = std::max(error, scalar(0)) * combined_stiffness;
-                } else {
-                    spring_force = transition_defl * combined_stiffness + (error - transition_defl) * m_spring_stiffness;
+                if (second_defl > second_max_defl) {
+                    spring_force = (error - second_max_defl) * m_spring_stiffness;
                 }
             } else {
-                spring_force = std::max(error, scalar(0)) * m_spring_stiffness;
+                spring_force = error * m_spring_stiffness;
             }
 
             spring_force *= motion_ratio;
@@ -159,6 +156,8 @@ void springdamper_constraint::prepare(
         row.lower_limit = -damping_impulse;
         row.upper_limit =  damping_impulse;
         row.impulse = applied_impulse.damper;
+
+        m_damper_speed = speed;
     }
 
     // Damper piston limit when it fully extends.

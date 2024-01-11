@@ -44,8 +44,7 @@ struct springdamper_constraint : public constraint_base {
     scalar m_compression_knee_speed;
     scalar m_rebound_knee_speed;
 
-    scalar m_damping_ratio;
-    vector3 m_spring_damper_dir;
+    scalar m_damper_speed;
 
     scalar get_spring_deflection(entt::registry &) const;
     scalar get_preload() const;
@@ -97,8 +96,6 @@ void serialize(Archive &archive, springdamper_constraint &con) {
     archive(con.m_fast_rebound_damping);
     archive(con.m_compression_knee_speed);
     archive(con.m_rebound_knee_speed);
-    archive(con.m_damping_ratio);
-    archive(con.m_spring_damper_dir);
 }
 
 }
