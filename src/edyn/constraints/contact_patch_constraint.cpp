@@ -646,6 +646,12 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
 
             auto vA = bodyA.linvel + cross(bodyA.angvel, rA);
             auto vB = bodyB.linvel + cross(bodyB.angvel, rB);
+
+            // Remove gravity acceleration from linvel A if B is not affected by gravity.
+            if (!registry.all_of<gravity>(manifold.body[1])) {
+                vA -= registry.get<gravity>(manifold.body[0]) * dt;
+            }
+
             auto relvel = vA - vB;
             auto normal_relspd = dot(relvel, normal);
             auto damper_force = material.vertical_damping * -normal_relspd;
