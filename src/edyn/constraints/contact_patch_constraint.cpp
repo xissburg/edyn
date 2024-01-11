@@ -1,4 +1,5 @@
 #include "edyn/constraints/contact_patch_constraint.hpp"
+#include "edyn/comp/gravity.hpp"
 #include "edyn/comp/tire_material.hpp"
 #include "edyn/config/config.h"
 #include "edyn/config/constants.hpp"
@@ -41,6 +42,7 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
     auto spin_axisA = axis;
     auto spin_axisB = quaternion_x(bodyB.orn);
     auto spin_ornA = bodyA.orn * quaternion_axis_angle(vector3_x, bodyA.spin_angle);
+    const auto normal_similar_min_dot = scalar(0.77);
 
     // Remove patches that do not have a nearby contact point. Points are
     // considered similar if the difference between their angle on the local
@@ -55,7 +57,7 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
             auto &cp = manifold.get_point(pt_idx);
             auto normalA = rotate(conjugate(bodyA.orn), cp.normal);
 
-            if (dot(normalA, patch.normalA) > 0.77f && cp.distance < 0) {
+            if (dot(normalA, patch.normalA) > normal_similar_min_dot) {
                 should_delete = false;
                 break;
             }
@@ -64,6 +66,25 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
         if (should_delete) {
             --num_patches;
             patches[patch_idx] = patches[num_patches];
+        }
+    }
+
+    // Remove patches that are close together along the circumference.
+    if (num_patches > 1) {
+        for (auto i = num_patches; i > 0; --i) {
+            unsigned patch_idx = i - 1;
+            auto &patch = patches[patch_idx];
+
+            for (unsigned j = 0; j < num_patches; ++j) {
+                if (j == patch_idx) continue;
+                auto &other_patch = patches[j];
+
+                if (dot(patch.normal, other_patch.normal) > normal_similar_min_dot) {
+                    --num_patches;
+                    patches[patch_idx] = patches[num_patches];
+                    break;
+                }
+            }
         }
     }
 
@@ -81,6 +102,7 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
 
     const auto &material = registry.get<tire_material>(body[0]);
     const auto sidewall_height = material.tire_radius - material.rim_radius;
+    const auto min_deflection = scalar(0.0001);
 
     const auto init_patch_with_cp = [&](contact_patch &patch, unsigned pt_idx) {
         auto &cp = manifold.get_point(pt_idx);
@@ -97,8 +119,9 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
         // Add spin angle to bring the contact angle into spin space.
         patch.angle += bodyA.spin_angle;
 
-        patch.deflection = std::max(-cp.distance, scalar(0));
+        patch.deflection = std::max(-cp.distance, min_deflection);
         patch.normal = cp.normal;
+        patch.normalA = rotate(conjugate(bodyA.orn), cp.normal);
 
         auto pivotA_world = to_world_space(cp.pivotA, bodyA.origin, bodyA.orn);
         auto pivotB_world = to_world_space(cp.pivotB, bodyB.origin, bodyB.orn);
@@ -117,25 +140,20 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
     // near the same angle in the yz-plane and their normals are near parallel.
     for (auto pt_idx = 0u; pt_idx < manifold.num_points; ++pt_idx) {
         auto &cp = manifold.get_point(pt_idx);
-
-        if (cp.distance >= 0) {
-            continue;
-        }
-
+        const auto normalA = rotate(conjugate(bodyA.orn), cp.normal);
         bool found_patch = false;
 
         // Find existing contact patch which is a continuation of this contact point.
         for (auto patch_idx = 0u; patch_idx < num_patches; ++patch_idx) {
             auto &patch = patches[patch_idx];
-            auto normalA = rotate(conjugate(bodyA.orn), cp.normal);
 
-            if (dot(normalA, patch.normalA) > 0.77f) {
+            if (dot(normalA, patch.normalA) > normal_similar_min_dot) {
                 found_patch = true;
                 bool should_replace = true;
 
                 // Only replace _again_ if deeper.
                 if (replaced_patches[patch_idx] > 0) {
-                    auto defl = std::max(-cp.distance, scalar(0));
+                    auto defl = std::max(-cp.distance, min_deflection);
 
                     if (defl < patch.deflection) {
                         should_replace = false;
@@ -227,7 +245,7 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
 
         // Recalculate deflection in case it's been clamped since deformation
         // is limited by the sidewall height.
-        patch.deflection = std::max(dot(normal, patch_lat_pos[patch_lat_deeper_index] - point_on_edge), scalar(0));
+        patch.deflection = std::max(dot(normal, patch_lat_pos[patch_lat_deeper_index] - point_on_edge), min_deflection);
 
         // Calculate center of pressure.
         auto normalized_center_offset = -std::sin(std::atan(camber_angle));
@@ -286,7 +304,7 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
             auto row_fraction = (row_x - row_start) / patch.width;
             auto defl = lerp(deflection0, deflection1, row_fraction);
 
-            if (defl < 0.0001) {
+            if (defl < 0.00001) {
                 // Reset tread and bristles.
                 tread_row.half_length = 0;
                 tread_row.half_angle = 0;
