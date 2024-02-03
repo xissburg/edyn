@@ -2,7 +2,7 @@
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/tire_material.hpp"
-#include "edyn/comp/tire_state.hpp"
+#include "edyn/comp/tire_stats.hpp"
 #include "edyn/config/config.h"
 #include "edyn/config/execution_mode.hpp"
 #include "edyn/constraints/constraint.hpp"
@@ -501,7 +501,7 @@ static void process_packet(entt::registry &registry, const packet::create_entity
 
         // Assign tire state to tires.
         if (registry.any_of<tire_material>(entity)) {
-            registry.emplace<tire_state>(entity);
+            registry.emplace<tire_stats>(entity);
         }
 
         // Assign graph node to rigid bodies and external entities.

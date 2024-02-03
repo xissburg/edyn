@@ -22,7 +22,7 @@
 #include "edyn/parallel/parallel_for.hpp"
 #include "edyn/serialization/s11n_util.hpp"
 #include "edyn/sys/apply_gravity.hpp"
-#include "edyn/sys/update_tire_state.hpp"
+#include "edyn/sys/update_tire_stats.hpp"
 #include "edyn/sys/update_aabbs.hpp"
 #include "edyn/sys/update_rotated_meshes.hpp"
 #include "edyn/sys/update_inertias.hpp"
@@ -307,7 +307,7 @@ void solver::update(bool mt) {
     // Update world-space moment of inertia.
     update_inertias(registry);
 
-    update_tire_state(registry, dt);
+    update_tire_stats(registry, dt);
 }
 
 }

@@ -1,5 +1,5 @@
-#ifndef EDYN_COMP_TIRE_STATE_HPP
-#define EDYN_COMP_TIRE_STATE_HPP
+#ifndef EDYN_COMP_TIRE_STATS_HPP
+#define EDYN_COMP_TIRE_STATS_HPP
 
 #include <array>
 #include <entt/entity/entity.hpp>
@@ -12,22 +12,28 @@
 
 namespace edyn {
 
-struct tire_bristle_state {
+struct tire_bristle_stats {
     vector3 root;
     vector3 tip;
     scalar friction;
     scalar sliding_spd;
 };
 
-struct tire_tread_row_state {
+struct tire_tread_row_stats {
     vector3 start_pos;
     vector3 end_pos;
-    std::array<tire_bristle_state, contact_patch_constraint::bristles_per_row> bristles;
+    std::array<tire_bristle_stats, contact_patch_constraint::bristles_per_row> bristles;
 };
 
-struct tire_contact_state {
+struct tire_contact_stats {
     // Vertical deflection.
     scalar vertical_deflection {0};
+
+    // Lateral carcass deflection.
+    scalar lateral_deflection {0};
+
+    // Longitudinal carcass twist in radians.
+    scalar longitudinal_deflection {0};
 
     // Current friction coefficient.
     scalar friction_coefficient {1};
@@ -47,7 +53,7 @@ struct tire_contact_state {
     // Longitudinal, lateral and normal forces.
     scalar Fx {0}, Fy {0}, Fz {0};
 
-    // Self-aligning moment and rolling moment.
+    // Self-aligning moment and over turning moment.
     scalar Mz {0}, Mx {0};
 
     // Average sliding speed of all bristles.
@@ -80,18 +86,17 @@ struct tire_contact_state {
     // Linear relative velocity.
     vector3 lin_vel;
 
-    std::array<tire_tread_row_state, contact_patch_constraint::num_tread_rows> tread_rows;
+    std::array<tire_tread_row_stats, contact_patch_constraint::num_tread_rows> tread_rows;
 };
 
-struct tire_state {
+struct tire_stats {
     entt::entity other_entity {entt::null};
     entt::entity patch_entity {entt::null};
-    scalar inflation_pressure {200000};
     size_t num_contacts;
-    std::array<tire_contact_state, max_contacts> contact_state;
+    std::array<tire_contact_stats, max_contacts> contact_stats;
 };
 
 }
 
 
-#endif // EDYN_COMP_TIRE_STATE_HPP
+#endif // EDYN_COMP_TIRE_STATS_HPP

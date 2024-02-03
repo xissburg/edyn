@@ -13,7 +13,7 @@
 #include "edyn/comp/center_of_mass.hpp"
 #include "edyn/comp/origin.hpp"
 #include "edyn/comp/tire_material.hpp"
-#include "edyn/comp/tire_state.hpp"
+#include "edyn/comp/tire_stats.hpp"
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/shape_index.hpp"
@@ -50,7 +50,7 @@ using shared_components_t = decltype(std::tuple_cat(std::tuple<
     mass_inv,
     material,
     tire_material,
-    tire_state,
+    tire_stats,
     position,
     orientation,
     spin_angle,

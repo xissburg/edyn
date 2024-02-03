@@ -1,5 +1,5 @@
-#ifndef EDYN_SYS_UPDATE_TIRE_STATE_HPP
-#define EDYN_SYS_UPDATE_TIRE_STATE_HPP
+#ifndef EDYN_SYS_UPDATE_TIRE_STATS_HPP
+#define EDYN_SYS_UPDATE_TIRE_STATS_HPP
 
 #include <entt/entt.hpp>
 #include "edyn/core/entity_graph.hpp"
@@ -10,7 +10,7 @@
 #include "edyn/comp/angvel.hpp"
 #include "edyn/comp/spin.hpp"
 #include "edyn/comp/center_of_mass.hpp"
-#include "edyn/comp/tire_state.hpp"
+#include "edyn/comp/tire_stats.hpp"
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/math/transform.hpp"
 #include "edyn/collision/contact_point.hpp"
@@ -18,16 +18,16 @@
 namespace edyn {
 
 inline
-void update_tire_state(entt::registry &registry, scalar dt) {
-    auto state_view = registry.view<graph_node, tire_state>();
+void update_tire_stats(entt::registry &registry, scalar dt) {
+    auto stats_view = registry.view<graph_node, tire_stats>();
     auto tr_view = registry.view<position, orientation>();
     auto vel_view = registry.view<linvel, angvel>();
     auto spin_view = registry.view<spin>();
     auto patch_view = registry.view<contact_patch_constraint>();
     auto &graph = registry.ctx().at<entity_graph>();
 
-    for (auto [entity, node, state] : state_view.each()) {
-        state.other_entity = entt::null;
+    for (auto [entity, node, stats] : stats_view.each()) {
+        stats.other_entity = entt::null;
 
         auto &posA = tr_view.get<position>(entity);
         auto &ornA = tr_view.get<orientation>(entity);
@@ -36,7 +36,7 @@ void update_tire_state(entt::registry &registry, scalar dt) {
         auto spinvelA = quaternion_x(ornA) * spin_view.get<spin>(entity).s;
         // Must create another reference to circumvent the compiler limitation:
         // "Reference to local binding declared in enclosing function".
-        auto &ts = state;
+        auto &ts = stats;
 
         graph.visit_edges(node.node_index, [&](auto edge_index) {
             auto edge_entity = graph.edge_entity(edge_index);
@@ -47,7 +47,7 @@ void update_tire_state(entt::registry &registry, scalar dt) {
 
             auto [con] = patch_view.get(edge_entity);
 
-            EDYN_ASSERT(registry.all_of<tire_state>(con.body[0]));
+            EDYN_ASSERT(registry.all_of<tire_stats>(con.body[0]));
 
             ts.other_entity = con.body[1];
             ts.patch_entity = edge_entity;
@@ -76,7 +76,7 @@ void update_tire_state(entt::registry &registry, scalar dt) {
                 auto linspd_rel = length(linvel_rel);
                 auto direction = linspd_rel > EDYN_EPSILON ? linvel_rel / linspd_rel : patch.lon_dir;
 
-                auto &tire_cs = ts.contact_state[i];
+                auto &tire_cs = ts.contact_stats[i];
                 tire_cs.vertical_deflection = patch.deflection;
                 tire_cs.friction_coefficient = patch.friction;
                 tire_cs.sin_camber = patch.sin_camber;
@@ -110,7 +110,7 @@ void update_tire_state(entt::registry &registry, scalar dt) {
 
                     for (size_t j = 0; j < tread_row.bristles.size(); ++j) {
                         auto &bristle = tread_row.bristles[j];
-                        tire_cs.tread_rows[i].bristles[j] = tire_bristle_state{
+                        tire_cs.tread_rows[i].bristles[j] = tire_bristle_stats{
                             bristle.root, bristle.tip,
                             bristle.friction, bristle.sliding_spd
                         };
@@ -123,4 +123,4 @@ void update_tire_state(entt::registry &registry, scalar dt) {
 
 }
 
-#endif // EDYN_SYS_UPDATE_TIRE_STATE_HPP
+#endif // EDYN_SYS_UPDATE_TIRE_STATS_HPP

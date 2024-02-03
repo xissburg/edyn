@@ -20,7 +20,7 @@
 #include "edyn/comp/present_position.hpp"
 #include "edyn/comp/present_orientation.hpp"
 #include "edyn/comp/collision_filter.hpp"
-#include "edyn/comp/tire_state.hpp"
+#include "edyn/comp/tire_stats.hpp"
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/dynamics/moment_of_inertia.hpp"
 #include "edyn/util/aabb_util.hpp"
@@ -93,7 +93,7 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
 
     if (def.tire) {
         registry.emplace<tire_material>(entity, *def.tire);
-        registry.emplace<tire_state>(entity);
+        registry.emplace<tire_stats>(entity);
     }
 
     if (def.presentation && def.kind == rigidbody_kind::rb_dynamic) {

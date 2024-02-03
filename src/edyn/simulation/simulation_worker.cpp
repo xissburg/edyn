@@ -6,7 +6,7 @@
 #include "edyn/comp/angvel.hpp"
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/position.hpp"
-#include "edyn/comp/tire_state.hpp"
+#include "edyn/comp/tire_stats.hpp"
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/tag.hpp"
@@ -410,8 +410,12 @@ void simulation_worker::mark_transforms_replaced() {
     m_op_builder->replace<spin_angle>(spin_view.begin(), spin_view.end());
     m_op_builder->replace<spin>(spin_view.begin(), spin_view.end());
 
-    auto ts_view = m_registry.view<tire_state>(exclude_sleeping_disabled);
-    m_op_builder->replace<tire_state>(ts_view.begin(), ts_view.end());
+    auto ts_view = m_registry.view<tire_stats>(exclude_sleeping_disabled);
+    m_op_builder->replace<tire_stats>(ts_view.begin(), ts_view.end());
+
+    // TODO: Separate contact points from manifold and replace points only.
+    auto manifold_view = m_registry.view<contact_manifold>(exclude_sleeping_disabled);
+    m_op_builder->replace<contact_manifold>(manifold_view.begin(), manifold_view.end());
 }
 
 void simulation_worker::on_set_paused(message<msg::set_paused> &msg) {
