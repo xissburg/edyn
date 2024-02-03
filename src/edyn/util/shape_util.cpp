@@ -1,4 +1,5 @@
 #include "edyn/util/shape_util.hpp"
+#include "edyn/config/config.h"
 #include "edyn/math/quaternion.hpp"
 #include "edyn/math/scalar.hpp"
 #include "edyn/math/vector2.hpp"
@@ -42,6 +43,42 @@ vector3 support_point_box(const vector3 &half_extents, const vector3 &dir) {
         dir.y > 0 ? half_extents.y : -half_extents.y,
         dir.z > 0 ? half_extents.z : -half_extents.z
     };
+}
+
+scalar polyhedron_support_projection(const std::vector<vector3> &vertices,
+                                     const std::vector<uint32_t> &neighbors_start,
+                                     const std::vector<uint32_t> &neighbor_indices,
+                                     const vector3 &dir) {
+    // Starting at the first vertex, visit all neighbors and pick the neighboring
+    // vertex with higher projection. Stop when there are no more neighbors with
+    // a higher projection value than the current.
+    auto v_idx = 0u;
+    auto max_proj = dot(vertices[0], dir);
+
+    EDYN_ASSERT(neighbors_start.size() == vertices.size() + 1);
+
+    while (true) {
+        auto n_idx0 = neighbors_start[v_idx];
+        auto n_idx1 = neighbors_start[v_idx + 1];
+        bool done = true;
+
+        for (auto i = n_idx0; i < n_idx1; ++i) {
+            auto nv_idx = neighbor_indices[i];
+            auto proj = dot(vertices[nv_idx], dir);
+
+            if (proj > max_proj) {
+                max_proj = proj;
+                v_idx = nv_idx;
+                done = false;
+            }
+        }
+
+        if (done) {
+            break;
+        }
+    }
+
+    return max_proj;
 }
 
 vector3 point_cloud_support_point(const std::vector<vector3> &points, const vector3 &dir) {

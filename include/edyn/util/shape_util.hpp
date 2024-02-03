@@ -109,6 +109,24 @@ vector3 point_cloud_support_point(It first, It last, const vector3 &dir) {
     return sup;
 }
 
+
+/**
+ * @brief Calculates the maximum projection of all vertices along the given
+ * direction. Uses adjacency information to achieve `O(log n)` complexity.
+ * @param vertices Vertices of a convex polyhedron.
+ * @param neighbors_start List of indices where the list of neighbors start for
+ * each vertex in the `neighbor_indices` vector. See `convex_mesh:neighbors_start`
+ * for further details.
+ * @param neighbor_indices List of neighboring vertex indices. See
+ * `convex_mesh:neighbors_start` for further details.
+ * @param dir A direction vector (non-zero).
+ * @return The maximal projection.
+ */
+scalar polyhedron_support_projection(const std::vector<vector3> &vertices,
+                                     const std::vector<uint32_t> &neighbors_start,
+                                     const std::vector<uint32_t> &neighbor_indices,
+                                     const vector3 &dir);
+
 /**
  * @brief Calculates the maximum projection of all points along the given
  * direction.

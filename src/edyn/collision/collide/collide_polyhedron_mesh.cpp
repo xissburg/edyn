@@ -56,7 +56,7 @@ static void collide_polyhedron_triangle(
     {
         // Find point on polyhedron that's furthest along the opposite direction
         // of the triangle normal.
-        auto proj_poly = -point_cloud_support_projection(rmesh.vertices, -tri_normal);
+        auto proj_poly = -polyhedron_support_projection(rmesh.vertices, poly.mesh->neighbors_start, poly.mesh->neighbor_indices, -tri_normal);
         auto proj_tri = dot(tri_vertices[0], tri_normal);
         auto dist = proj_poly - proj_tri;
 
@@ -79,14 +79,14 @@ static void collide_polyhedron_triangle(
 
         vector3 normals[] = {rmesh.normals[face_idxA[0]], rmesh.normals[face_idxA[1]]};
         vector3 vertices[] = {rmesh.vertices[vertex_idxA[0]], rmesh.vertices[vertex_idxA[1]]};
-        auto poly_edge = vertices[1] - vertices[0];
+        auto poly_edge = vertices[0] - vertices[1];
 
         for (size_t j = 0; j < 3; ++j) {
             auto tri_v0 = tri_vertices[j];
             auto tri_v1 = tri_vertices[(j + 1) % 3];
-            auto tri_edge = tri_v1 - tri_v0;
+            auto tri_edge = tri_v0 - tri_v1;
 
-            if (edges_generate_minkowski_face(normals[0], normals[1], -tri_normal, tri_normal, -poly_edge, -tri_edge)) {
+            if (edges_generate_minkowski_face(normals[0], normals[1], tri_normal, -tri_normal, poly_edge, tri_edge)) {
                 auto dir = cross(poly_edge, tri_edge);
 
                 if (try_normalize(dir)) {
@@ -137,7 +137,7 @@ static void collide_polyhedron_triangle(
                                  tri_feature, tri_feature_index,
                                  proj_tri, support_feature_tolerance);
 
-    projection_poly = -point_cloud_support_projection(rmesh.vertices, -sep_axis);
+    projection_poly = -polyhedron_support_projection(rmesh.vertices, poly.mesh->neighbors_start, poly.mesh->neighbor_indices, -sep_axis);
 
     distance = projection_poly - proj_tri;
 

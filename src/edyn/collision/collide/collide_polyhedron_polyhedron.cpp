@@ -27,7 +27,7 @@ void max_support_direction(const polyhedron_shape &shA, const rotated_mesh &rota
 
         // Find point on B that's furthest along the opposite direction
         // of the face normal.
-        auto projB = point_cloud_support_projection(rotatedB.vertices, normal_world) + dot(posB, normal_world);
+        auto projB = polyhedron_support_projection(rotatedB.vertices, shB.mesh->neighbors_start, shB.mesh->neighbor_indices, normal_world) + dot(posB, normal_world);
 
         auto dist = projA - projB;
 
@@ -101,7 +101,7 @@ void collide(const polyhedron_shape &shA, const polyhedron_shape &shB,
         vector3 normalsA[] = {rmeshA.normals[face_idxA[0]], rmeshA.normals[face_idxA[1]]};
         vector3 verticesA[] = {rmeshA.vertices[vertex_idxA[0]] + posA,
                                rmeshA.vertices[vertex_idxA[1]] + posA};
-        auto edge_dirA = verticesA[1] - verticesA[0];
+        auto edge_dirA = verticesA[0] - verticesA[1];
 
         for (auto edge_idxB = 0u; edge_idxB < shB.mesh->num_edges(); ++edge_idxB) {
             auto vertex_idxB = shB.mesh->get_edge_vertices(edge_idxB);
@@ -110,14 +110,14 @@ void collide(const polyhedron_shape &shA, const polyhedron_shape &shB,
             vector3 normalsB[] = {rmeshB.normals[face_idxB[0]], rmeshB.normals[face_idxB[1]]};
             vector3 verticesB[] = {rmeshB.vertices[vertex_idxB[0]] + posB,
                                    rmeshB.vertices[vertex_idxB[1]] + posB};
-            auto edge_dirB = verticesB[1] - verticesB[0];
+            auto edge_dirB = verticesB[0] - verticesB[1];
 
             // Negate normals due to the Minkowski _difference_.
             // Negate `edge_dir` because the argument is BxA and DxC, whereas
             // `edge_dir` points in the same direction as `cross(normals[0], normals[1])`.
             if (edges_generate_minkowski_face(normalsA[0], normalsA[1],
-                                              -normalsB[0], -normalsB[1],
-                                              -edge_dirA, -edge_dirB))
+                                              normalsB[0], normalsB[1],
+                                              edge_dirA, edge_dirB))
             {
                 auto dir = cross(edge_dirA, edge_dirB);
 

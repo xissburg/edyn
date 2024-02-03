@@ -1356,9 +1356,9 @@ bool intersect_segment_triangle(const vector3 &p0, const vector3 &p1,
     return true;
 }
 
-bool edges_generate_minkowski_face(vector3 A, vector3 B, vector3 C, vector3 D, vector3 B_x_A, vector3 D_x_C) {
-    auto CBA = dot(C, B_x_A);
-    auto DBA = dot(D, B_x_A);
+bool edges_generate_minkowski_face(vector3 A, vector3 B, vector3 C_neg, vector3 D_neg, vector3 B_x_A, vector3 D_x_C) {
+    auto CBA = -dot(C_neg, B_x_A);
+    auto DBA = -dot(D_neg, B_x_A);
     auto ADC = dot(A, D_x_C);
     auto BDC = dot(B, D_x_C);
 

@@ -16,6 +16,7 @@ void convex_mesh::initialize() {
 void convex_mesh::update_calculated_properties() {
     calculate_normals();
     calculate_edges();
+    calculate_neighbors();
     calculate_relevant_faces();
     calculate_relevant_edges();
 }
@@ -157,6 +158,27 @@ void convex_mesh::calculate_edges() {
                 edge_faces.push_back(std::numeric_limits<uint32_t>::max());
             }
         }
+    }
+}
+
+void convex_mesh::calculate_neighbors() {
+    neighbors_start.push_back(0);
+    uint32_t neighbor_count = 0;
+
+    for (size_t vertex_idx = 0; vertex_idx < vertices.size(); ++vertex_idx) {
+        // Find all edges that contain this vertex and add the other vertex to
+        // the list of neighbors.
+        for (size_t edge_idx = 0; edge_idx < num_edges(); ++edge_idx) {
+            auto edge_vertices = get_edge_vertices(edge_idx);
+
+            if (edge_vertices[0] == vertex_idx || edge_vertices[1] == vertex_idx) {
+                auto neighbor_idx = edge_vertices[0] == vertex_idx ? edge_vertices[1] : edge_vertices[0];
+                neighbor_indices.push_back(neighbor_idx);
+                ++neighbor_count;
+            }
+        }
+
+        neighbors_start.push_back(neighbor_count);
     }
 }
 
