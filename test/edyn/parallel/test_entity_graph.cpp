@@ -21,6 +21,16 @@ TEST(entity_graph_test, test_connected_components) {
         ASSERT_TRUE(neighbor == node_entity1);
     });
 
+    // Test loop abortion.
+    auto numberVisited = 0;
+
+    graph.visit_neighbors(node_index0, [&](entt::entity neighbor) {
+        ++numberVisited;
+        return false;
+    });
+
+    ASSERT_EQ(numberVisited, 1);
+
     auto node_entity2 = registry.create();
     graph.insert_node(node_entity2);
 

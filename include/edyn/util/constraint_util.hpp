@@ -53,15 +53,36 @@ auto make_constraint(entt::registry &registry,
  * iterate over all constraints assigned to a rigid body, including contacts.
  * @tparam Func Visitor function type.
  * @param entity Node entity.
- * @param func Visitor function with signature `void(entt::entity)`.
+ * @param func Visitor function with signature `void(entt::entity)` or
+ * `bool(entt::entity)`. The latter can return false to abort the visit.
  */
 template<typename Func>
 void visit_edges(entt::registry &registry, entt::entity entity, Func func) {
     auto &node = registry.get<graph_node>(entity);
     auto &graph = registry.ctx().at<entity_graph>();
     graph.visit_edges(node.node_index, [&](auto edge_index) {
-        func(graph.edge_entity(edge_index));
+        if constexpr(std::is_invocable_r_v<bool, Func, entt::entity>) {
+            return func(graph.edge_entity(edge_index));
+        } else {
+            func(graph.edge_entity(edge_index));
+        }
     });
+}
+
+/**
+ * @brief Visit all neighboring nodes of a node in the entity graph. This can
+ * be used to iterate over all rigid bodies that are connected one body via
+ * constraints.
+ * @tparam Func Visitor function type.
+ * @param entity Node entity.
+ * @param func Visitor function with signature `void(entt::entity)` or
+ * `bool(entt::entity)`. The latter can return false to abort the visit.
+ */
+template<typename Func>
+void visit_neighbors(entt::registry &registry, entt::entity entity, Func func) {
+    auto &node = registry.get<graph_node>(entity);
+    auto &graph = registry.ctx().at<entity_graph>();
+    graph.visit_neighbors(node.node_index, func);
 }
 
 entt::entity make_contact_manifold(entt::registry &registry,

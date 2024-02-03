@@ -5,6 +5,7 @@
 #include <vector>
 #include <cstdint>
 #include <limits>
+#include <type_traits>
 #include <entt/entity/fwd.hpp>
 #include <entt/entity/entity.hpp>
 #include "edyn/config/config.h"
@@ -96,7 +97,8 @@ public:
      * @tparam Func Visitor function type.
      * @param node_index0 Index of first node.
      * @param node_index1 Index of second node.
-     * @param func Visitor function with signature `void(index_type)`.
+     * @param func Visitor function with signature `void(index_type)` or
+     * `bool(index_type)`. The latter can return false to abort the visit.
      */
     template<typename Func>
     void visit_edges(index_type node_index0, index_type node_index1, Func func) const;
@@ -105,7 +107,8 @@ public:
      * @brief Visit all edges originating at a node.
      * @tparam Func Visitor function type.
      * @param node_index0 Index of node.
-     * @param func Visitor function with signature `void(index_type)`.
+     * @param func Visitor function with signature `void(index_type)` or
+     * `bool(index_type)`. The latter can return false to abort the visit.
      */
     template<typename Func>
     void visit_edges(index_type node_index, Func func) const;
@@ -186,7 +189,13 @@ void entity_graph::visit_neighbors(index_type node_index, Func func) const {
         auto &adj = m_adjacencies[adj_index];
         auto &neighbor = m_nodes[adj.node_index];
         EDYN_ASSERT(neighbor.entity != entt::null);
-        func(neighbor.entity);
+        if constexpr(std::is_invocable_r_v<bool, Func, entt::entity>) {
+            if (!func(neighbor.entity)) {
+                return;
+            }
+        } else {
+            func(neighbor.entity);
+        }
         EDYN_ASSERT(adj.next != adj_index);
         adj_index = adj.next;
     }
@@ -204,7 +213,13 @@ void entity_graph::visit_edges(index_type node_index0, index_type node_index1, F
         if (adj.node_index == node_index1) {
             auto edge_index = adj.edge_index;
             while (edge_index != null_index) {
-                func(edge_index);
+                if constexpr(std::is_invocable_r_v<bool, Func, index_type>) {
+                    if (!func(edge_index)) {
+                        return;
+                    }
+                } else {
+                    func(edge_index);
+                }
                 auto &edge = m_edges[edge_index];
                 EDYN_ASSERT(edge.next != edge_index);
                 edge_index = edge.next;
@@ -230,7 +245,13 @@ void entity_graph::visit_edges(index_type node_index, Func func) const {
             auto &edge = m_edges[edge_index];
             EDYN_ASSERT(edge.next != edge_index);
             auto next_edge_index = edge.next;
-            func(edge_index);
+            if constexpr(std::is_invocable_r_v<bool, Func, index_type>) {
+                if (!func(edge_index)) {
+                    return;
+                }
+            } else {
+                func(edge_index);
+            }
             edge_index = next_edge_index;
         }
 
