@@ -81,16 +81,16 @@ void collide(const polyhedron_shape &shA, const box_shape &shB,
         vector3 normalsA[] = {shA.mesh->normals[face_idxA[0]], shA.mesh->normals[face_idxA[1]]};
         vector3 verticesA[] = {shA.mesh->vertices[vertex_idxA[0]],
                                shA.mesh->vertices[vertex_idxA[1]]};
-        auto edge_dirA = verticesA[1] - verticesA[0];
+        auto edge_dirA = verticesA[0] - verticesA[1];
 
         for (auto edge_idxB = 0u; edge_idxB < get_box_num_features(box_feature::edge); ++edge_idxB) {
             auto normalsB = shB.get_edge_face_normals(edge_idxB, ornB);
             auto verticesB = shB.get_edge(edge_idxB, posB, ornB);
-            auto edge_dirB = verticesB[1] - verticesB[0];
+            auto edge_dirB = verticesB[0] - verticesB[1];
 
             if (edges_generate_minkowski_face(normalsA[0], normalsA[1],
-                                              -normalsB[0], -normalsB[1],
-                                              -edge_dirA, -edge_dirB))
+                                              normalsB[0], normalsB[1],
+                                              edge_dirA, edge_dirB))
             {
                 auto dir = cross(edge_dirA, edge_dirB);
 

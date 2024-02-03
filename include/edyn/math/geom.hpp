@@ -422,14 +422,17 @@ bool intersect_segment_triangle(const vector3 &p0, const vector3 &p1,
  * https://www.gdcvault.com/play/1017646/Physics-for-Game-Programmers-The
  * The key idea is: only pairs of edges that generate a face in the Minkowski
  * difference could ever produce a relevant separating axis.
+ * @remark C and D are assumed as negated because generally they would have to
+ * be negated by the caller. This is done for performance reasons (this is a
+ * profiled optimization).
  * @param A Normal of first incident face on the first edge.
  * @param B Normal of second incident face on the first edge.
- * @param C Normal of first incident face on the second edge.
- * @param D Normal of second incident face on the second edge.
+ * @param C_neg Normal of first incident face on the second edge, negated.
+ * @param D_neg Normal of second incident face on the second edge, negated.
  * @param B_x_A Cross product of B and A, which is parallel to the first edge.
  * @param D_x_C Cross product of D and C, which is parallel to the second edge.
  */
-bool edges_generate_minkowski_face(vector3 A, vector3 B, vector3 C, vector3 D, vector3 B_x_A, vector3 D_x_C);
+bool edges_generate_minkowski_face(vector3 A, vector3 B, vector3 C_neg, vector3 D_neg, vector3 B_x_A, vector3 D_x_C);
 
 }
 
