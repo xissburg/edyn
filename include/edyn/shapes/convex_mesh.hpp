@@ -44,6 +44,14 @@ struct convex_mesh {
     std::vector<uint32_t> relevant_faces;
     std::vector<uint32_t> relevant_edges;
 
+    // Vertex adjacency information. The `neighbors_start` vector contains the
+    // index where the indices start for the i-th vertex in the `neighbor_indices`
+    // vector, which contains a sequence of neighboring vertex indices. The
+    // difference between the (i+1)-th and the i-th element in `neighbors_start`
+    // is the number of neighbors of the i-th vertex.
+    std::vector<uint32_t> neighbors_start;
+    std::vector<uint32_t> neighbor_indices;
+
     /**
      * @brief Initializes calculated properties. Call this after vertices,
      * indices and faces are assigned.
@@ -152,6 +160,7 @@ struct convex_mesh {
     void shift_to_centroid();
     void calculate_normals();
     void calculate_edges();
+    void calculate_neighbors();
     void calculate_relevant_faces();
     void calculate_relevant_edges();
 

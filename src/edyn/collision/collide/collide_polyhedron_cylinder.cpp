@@ -48,7 +48,7 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
     // Cylinder cap face normals.
     for (size_t i = 0; i < 2; ++i) {
         auto dir = std::array<vector3, 2>{cyl_axis, -cyl_axis}[i];
-        auto projA = -point_cloud_support_projection(meshA.vertices, -dir);
+        auto projA = -polyhedron_support_projection(meshA.vertices, shA.mesh->neighbors_start, shA.mesh->neighbor_indices, -dir);
         auto projB = dot(posB, dir) + shB.half_length;
         auto dist = projA - projB;
 
@@ -73,7 +73,7 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
             dir *= -1;
         }
 
-        auto projA = -point_cloud_support_projection(meshA.vertices, -dir);
+        auto projA = -polyhedron_support_projection(meshA.vertices, shA.mesh->neighbors_start, shA.mesh->neighbor_indices, -dir);
         auto projB = shB.support_projection(posB, ornB, dir);
         auto dist = projA - projB;
 
@@ -99,7 +99,7 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
             dir *= -1;
         }
 
-        auto projA = -point_cloud_support_projection(meshA.vertices, -dir);
+        auto projA = -polyhedron_support_projection(meshA.vertices, shA.mesh->neighbors_start, shA.mesh->neighbor_indices, -dir);
         auto projB = shB.support_projection(posB, ornB, dir);
         auto dist = projA - projB;
 
@@ -138,7 +138,7 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
                 dir *= -1;
             }
 
-            auto projA = -point_cloud_support_projection(meshA.vertices, -dir);
+            auto projA = -polyhedron_support_projection(meshA.vertices, shA.mesh->neighbors_start, shA.mesh->neighbor_indices, -dir);
             auto projB = shB.support_projection(posB, ornB, dir);
             auto dist = projA - projB;
 

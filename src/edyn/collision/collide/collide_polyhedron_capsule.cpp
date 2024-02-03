@@ -57,7 +57,7 @@ void collide(const polyhedron_shape &shA, const capsule_shape &shB,
             dir *= -1;
         }
 
-        auto projA = -point_cloud_support_projection(meshA.vertices, -dir);
+        auto projA = -polyhedron_support_projection(meshA.vertices, shA.mesh->neighbors_start, shA.mesh->neighbor_indices, -dir);
         auto projB = capsule_support_projection(capsule_vertices, shB.radius, dir);
         auto dist = projA - projB;
 

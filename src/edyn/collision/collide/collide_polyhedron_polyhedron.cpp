@@ -27,7 +27,7 @@ void max_support_direction(const polyhedron_shape &shA, const rotated_mesh &rota
 
         // Find point on B that's furthest along the opposite direction
         // of the face normal.
-        auto projB = point_cloud_support_projection(rotatedB.vertices, normal_world) + dot(posB, normal_world);
+        auto projB = polyhedron_support_projection(rotatedB.vertices, shB.mesh->neighbors_start, shB.mesh->neighbor_indices, normal_world) + dot(posB, normal_world);
 
         auto dist = projA - projB;
 

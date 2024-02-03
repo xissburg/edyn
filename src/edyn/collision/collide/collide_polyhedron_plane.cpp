@@ -15,7 +15,7 @@ void collide(const polyhedron_shape &shA, const plane_shape &shB,
     auto normal = shB.normal;
     auto center = shB.normal * shB.constant - posA;
 
-    auto proj_poly = -point_cloud_support_projection(rmeshA.vertices, -normal);
+    auto proj_poly = -polyhedron_support_projection(rmeshA.vertices, shA.mesh->neighbors_start, shA.mesh->neighbor_indices, -normal);
     auto proj_plane = dot(center, normal);
     scalar distance = proj_poly - proj_plane;
 

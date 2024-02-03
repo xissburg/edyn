@@ -75,9 +75,7 @@ struct polyhedron_with_center {
 };
 
 /**
- * @brief Loads a polyhedron shape from an obj file.
- * The obj file must have a single shape. If the obj file contains more than
- * one shape, use a `compound_shape` instead.
+ * @brief Load convex polyhedrons from an obj file.
  * @remark The transform is applied in this order: scale, rotation,
  * translation.
  * @param path_to_obj File path.
