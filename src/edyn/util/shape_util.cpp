@@ -100,20 +100,19 @@ size_t split_hull_edge(const std::vector<vector2> &points,
     // to obtain a vector that points outside the convex polygon.
     auto dir = -orthogonal(edge);
     auto max_proj = -EDYN_SCALAR_MAX;
-    auto point = vector2_zero;
     auto idx = size_t{};
 
     for (size_t i = 0; i < points.size(); ++i) {
         auto &p = points[i];
         auto proj = dot(p, dir);
+
         if (proj > max_proj) {
             max_proj = proj;
-            point = p;
             idx = i;
         }
     }
 
-    if (dot(point - v0, dir) > tolerance) {
+    if (dot(points[idx] - v0, dir) > tolerance) {
         hull.insert(hull.begin() + i1, idx);
         auto num_splits = split_hull_edge(points, hull, i0, i1, tolerance);
 
