@@ -11,7 +11,7 @@
 namespace edyn {
 
 static void collide_polyhedron_triangle(
-    const polyhedron_shape &poly, const triangle_mesh &mesh, size_t tri_idx,
+    const polyhedron_shape &poly, const triangle_mesh &tri_mesh, size_t tri_idx,
     const collision_context &ctx, collision_result &result) {
 
     // The triangle vertices are shifted by the polyhedron's position so all
@@ -20,9 +20,10 @@ static void collide_polyhedron_triangle(
     const auto &pos_poly = ctx.posA;
     const auto &orn_poly = ctx.ornA;
     const auto &rmesh = *poly.rotated;
+    const auto &poly_mesh = *poly.mesh;
 
-    auto tri_vertices_original = mesh.get_triangle_vertices(tri_idx);
-    auto tri_normal = mesh.get_triangle_normal(tri_idx);
+    auto tri_vertices_original = tri_mesh.get_triangle_vertices(tri_idx);
+    auto tri_normal = tri_mesh.get_triangle_normal(tri_idx);
 
     // Shift vertices into A's positional object space.
     auto tri_vertices = tri_vertices_original;
@@ -36,9 +37,9 @@ static void collide_polyhedron_triangle(
     auto projection_tri = scalar{};
 
     // Polyhedron face normals.
-    for (auto face_idx : poly.mesh->relevant_faces) {
+    for (auto face_idx : poly_mesh.relevant_faces) {
         auto dir = -rmesh.normals[face_idx]; // Point towards polyhedron.
-        auto poly_vertex = rmesh.vertices[poly.mesh->first_vertex_index(face_idx)];
+        auto poly_vertex = rmesh.vertices[poly_mesh.first_vertex_index(face_idx)];
 
         auto proj_poly = dot(poly_vertex, dir);
         auto proj_tri = get_triangle_support_projection(tri_vertices, dir);
@@ -56,7 +57,7 @@ static void collide_polyhedron_triangle(
     {
         // Find point on polyhedron that's furthest along the opposite direction
         // of the triangle normal.
-        auto proj_poly = -polyhedron_support_projection(rmesh.vertices, poly.mesh->neighbors_start, poly.mesh->neighbor_indices, -tri_normal);
+        auto proj_poly = -polyhedron_support_projection(rmesh.vertices, poly_mesh.neighbors_start, poly_mesh.neighbor_indices, -tri_normal);
         auto proj_tri = dot(tri_vertices[0], tri_normal);
         auto dist = proj_poly - proj_tri;
 
@@ -73,9 +74,9 @@ static void collide_polyhedron_triangle(
     scalar edge_projection_poly, edge_projection_tri;
     vector3 edge_dir;
 
-    for (auto edge_idxA = 0u; edge_idxA < poly.mesh->num_edges(); ++edge_idxA) {
-        auto vertex_idxA = poly.mesh->get_edge_vertices(edge_idxA);
-        auto face_idxA = poly.mesh->get_edge_faces(edge_idxA);
+    for (auto edge_idxA = 0u; edge_idxA < poly_mesh.num_edges(); ++edge_idxA) {
+        auto vertex_idxA = poly_mesh.get_edge_vertices(edge_idxA);
+        auto face_idxA = poly_mesh.get_edge_faces(edge_idxA);
 
         vector3 normals[] = {rmesh.normals[face_idxA[0]], rmesh.normals[face_idxA[1]]};
         vector3 vertices[] = {rmesh.vertices[vertex_idxA[0]], rmesh.vertices[vertex_idxA[1]]};
@@ -131,13 +132,13 @@ static void collide_polyhedron_triangle(
                                  tri_feature, tri_feature_index,
                                  proj_tri, support_feature_tolerance);
 
-    sep_axis = clip_triangle_separating_axis(sep_axis, mesh, tri_idx, tri_vertices, tri_normal, tri_feature, tri_feature_index);
+    sep_axis = clip_triangle_separating_axis(sep_axis, tri_mesh, tri_idx, tri_vertices, tri_normal, tri_feature, tri_feature_index);
 
     get_triangle_support_feature(tri_vertices, vector3_zero, sep_axis,
                                  tri_feature, tri_feature_index,
                                  proj_tri, support_feature_tolerance);
 
-    projection_poly = -polyhedron_support_projection(rmesh.vertices, poly.mesh->neighbors_start, poly.mesh->neighbor_indices, -sep_axis);
+    projection_poly = -polyhedron_support_projection(rmesh.vertices, poly_mesh.neighbors_start, poly_mesh.neighbor_indices, -sep_axis);
 
     distance = projection_poly - proj_tri;
 
@@ -180,7 +181,7 @@ static void collide_polyhedron_triangle(
     point.normal = sep_axis;
     point.distance = distance;
     point.featureB = {tri_feature};
-    point.featureB->index = get_triangle_mesh_feature_index(mesh, tri_idx, tri_feature, tri_feature_index);
+    point.featureB->index = get_triangle_mesh_feature_index(tri_mesh, tri_idx, tri_feature, tri_feature_index);
     point.normal_attachment = contact_normal_attachment::none;
 
     // If the closest triangle feature is its face, check if the vertices of the

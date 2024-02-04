@@ -31,9 +31,9 @@ void collide(const polyhedron_shape &shA, const box_shape &shB,
     auto sep_axis = vector3_zero;
 
     // Face normals of polyhedron.
-    for (auto face_idx : shA.mesh->relevant_faces) {
+    for (auto face_idx : meshA.relevant_faces) {
         auto normalA = -meshA.normals[face_idx]; // Point towards polyhedron.
-        auto vertexA = meshA.vertices[shA.mesh->first_vertex_index(face_idx)];
+        auto vertexA = meshA.vertices[meshA.first_vertex_index(face_idx)];
 
         // Find point on box that's furthest along the opposite direction
         // of the face normal.
@@ -58,7 +58,7 @@ void collide(const polyhedron_shape &shA, const box_shape &shB,
 
         // Find point on polyhedron that's furthest along the opposite direction
         // of the box face normal.
-        auto projA = -polyhedron_support_projection(meshA.vertices, shA.mesh->neighbors_start, shA.mesh->neighbor_indices, -dir);
+        auto projA = -polyhedron_support_projection(meshA.vertices, meshA.neighbors_start, meshA.neighbor_indices, -dir);
         auto projB = dot(posB, dir) + shB.half_extents[i];
         auto dist = projA - projB;
 
@@ -74,13 +74,13 @@ void collide(const polyhedron_shape &shA, const box_shape &shB,
     scalar edge_projectionA, edge_projectionB;
     auto edge_dir = vector3_zero;
 
-    for (auto edge_idxA = 0u; edge_idxA < shA.mesh->num_edges(); ++edge_idxA) {
-        auto vertex_idxA = shA.mesh->get_edge_vertices(edge_idxA);
-        auto face_idxA = shA.mesh->get_edge_faces(edge_idxA);
+    for (auto edge_idxA = 0u; edge_idxA < meshA.num_edges(); ++edge_idxA) {
+        auto vertex_idxA = meshA.get_edge_vertices(edge_idxA);
+        auto face_idxA = meshA.get_edge_faces(edge_idxA);
 
-        vector3 normalsA[] = {shA.mesh->normals[face_idxA[0]], shA.mesh->normals[face_idxA[1]]};
-        vector3 verticesA[] = {shA.mesh->vertices[vertex_idxA[0]],
-                               shA.mesh->vertices[vertex_idxA[1]]};
+        vector3 normalsA[] = {meshA.normals[face_idxA[0]], meshA.normals[face_idxA[1]]};
+        vector3 verticesA[] = {meshA.vertices[vertex_idxA[0]],
+                               meshA.vertices[vertex_idxA[1]]};
         auto edge_dirA = verticesA[0] - verticesA[1];
 
         for (auto edge_idxB = 0u; edge_idxB < get_box_num_features(box_feature::edge); ++edge_idxB) {

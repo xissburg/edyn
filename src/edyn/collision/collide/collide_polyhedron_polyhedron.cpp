@@ -19,18 +19,18 @@ void max_support_direction(const polyhedron_shape &shA, const rotated_mesh &rota
     scalar max_distance = -EDYN_SCALAR_MAX;
     auto best_dir = vector3_zero;
 
-    const auto *meshA = shA.mesh.get();
-    const auto *meshB = shB.mesh.get();
+    const auto &meshA = *shA.mesh;
+    const auto &meshB = *shB.mesh;
 
-    for (auto face_idx : meshA->relevant_faces) {
+    for (auto face_idx : meshA.relevant_faces) {
         auto normal_world = -rotatedA.normals[face_idx]; // Normal pointing towards A.
-        auto vertexA = rotatedA.vertices[meshA->first_vertex_index(face_idx)];
+        auto vertexA = rotatedA.vertices[meshA.first_vertex_index(face_idx)];
         auto vertex_world = vertexA + posA;
         auto projA = dot(vertex_world, normal_world);
 
         // Find point on B that's furthest along the opposite direction
         // of the face normal.
-        auto projB = polyhedron_support_projection(rotatedB.vertices, meshB->neighbors_start, meshB->neighbor_indices, normal_world) + dot(posB, normal_world);
+        auto projB = polyhedron_support_projection(rotatedB.vertices, meshB.neighbors_start, meshB.neighbor_indices, normal_world) + dot(posB, normal_world);
 
         auto dist = projA - projB;
 
@@ -62,8 +62,8 @@ void collide(const polyhedron_shape &shA, const polyhedron_shape &shB,
     // every time.
     const auto &rmeshA = *shA.rotated;
     const auto &rmeshB = *shB.rotated;
-    const auto *meshA = shA.mesh.get();
-    const auto *meshB = shB.mesh.get();
+    const auto &meshA = *shA.mesh;
+    const auto &meshB = *shB.mesh;
 
     scalar distance = -EDYN_SCALAR_MAX;
     scalar projectionA = EDYN_SCALAR_MAX;
@@ -99,18 +99,18 @@ void collide(const polyhedron_shape &shA, const polyhedron_shape &shB,
     scalar edge_projectionA, edge_projectionB;
     vector3 edge_dir;
 
-    for (auto edge_idxA = 0u; edge_idxA < meshA->num_edges(); ++edge_idxA) {
-        auto vertex_idxA = meshA->get_edge_vertices(edge_idxA);
-        auto face_idxA = meshA->get_edge_faces(edge_idxA);
+    for (auto edge_idxA = 0u; edge_idxA < meshA.num_edges(); ++edge_idxA) {
+        auto vertex_idxA = meshA.get_edge_vertices(edge_idxA);
+        auto face_idxA = meshA.get_edge_faces(edge_idxA);
 
         vector3 normalsA[] = {rmeshA.normals[face_idxA[0]], rmeshA.normals[face_idxA[1]]};
         vector3 verticesA[] = {rmeshA.vertices[vertex_idxA[0]] + posA,
                                rmeshA.vertices[vertex_idxA[1]] + posA};
         auto edge_dirA = verticesA[0] - verticesA[1];
 
-        for (auto edge_idxB = 0u; edge_idxB < meshB->num_edges(); ++edge_idxB) {
-            auto vertex_idxB = meshB->get_edge_vertices(edge_idxB);
-            auto face_idxB = meshB->get_edge_faces(edge_idxB);
+        for (auto edge_idxB = 0u; edge_idxB < meshB.num_edges(); ++edge_idxB) {
+            auto vertex_idxB = meshB.get_edge_vertices(edge_idxB);
+            auto face_idxB = meshB.get_edge_faces(edge_idxB);
 
             vector3 normalsB[] = {rmeshB.normals[face_idxB[0]], rmeshB.normals[face_idxB[1]]};
             vector3 verticesB[] = {rmeshB.vertices[vertex_idxB[0]] + posB,

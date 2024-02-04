@@ -15,16 +15,16 @@ void collide(const polyhedron_shape &shA, const sphere_shape &shB,
     const auto posB = to_object_space(ctx.posB, ctx.posA, ctx.ornA);
     const auto ornB = conjugate(ctx.ornA) * ctx.ornB;
     auto threshold = ctx.threshold;
-    auto &meshA = *shA.mesh;
+    const auto &meshA = *shA.mesh;
 
     scalar distance = -EDYN_SCALAR_MAX;
     scalar projection_poly = EDYN_SCALAR_MAX;
     auto sep_axis = vector3_zero;
 
     // Face normals of polyhedron.
-    for (auto face_idx : shA.mesh->relevant_faces) {
-        auto normalA = -shA.mesh->normals[face_idx]; // Point towards polyhedron.
-        auto vertexA = shA.mesh->vertices[shA.mesh->first_vertex_index(face_idx)];
+    for (auto face_idx : meshA.relevant_faces) {
+        auto normalA = -meshA.normals[face_idx]; // Point towards polyhedron.
+        auto vertexA = meshA.vertices[meshA.first_vertex_index(face_idx)];
 
         auto projA = dot(vertexA, normalA);
         auto projB = dot(posB, normalA) + shB.radius;

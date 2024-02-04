@@ -28,9 +28,9 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
     auto sep_axis = vector3_zero;
 
     // Face normals of polyhedron.
-    for (auto face_idx : shA.mesh->relevant_faces) {
-        auto normalA = -shA.mesh->normals[face_idx]; // Point towards polyhedron.
-        auto vertexA = shA.mesh->vertices[shA.mesh->first_vertex_index(face_idx)];
+    for (auto face_idx : meshA.relevant_faces) {
+        auto normalA = -meshA.normals[face_idx]; // Point towards polyhedron.
+        auto vertexA = meshA.vertices[meshA.first_vertex_index(face_idx)];
 
         // Find point on box that's furthest along the opposite direction
         // of the face normal.
@@ -48,7 +48,7 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
     // Cylinder cap face normals.
     for (size_t i = 0; i < 2; ++i) {
         auto dir = std::array<vector3, 2>{cyl_axis, -cyl_axis}[i];
-        auto projA = -polyhedron_support_projection(meshA.vertices, shA.mesh->neighbors_start, shA.mesh->neighbor_indices, -dir);
+        auto projA = -polyhedron_support_projection(meshA.vertices, meshA.neighbors_start, meshA.neighbor_indices, -dir);
         auto projB = dot(posB, dir) + shB.half_length;
         auto dist = projA - projB;
 
@@ -61,7 +61,7 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
 
     // Polyhedron edges vs cylinder side edges.
     for (auto edge_idx : meshA.relevant_edges) {
-        auto poly_edge = shA.mesh->get_edge_direction(edge_idx);
+        auto poly_edge = meshA.get_edge_direction(edge_idx);
         auto dir = cross(poly_edge, cyl_axis);
 
         if (!try_normalize(dir)) {
@@ -73,7 +73,7 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
             dir *= -1;
         }
 
-        auto projA = -polyhedron_support_projection(meshA.vertices, shA.mesh->neighbors_start, shA.mesh->neighbor_indices, -dir);
+        auto projA = -polyhedron_support_projection(meshA.vertices, meshA.neighbors_start, meshA.neighbor_indices, -dir);
         auto projB = shB.support_projection(posB, ornB, dir);
         auto dist = projA - projB;
 
@@ -99,7 +99,7 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
             dir *= -1;
         }
 
-        auto projA = -polyhedron_support_projection(meshA.vertices, shA.mesh->neighbors_start, shA.mesh->neighbor_indices, -dir);
+        auto projA = -polyhedron_support_projection(meshA.vertices, meshA.neighbors_start, meshA.neighbor_indices, -dir);
         auto projB = shB.support_projection(posB, ornB, dir);
         auto dist = projA - projB;
 
@@ -111,8 +111,8 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
     }
 
     // Cylinder cap edges vs polyhedron edges.
-    for (size_t i = 0; i < shA.mesh->num_edges(); ++i) {
-        auto [vertexA0, vertexA1] = shA.mesh->get_edge(i);
+    for (size_t i = 0; i < meshA.num_edges(); ++i) {
+        auto [vertexA0, vertexA1] = meshA.get_edge(i);
 
         // Find closest point between circle and edge.
         for (size_t j = 0; j < 2; ++j) {
@@ -138,7 +138,7 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
                 dir *= -1;
             }
 
-            auto projA = -polyhedron_support_projection(meshA.vertices, shA.mesh->neighbors_start, shA.mesh->neighbor_indices, -dir);
+            auto projA = -polyhedron_support_projection(meshA.vertices, meshA.neighbors_start, meshA.neighbor_indices, -dir);
             auto projB = shB.support_projection(posB, ornB, dir);
             auto dist = projA - projB;
 
