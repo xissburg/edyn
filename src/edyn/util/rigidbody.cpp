@@ -2,6 +2,7 @@
 #include "edyn/comp/center_of_mass.hpp"
 #include "edyn/comp/origin.hpp"
 #include "edyn/comp/roll_direction.hpp"
+#include "edyn/comp/tire_state.hpp"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/transform.hpp"
 #include "edyn/math/vector3.hpp"
@@ -94,6 +95,7 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
     if (def.tire) {
         registry.emplace<tire_material>(entity, *def.tire);
         registry.emplace<tire_stats>(entity);
+        registry.emplace<tire_state>(entity);
     }
 
     if (def.presentation && def.kind == rigidbody_kind::rb_dynamic) {

@@ -15,6 +15,8 @@ struct tire_material {
     scalar load_sensitivity {0.05};
     scalar tire_radius {0.36};
     scalar rim_radius {0.19};
+    scalar inflation_pressure {30};
+    scalar vertical_stiffness_inflation_pressure_rate {5000};
 };
 
 template<typename Archive>

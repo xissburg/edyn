@@ -7,6 +7,7 @@
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/tag.hpp"
+#include "edyn/comp/tire_state.hpp"
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/constraints/null_constraint.hpp"
 #include "edyn/comp/tire_material.hpp"
@@ -154,6 +155,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
         // Assign tire state to tires.
         if (registry.any_of<tire_material>(local_entity)) {
             registry.emplace<tire_stats>(local_entity);
+            registry.emplace<tire_state>(local_entity);
         }
 
         if (registry.any_of<rigidbody_tag, external_tag>(local_entity) &&

@@ -1,6 +1,7 @@
 #include "edyn/constraints/contact_patch_constraint.hpp"
 #include "edyn/comp/gravity.hpp"
 #include "edyn/comp/tire_material.hpp"
+#include "edyn/comp/tire_state.hpp"
 #include "edyn/config/config.h"
 #include "edyn/config/constants.hpp"
 #include "edyn/dynamics/row_cache.hpp"
@@ -101,8 +102,12 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
     auto replaced_patches = std::array<int, max_contacts>{};
 
     const auto &material = registry.get<tire_material>(body[0]);
+    const auto &state = registry.get<tire_state>(body[0]);
     const auto sidewall_height = material.tire_radius - material.rim_radius;
     const auto min_deflection = scalar(0.0001);
+    const auto vertical_stiffness = material.vertical_stiffness +
+                                    (state.inflation_pressure - material.inflation_pressure) *
+                                    material.vertical_stiffness_inflation_pressure_rate;
 
     const auto init_patch_with_cp = [&](contact_patch &patch, unsigned pt_idx) {
         auto &cp = manifold.get_point(pt_idx);
@@ -172,7 +177,7 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
             auto &patch = patches[patch_idx];
             patch = {}; // Reset to default.
             init_patch_with_cp(patch, pt_idx);
-            patch.applied_impulse.normal = patch.deflection * material.vertical_stiffness * dt;
+            patch.applied_impulse.normal = patch.deflection * vertical_stiffness * dt;
 
             prev_patch_angles[patch_idx] = patch.angle;
             replaced_patches[patch_idx] += 1;
@@ -640,8 +645,7 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
         // Normal stiffness.
         {
             auto local_travel_speed_kph = bodyA.spin * (cyl.radius - patch.deflection) * scalar(3.6);
-            auto stiffness = velocity_dependent_vertical_stiffness(material.vertical_stiffness,
-                                                                   std::abs(local_travel_speed_kph));
+            auto stiffness = velocity_dependent_vertical_stiffness(vertical_stiffness, std::abs(local_travel_speed_kph));
             auto spring_force = patch.deflection * stiffness;
 
             auto vA = bodyA.linvel + cross(bodyA.angvel, rA);
