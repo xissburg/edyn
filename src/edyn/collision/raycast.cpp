@@ -265,10 +265,11 @@ shape_raycast_result shape_raycast(const polyhedron_shape &poly, const raycast_c
     auto t0 = -EDYN_SCALAR_MAX;
     auto t1 = EDYN_SCALAR_MAX;
     auto intersect_face_idx = SIZE_MAX;
+    const auto &mesh = *poly.mesh;
 
-    for (size_t face_idx = 0; face_idx < poly.mesh->num_faces(); ++face_idx) {
-        auto vertex = poly.mesh->vertices[poly.mesh->first_vertex_index(face_idx)];
-        auto normal = poly.mesh->normals[face_idx];
+    for (size_t face_idx = 0; face_idx < mesh.num_faces(); ++face_idx) {
+        auto vertex = mesh.vertices[mesh.first_vertex_index(face_idx)];
+        auto normal = mesh.normals[face_idx];
         auto dist = dot(vertex - p0, normal);
         auto denom = dot(normal, d);
 
@@ -313,7 +314,7 @@ shape_raycast_result shape_raycast(const polyhedron_shape &poly, const raycast_c
 
     auto result = shape_raycast_result{};
     result.fraction = clamp_unit(t0);
-    result.normal = rotate(ctx.orn, poly.mesh->normals[intersect_face_idx]);
+    result.normal = rotate(ctx.orn, mesh.normals[intersect_face_idx]);
     result.info_var = polyhedron_raycast_info{intersect_face_idx};
 
     return result;
