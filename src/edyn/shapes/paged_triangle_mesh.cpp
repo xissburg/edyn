@@ -35,7 +35,7 @@ void paged_triangle_mesh::load_node_if_needed(size_t trimesh_idx) {
         return;
     }
 
-    auto &node = m_cache[trimesh_idx];
+    const auto &node = m_cache[trimesh_idx];
 
     if (node.trimesh) {
         m_is_loading_submesh[trimesh_idx].store(false, std::memory_order_relaxed);
@@ -43,11 +43,13 @@ void paged_triangle_mesh::load_node_if_needed(size_t trimesh_idx) {
     }
 
     EDYN_ASSERT(node.num_vertices < m_max_cache_num_vertices);
+    // TODO: Fix race condition when unloading submeshes.
+
     // Load triangle mesh into cache. Clear cache if it would go
     // above limits.
-    while (cache_num_vertices() + node.num_vertices > m_max_cache_num_vertices) {
+    /* while (cache_num_vertices() + node.num_vertices > m_max_cache_num_vertices) {
         unload_least_recently_visited_node();
-    }
+    } */
 
     m_page_loader->load(trimesh_idx);
 }
@@ -92,7 +94,9 @@ void paged_triangle_mesh::assign_mesh(size_t index, std::shared_ptr<triangle_mes
 
 bool paged_triangle_mesh::has_per_vertex_friction() const {
     for (auto &node : m_cache) {
-        if (node.trimesh && node.trimesh->has_per_vertex_friction()) {
+        auto trimesh = node.trimesh;
+
+        if (trimesh && trimesh->has_per_vertex_friction()) {
             return true;
         }
     }
@@ -102,7 +106,9 @@ bool paged_triangle_mesh::has_per_vertex_friction() const {
 
 bool paged_triangle_mesh::has_per_vertex_restitution() const {
     for (auto &node : m_cache) {
-        if (node.trimesh && node.trimesh->has_per_vertex_restitution()) {
+        auto trimesh = node.trimesh;
+
+        if (trimesh && trimesh->has_per_vertex_restitution()) {
             return true;
         }
     }
