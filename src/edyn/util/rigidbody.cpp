@@ -236,7 +236,7 @@ void clear_kinematic_velocities(entt::registry &registry) {
         w = vector3_zero;
     });
 
-    registry.view<kinematic_tag, spin>().each([] ([[maybe_unused]] auto, spin &s) {
+    registry.view<kinematic_tag, spin>().each([] (spin &s) {
         s.s = 0;
     });
 }
