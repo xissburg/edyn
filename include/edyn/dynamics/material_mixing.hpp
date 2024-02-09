@@ -14,7 +14,7 @@ inline scalar material_mix_restitution(scalar a, scalar b) {
 }
 
 inline scalar material_mix_friction(scalar a, scalar b) {
-    return std::sqrt(a * b);
+    return a * b;
 }
 
 inline scalar material_mix_spin_friction(scalar a, scalar b) {
