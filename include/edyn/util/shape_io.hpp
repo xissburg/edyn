@@ -91,7 +91,7 @@ std::vector<polyhedron_with_center> load_convex_polyhedrons_from_obj(
     const vector3 &scale = vector3_one);
 
 std::vector<polyhedron_with_center> load_convex_polyhedrons_from_obj(
-    const std::stringstream &ss,
+    std::stringstream &ss,
     const vector3 &pos = vector3_zero,
     const quaternion &orn = quaternion_identity,
     const vector3 &scale = vector3_one);
