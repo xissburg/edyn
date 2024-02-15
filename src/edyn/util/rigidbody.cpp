@@ -94,7 +94,7 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         registry.emplace<present_orientation>(entity, def.orientation);
     }
 
-    if (auto opt = def.shape) {
+    if (def.shape) {
         std::visit([&](auto &&shape) {
             using ShapeType = std::decay_t<decltype(shape)>;
 
