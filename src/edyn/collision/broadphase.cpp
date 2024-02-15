@@ -25,10 +25,10 @@ struct island_tree_resident {
 broadphase::broadphase(entt::registry &registry)
     : m_registry(&registry)
 {
-    registry.on_construct<AABB>().connect<&broadphase::on_construct_aabb>(*this);
-    registry.on_destroy<tree_resident>().connect<&broadphase::on_destroy_tree_resident>(*this);
-    registry.on_construct<island_AABB>().connect<&broadphase::on_construct_island_aabb>(*this);
-    registry.on_destroy<island_tree_resident>().connect<&broadphase::on_destroy_island_tree_resident>(*this);
+    m_connections.emplace_back(registry.on_construct<AABB>().connect<&broadphase::on_construct_aabb>(*this));
+    m_connections.emplace_back(registry.on_destroy<tree_resident>().connect<&broadphase::on_destroy_tree_resident>(*this));
+    m_connections.emplace_back(registry.on_construct<island_AABB>().connect<&broadphase::on_construct_island_aabb>(*this));
+    m_connections.emplace_back(registry.on_destroy<island_tree_resident>().connect<&broadphase::on_destroy_island_tree_resident>(*this));
 
     // The `should_collide_func` function will be invoked in parallel when
     // running broadphase in parallel, in the call to `broadphase::collide_tree_async`.

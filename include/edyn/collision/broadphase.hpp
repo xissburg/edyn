@@ -3,6 +3,7 @@
 
 #include <vector>
 #include <entt/entity/fwd.hpp>
+#include <entt/signal/sigh.hpp>
 #include "edyn/comp/aabb.hpp"
 #include "edyn/core/entity_pair.hpp"
 #include "edyn/collision/dynamic_tree.hpp"
@@ -26,6 +27,9 @@ class broadphase {
 
 public:
     broadphase(entt::registry &);
+    broadphase(const broadphase &) = delete;
+    broadphase & operator=(const broadphase &) = delete;
+
     void init_new_aabb_entities();
     void update(bool mt);
 
@@ -56,6 +60,7 @@ private:
     std::vector<entt::entity> m_new_aabb_entities;
     std::vector<entity_pair_vector> m_pair_results;
     size_t m_max_sequential_size {8};
+    std::vector<entt::scoped_connection> m_connections;
 };
 
 template<typename Func>
