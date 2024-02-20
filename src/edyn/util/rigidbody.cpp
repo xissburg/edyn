@@ -2,6 +2,7 @@
 #include "edyn/comp/center_of_mass.hpp"
 #include "edyn/comp/origin.hpp"
 #include "edyn/comp/roll_direction.hpp"
+#include "edyn/config/config.h"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/transform.hpp"
 #include "edyn/math/vector3.hpp"
@@ -34,7 +35,7 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
     registry.emplace<orientation>(entity, def.orientation);
 
     if (def.kind == rigidbody_kind::rb_dynamic) {
-        EDYN_ASSERT(def.mass > EDYN_EPSILON && def.mass < large_scalar);
+        EDYN_ASSERT(def.mass > EDYN_EPSILON && def.mass < large_scalar, "Dynamic rigid body must have non-zero mass.");
         registry.emplace<mass>(entity, def.mass);
         registry.emplace<mass_inv>(entity, scalar(1) / def.mass);
 
@@ -43,6 +44,7 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         if (def.inertia) {
             inertia = *def.inertia;
         } else {
+            EDYN_ASSERT(def.shape.has_value(), "A shape must be provided if a pre-calculated inertia hasn't been assigned.");
             inertia = moment_of_inertia(*def.shape, def.mass);
 
             if (def.center_of_mass) {
@@ -100,7 +102,8 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
 
             // Ensure shape is valid for this type of rigid body.
             if (def.kind != rigidbody_kind::rb_static) {
-                EDYN_ASSERT((!tuple_has_type<ShapeType, static_shapes_tuple_t>::value));
+                EDYN_ASSERT((!tuple_has_type<ShapeType, static_shapes_tuple_t>::value),
+                            "Shapes of this type can only be used with static rigid bodies.");
             }
 
             registry.emplace<ShapeType>(entity, shape);
