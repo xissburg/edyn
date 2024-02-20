@@ -113,6 +113,8 @@ void detach(entt::registry &registry) {
     registry.ctx().erase<entity_graph>();
     registry.ctx().erase<material_mix_table>();
     registry.ctx().erase<contact_manifold_map>();
+    registry.ctx().erase<contact_event_emitter>();
+    registry.ctx().erase<registry_operation_context>();
     registry.ctx().erase<broadphase>();
     registry.ctx().erase<narrowphase>();
     registry.ctx().erase<stepper_async>();
