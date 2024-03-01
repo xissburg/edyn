@@ -133,7 +133,11 @@ void tierod_constraint::update_steering_arm() {
     steering_arm = pivotB - p;
     steering_arm_length = length(steering_arm);
     auto n = steering_arm / steering_arm_length;
-    steering_arm_angle = std::acos(dot(n, -vector3_z));
+    // Calculate angle between steering arm and z axis. A rotation by this amount
+    // must be applied to the calculated direction in the circle intersection
+    // test above.
+    auto n_dot_z = dot(n, vector3_z);
+    steering_arm_angle = n_dot_z > 0 ? std::acos(n_dot_z) : -std::acos(-n_dot_z);
 }
 
 void tierod_constraint::store_applied_impulses(const std::vector<scalar> &impulses) {
