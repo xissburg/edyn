@@ -30,7 +30,6 @@ struct springdamper_constraint : public constraint_base {
 
     scalar m_bumpstop_stiffness;
     scalar m_bumpstop_rest_length;
-    scalar m_bumpstop_offset;
 
     scalar m_piston_rod_length;
     scalar m_damper_body_length;
@@ -85,7 +84,6 @@ void serialize(Archive &archive, springdamper_constraint &con) {
     archive(con.m_spring_divider_length);
     archive(con.m_bumpstop_stiffness);
     archive(con.m_bumpstop_rest_length);
-    archive(con.m_bumpstop_offset);
     archive(con.m_piston_rod_length);
     archive(con.m_damper_body_length);
     archive(con.m_damper_body_offset);
