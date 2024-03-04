@@ -2,6 +2,7 @@
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/math/quaternion.hpp"
 #include "edyn/math/transform.hpp"
+#include "edyn/math/vector3.hpp"
 #include <entt/entity/registry.hpp>
 
 namespace edyn {
@@ -132,12 +133,17 @@ void tierod_constraint::update_steering_arm() {
     auto p = lower_pivotB + w; // closest point on steering axis to pivotB
     steering_arm = pivotB - p;
     steering_arm_length = length(steering_arm);
-    auto n = steering_arm / steering_arm_length;
+    auto arm_norm = steering_arm / steering_arm_length;
     // Calculate angle between steering arm and z axis. A rotation by this amount
     // must be applied to the calculated direction in the circle intersection
     // test above.
-    auto n_dot_z = dot(n, vector3_z);
-    steering_arm_angle = n_dot_z > 0 ? std::acos(n_dot_z) : -std::acos(-n_dot_z);
+    auto n_dot_z = dot(arm_norm, vector3_z);
+    auto steering_perp = cross(vector3_z, steering_axis);
+    // Shortest angle to rotate z towards the steering arm.
+    auto angle_sign = n_dot_z * dot(arm_norm, steering_perp) < 0 ? 1 : -1;
+    // Things flip on the right side.
+    scalar side = pivotA.x > 0 ? 1 : -1;
+    steering_arm_angle = std::acos(std::abs(n_dot_z)) * angle_sign * side;
 }
 
 void tierod_constraint::store_applied_impulses(const std::vector<scalar> &impulses) {
