@@ -100,6 +100,12 @@ constexpr matrix3x3 operator-=(matrix3x3 &m, const matrix3x3 &n) noexcept {
     return m;
 }
 
+// Multiply one matrix into another.
+constexpr matrix3x3 operator*=(matrix3x3 &m, const matrix3x3 &n) noexcept {
+    m = m * n;
+    return m;
+}
+
 // Check if two matrices are equal.
 constexpr bool operator==(const matrix3x3 &m, const matrix3x3 &n) noexcept {
     return m.row[0] == n.row[0] &&
