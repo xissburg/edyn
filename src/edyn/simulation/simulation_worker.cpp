@@ -479,7 +479,7 @@ void simulation_worker::on_set_com(message<msg::set_com> &msg) {
         auto entity = m_entity_map.at(msg.content.entity);
 
         if (m_registry.valid(entity)) {
-            apply_center_of_mass(m_registry, entity, msg.content.com);
+            internal::apply_center_of_mass(m_registry, entity, msg.content.com);
         }
     }
 }

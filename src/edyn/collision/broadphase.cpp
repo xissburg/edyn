@@ -26,6 +26,7 @@ broadphase::broadphase(entt::registry &registry)
     : m_registry(&registry)
 {
     m_connections.emplace_back(registry.on_construct<AABB>().connect<&broadphase::on_construct_aabb>(*this));
+    m_connections.emplace_back(registry.on_destroy<AABB>().connect<&broadphase::on_construct_aabb>(*this));
     m_connections.emplace_back(registry.on_destroy<tree_resident>().connect<&broadphase::on_destroy_tree_resident>(*this));
     m_connections.emplace_back(registry.on_construct<island_AABB>().connect<&broadphase::on_construct_island_aabb>(*this));
     m_connections.emplace_back(registry.on_destroy<island_tree_resident>().connect<&broadphase::on_destroy_island_tree_resident>(*this));
@@ -41,6 +42,12 @@ broadphase::broadphase(entt::registry &registry)
 void broadphase::on_construct_aabb(entt::registry &, entt::entity entity) {
     // Perform initialization later when the entity is fully constructed.
     m_new_aabb_entities.push_back(entity);
+}
+
+void broadphase::on_destroy_aabb(entt::registry &registry, entt::entity entity) {
+    // No AABB means no longer being present in the broadphase AABB tree.
+    // This will trigger `on_destroy_tree_resident` which will do the cleanup.
+    registry.remove<tree_resident>(entity);
 }
 
 void broadphase::on_destroy_tree_resident(entt::registry &registry, entt::entity entity) {

@@ -1,11 +1,16 @@
 #include <entt/entity/registry.hpp>
+#include "edyn/collision/contact_manifold.hpp"
 #include "edyn/comp/center_of_mass.hpp"
+#include "edyn/comp/island.hpp"
 #include "edyn/comp/origin.hpp"
 #include "edyn/comp/roll_direction.hpp"
+#include "edyn/comp/shape_index.hpp"
 #include "edyn/config/config.h"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/transform.hpp"
 #include "edyn/math/vector3.hpp"
+#include "edyn/shapes/shapes.hpp"
+#include "edyn/util/constraint_util.hpp"
 #include "edyn/util/island_util.hpp"
 #include "edyn/util/rigidbody.hpp"
 #include "edyn/comp/tag.hpp"
@@ -78,7 +83,7 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
     }
 
     if (def.center_of_mass) {
-        apply_center_of_mass(registry, entity, *def.center_of_mass);
+        internal::apply_center_of_mass(registry, entity, *def.center_of_mass);
     }
 
     auto gravity = def.gravity ? *def.gravity : get_gravity(registry);
@@ -222,8 +227,15 @@ void clear_kinematic_velocities(entt::registry &registry) {
     });
 }
 
-bool validate_rigidbody(entt::entity entity, entt::registry &registry) {
-    return registry.all_of<position, orientation, linvel, angvel>(entity);
+bool validate_rigidbody(entt::registry &registry, entt::entity &entity) {
+    // Verify presence of required components in given entity.
+    if (!registry.any_of<rigidbody_tag>(entity)) return false;
+    if (!registry.any_of<dynamic_tag, kinematic_tag, static_tag>(entity)) return false;
+    if (!registry.any_of<island_resident, multi_island_resident>(entity)) return false;
+    if (!registry.all_of<position, orientation, linvel, angvel>(entity)) return false;
+    if (!registry.all_of<mass, mass_inv, inertia, inertia_inv, inertia_world_inv>(entity)) return false;
+
+    return true;
 }
 
 void set_rigidbody_mass(entt::registry &registry, entt::entity entity, scalar mass) {
@@ -300,40 +312,7 @@ void set_center_of_mass(entt::registry &registry, entt::entity entity, const vec
     if (auto *stepper = registry.ctx().find<stepper_async>()) {
         stepper->set_center_of_mass(entity, com);
     } else {
-        apply_center_of_mass(registry, entity, com);
-    }
-}
-
-void apply_center_of_mass(entt::registry &registry, entt::entity entity, const vector3 &com) {
-    auto body_view = registry.view<position, orientation, linvel, angvel>();
-    auto com_view = registry.view<center_of_mass>();
-
-    auto [pos, orn, linvel, angvel] = body_view.get<position, orientation, edyn::linvel, edyn::angvel>(entity);
-    auto com_old = vector3_zero;
-    auto has_com = com_view.contains(entity);
-
-    if (has_com) {
-        com_old = com_view.get<center_of_mass>(entity);
-    }
-
-    // Position and linear velocity must change when center of mass shifts,
-    // since they're stored with respect to the center of mass.
-    auto origin = to_world_space(-com_old, pos, orn);
-    auto com_world = to_world_space(com, origin, orn);
-    linvel += cross(angvel, com_world - pos);
-    pos = com_world;
-
-    if (com != vector3_zero) {
-        if (has_com) {
-            registry.replace<center_of_mass>(entity, com);
-            registry.replace<edyn::origin>(entity, origin);
-        } else {
-            registry.emplace<center_of_mass>(entity, com);
-            registry.emplace<edyn::origin>(entity, origin);
-        }
-    } else if (has_com) {
-        registry.remove<center_of_mass>(entity);
-        registry.remove<edyn::origin>(entity);
+        internal::apply_center_of_mass(registry, entity, com);
     }
 }
 
@@ -368,6 +347,123 @@ void wake_up_entity(entt::registry &registry, entt::entity entity) {
         stepper->wake_up_entity(entity);
     } else {
         wake_up_island_resident(registry, entity);
+    }
+}
+
+template<typename ShapeType>
+void rigidbody_assign_shape(entt::registry &registry, entt::entity entity, ShapeType &shape) {
+    if (!registry.any_of<static_tag>(entity)) {
+        EDYN_ASSERT((!tuple_has_type<ShapeType, static_shapes_tuple_t>::value),
+                    "Shapes of this type can only be used with static rigid bodies.");
+    }
+
+    constexpr auto index = get_shape_index<ShapeType>();
+
+    if (auto *curr_index = registry.try_get<shape_index>(entity)) {
+        // Replace current shape with new.
+        if (curr_index->value == index) {
+            registry.replace<ShapeType>(entity, shape);
+        } else {
+            visit_shape(registry, entity, [&](auto &curr_shape) {
+                using CurrShapeType = std::decay_t<decltype(curr_shape)>;
+                registry.erase<CurrShapeType>(entity);
+            });
+            curr_index->value = index;
+            registry.emplace<ShapeType>(entity, shape);
+            registry.patch<shape_index>(entity);
+        }
+    } else {
+        // This is an amorphous rigid body. Assign new shape.
+        registry.emplace<ShapeType>(entity, shape);
+        registry.emplace<shape_index>(entity, index);
+
+        const auto &pos = registry.get<position>(entity);
+        const auto &orn = registry.get<orientation>(entity);
+        auto aabb = shape_aabb(shape, pos, orn);
+        registry.emplace<AABB>(entity, aabb);
+    }
+
+    // Assign tag for dynamic rolling shapes.
+    if (registry.all_of<dynamic_tag>(entity)) {
+        if constexpr(tuple_has_type<ShapeType, rolling_shapes_tuple_t>::value) {
+            if (!registry.all_of<rolling_tag>(entity)) {
+                registry.emplace<rolling_tag>(entity);
+            }
+
+            auto roll_dir = shape_rolling_direction(shape);
+
+            if (roll_dir != vector3_zero) {
+                registry.emplace_or_replace<roll_direction>(entity, roll_dir);
+            } else {
+                registry.remove<roll_direction>(entity);
+            }
+        } else {
+            registry.remove<rolling_tag>(entity);
+            registry.remove<roll_direction>(entity);
+        }
+    }
+}
+
+void rigidbody_set_shape(entt::registry &registry, entt::entity entity, std::optional<shapes_variant_t> shape_opt) {
+    if (shape_opt) {
+        std::visit([&](auto &shape) {
+            rigidbody_assign_shape(registry, entity, shape);
+        }, *shape_opt);
+    } else if (registry.all_of<shape_index>(entity)) {
+        visit_shape(registry, entity, [&](auto &curr_shape) {
+            using CurrShapeType = std::decay_t<decltype(curr_shape)>;
+            registry.erase<CurrShapeType>(entity);
+        });
+        registry.erase<shape_index>(entity);
+        registry.erase<AABB>(entity);
+        registry.remove<rolling_tag>(entity);
+        registry.remove<roll_direction>(entity);
+    }
+
+    // Remove all contacts associated with this body since all existing contact
+    // points are now most likely invalid.
+    auto manifold_view = registry.view<contact_manifold>();
+    visit_edges(registry, entity, [&](entt::entity edge_entity) {
+        if (manifold_view.contains(edge_entity)) {
+            registry.destroy(edge_entity);
+        }
+    });
+}
+
+}
+
+namespace edyn::internal {
+
+void apply_center_of_mass(entt::registry &registry, entt::entity entity, const vector3 &com) {
+    auto body_view = registry.view<position, orientation, linvel, angvel>();
+    auto com_view = registry.view<center_of_mass>();
+
+    auto [pos, orn, linvel, angvel] = body_view.get<position, orientation, edyn::linvel, edyn::angvel>(entity);
+    auto com_old = vector3_zero;
+    auto has_com = com_view.contains(entity);
+
+    if (has_com) {
+        com_old = com_view.get<center_of_mass>(entity);
+    }
+
+    // Position and linear velocity must change when center of mass shifts,
+    // since they're stored with respect to the center of mass.
+    auto origin = to_world_space(-com_old, pos, orn);
+    auto com_world = to_world_space(com, origin, orn);
+    linvel += cross(angvel, com_world - pos);
+    pos = com_world;
+
+    if (com != vector3_zero) {
+        if (has_com) {
+            registry.replace<center_of_mass>(entity, com);
+            registry.replace<edyn::origin>(entity, origin);
+        } else {
+            registry.emplace<center_of_mass>(entity, com);
+            registry.emplace<edyn::origin>(entity, origin);
+        }
+    } else if (has_com) {
+        registry.remove<center_of_mass>(entity);
+        registry.remove<edyn::origin>(entity);
     }
 }
 

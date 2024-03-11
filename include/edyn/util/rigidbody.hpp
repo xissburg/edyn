@@ -111,11 +111,12 @@ void rigidbody_apply_impulse(entt::registry &, entt::entity,
 void rigidbody_apply_torque_impulse(entt::registry &, entt::entity,
                                     const vector3 &torque_impulse);
 
+// TODO: Review and document these functions that properly handle kinematic movement.
 void update_kinematic_position(entt::registry &, entt::entity, const vector3 &, scalar dt);
 void update_kinematic_orientation(entt::registry &, entt::entity, const quaternion &, scalar dt);
 void clear_kinematic_velocities(entt::registry &);
 
-bool validate_rigidbody(entt::entity &, entt::registry &);
+bool validate_rigidbody(entt::registry &, entt::entity &);
 
 /**
  * @brief Set the mass of a rigid body.
@@ -159,7 +160,9 @@ void set_rigidbody_friction(entt::registry &, entt::entity, scalar);
  */
 void set_center_of_mass(entt::registry &, entt::entity, const vector3 &com);
 
-void apply_center_of_mass(entt::registry &, entt::entity, const vector3 &com);
+namespace internal {
+    void apply_center_of_mass(entt::registry &, entt::entity, const vector3 &com);
+}
 
 /**
  * @brief Get location of rigid body's origin in world space. The position and
@@ -194,6 +197,15 @@ void rigidbody_update_origin(entt::registry &, entt::entity);
  * @param entity Rigid body entity.
  */
 void wake_up_entity(entt::registry &, entt::entity);
+
+/**
+ * @brief Change rigid body shape.
+ * @param registry Data source.
+ * @param entity Rigid body entity.
+ * @param shape_opt Optional shape. If empty, rigid body is converted into an
+ * amorphous body which does not registers collisions.
+ */
+void rigidbody_set_shape(entt::registry &, entt::entity, std::optional<shapes_variant_t> shape_opt);
 
 }
 
