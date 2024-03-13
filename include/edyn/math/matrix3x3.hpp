@@ -120,10 +120,38 @@ constexpr bool operator!=(const matrix3x3 &m, const matrix3x3 &n) noexcept {
            m.row[2] != n.row[2];
 }
 
+// Check if a matrix is bigger than another component-wise.
+constexpr bool operator>(const matrix3x3 &m, const matrix3x3 &n) noexcept {
+    return m.row[0] > n.row[0] &&
+           m.row[1] > n.row[1] &&
+           m.row[2] > n.row[2];
+}
+
+// Check if a matrix is smaller than another component-wise.
+constexpr bool operator<(const matrix3x3 &m, const matrix3x3 &n) noexcept {
+    return m.row[0] < n.row[0] &&
+           m.row[1] < n.row[1] &&
+           m.row[2] < n.row[2];
+}
+
+// Check if a matrix is greater than or equal to another component-wise.
+constexpr bool operator>=(const matrix3x3 &m, const matrix3x3 &n) noexcept {
+    return m.row[0] >= n.row[0] &&
+           m.row[1] >= n.row[1] &&
+           m.row[2] >= n.row[2];
+}
+
+// Check if a matrix is less than or equal to another component-wise.
+constexpr bool operator<=(const matrix3x3 &m, const matrix3x3 &n) noexcept {
+    return m.row[0] <= n.row[0] &&
+           m.row[1] <= n.row[1] &&
+           m.row[2] <= n.row[2];
+}
+
 // Create a matrix with the given column vectors.
 constexpr matrix3x3 matrix3x3_columns(const vector3 &v0,
-                                   const vector3 &v1,
-                                   const vector3 &v2) noexcept {
+                                      const vector3 &v1,
+                                      const vector3 &v2) noexcept {
     return {
         vector3{v0.x, v1.x, v2.x},
         vector3{v0.y, v1.y, v2.y},
