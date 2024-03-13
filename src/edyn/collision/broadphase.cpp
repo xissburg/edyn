@@ -72,6 +72,8 @@ void broadphase::on_destroy_island_tree_resident(entt::registry &registry, entt:
 }
 
 void broadphase::init_new_aabb_entities() {
+    entity_vector_erase_invalid(m_new_aabb_entities, *m_registry);
+
     if (m_new_aabb_entities.empty()) {
         return;
     }
@@ -80,8 +82,8 @@ void broadphase::init_new_aabb_entities() {
     auto procedural_view = m_registry->view<procedural_tag>();
 
     for (auto entity : m_new_aabb_entities) {
-        // Entity might've been destroyed, thus skip it.
-        if (!m_registry->valid(entity)) continue;
+        // Entity might've been cleared.
+        if (!aabb_view.contains(entity)) continue;
 
         auto &aabb = aabb_view.get<AABB>(entity);
         bool procedural = procedural_view.contains(entity);

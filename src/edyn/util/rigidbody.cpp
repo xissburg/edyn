@@ -2,6 +2,8 @@
 #include "edyn/collision/broadphase.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/comp/center_of_mass.hpp"
+#include "edyn/comp/delta_angvel.hpp"
+#include "edyn/comp/delta_linvel.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/origin.hpp"
 #include "edyn/comp/roll_direction.hpp"
@@ -183,6 +185,41 @@ entt::entity make_rigidbody(entt::registry &registry, const rigidbody_def &def) 
     auto ent = registry.create();
     make_rigidbody(ent, registry, def);
     return ent;
+}
+
+void clear_rigidbody(entt::registry &registry, entt::entity entity) {
+    registry.erase<rigidbody_tag>(entity);
+    registry.remove<dynamic_tag, kinematic_tag, static_tag>(entity);
+    registry.remove<procedural_tag>(entity);
+
+    registry.remove<networked_tag>(entity);
+    registry.remove<sleeping_disabled_tag>(entity);
+    registry.remove<collision_filter>(entity);
+
+    if (rigidbody_has_shape(registry, entity)) {
+        visit_shape(registry, entity, [&](auto &shape) {
+            using ShapeType = std::decay_t<decltype(shape)>;
+            registry.erase<ShapeType>(entity);
+        });
+        registry.erase<shape_index>(entity);
+        registry.erase<AABB>(entity);
+        registry.remove<rolling_tag>(entity);
+        registry.remove<roll_direction>(entity);
+    }
+
+    registry.remove<material, gravity, center_of_mass>(entity);
+
+    registry.erase<linvel, angvel>(entity);
+    registry.erase<mass, mass_inv>(entity);
+    registry.erase<inertia, inertia_inv, inertia_world_inv>(entity);
+
+    registry.remove<present_position, present_orientation>(entity);
+    registry.erase<position, orientation>(entity);
+
+    registry.remove<delta_linvel, delta_angvel>(entity);
+
+    registry.erase<graph_node>(entity);
+    registry.remove<island_resident, multi_island_resident>(entity);
 }
 
 void rigidbody_apply_impulse(entt::registry &registry, entt::entity entity,
@@ -429,6 +466,10 @@ void rigidbody_set_shape(entt::registry &registry, entt::entity entity, std::opt
             registry.destroy(edge_entity);
         }
     });
+}
+
+bool rigidbody_has_shape(const entt::registry &registry, entt::entity entity) {
+    return registry.all_of<shape_index>(entity);
 }
 
 void rigidbody_set_kind(entt::registry &registry, entt::entity entity, rigidbody_kind kind) {

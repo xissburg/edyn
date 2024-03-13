@@ -93,6 +93,14 @@ void make_rigidbody(entt::entity, entt::registry &, const rigidbody_def &);
 entt::entity make_rigidbody(entt::registry &, const rigidbody_def &);
 
 /**
+ * @brief Destroys a rigid body without destroying the entity. All components
+ * assigned in `make_rigidbody` are removed.
+ * @param registry Data source.
+ * @param entity Rigid body entity.
+ */
+void clear_rigidbody(entt::registry &, entt::entity);
+
+/**
  * @brief Applies `impulse` to entity.
  * @param registry Data source.
  * @param entity Rigid body entity.
@@ -204,6 +212,14 @@ void wake_up_entity(entt::registry &, entt::entity);
  * amorphous body which does not registers collisions.
  */
 void rigidbody_set_shape(entt::registry &, entt::entity, std::optional<shapes_variant_t> shape_opt);
+
+/**
+ * @brief Check whether a rigid body is amorphous.
+ * @param registry Data source.
+ * @param entity Rigid body entity.
+ * @return False if rigid body is amorphous.
+ */
+bool rigidbody_has_shape(const entt::registry &, entt::entity);
 
 /**
  * @brief Assign a new kind to an existing rigid body: dynamic, kinematic or
