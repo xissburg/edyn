@@ -52,7 +52,7 @@ template<typename C, typename BodyView, typename OriginView, typename ManifoldVi
 void invoke_prepare_constraint(entt::registry &registry, entt::entity entity, C &&con,
                                constraint_row_prep_cache &cache, scalar dt,
                                const BodyView &body_view, const OriginView &origin_view,
-                               const ManifoldView &manifold_view, const ProceduralView &proc_view,
+                               const ManifoldView &manifold_view, const ProceduralView &procedural_view,
                                const StaticView &static_view) {
     auto [posA, ornA, dvA, dwA] = body_view.template get<position, orientation, delta_linvel, delta_angvel>(con.body[0]);
     auto [posB, ornB, dvB, dwB] = body_view.template get<position, orientation, delta_linvel, delta_angvel>(con.body[1]);
@@ -65,7 +65,7 @@ void invoke_prepare_constraint(entt::registry &registry, entt::entity entity, C 
     scalar inv_mA, inv_mB;
     matrix3x3 inv_IA, inv_IB;
 
-    if (proc_view.contains(con.body[0])) {
+    if (procedural_view.contains(con.body[0])) {
         inv_mA = body_view.template get<mass_inv>(con.body[0]);
         inv_IA = body_view.template get<inertia_world_inv>(con.body[0]);
     } else {
@@ -81,7 +81,7 @@ void invoke_prepare_constraint(entt::registry &registry, entt::entity entity, C 
         angvelA = body_view.template get<angvel>(con.body[0]);
     }
 
-    if (proc_view.contains(con.body[1])) {
+    if (procedural_view.contains(con.body[1])) {
         inv_mB = body_view.template get<mass_inv>(con.body[1]);
         inv_IB = body_view.template get<inertia_world_inv>(con.body[1]);
     } else {
@@ -141,19 +141,19 @@ static void prepare_constraints(entt::registry &registry, scalar dt, bool mt) {
     auto origin_view = registry.view<origin>();
     auto cache_view = registry.view<constraint_row_prep_cache>(exclude_sleeping_disabled);
     auto manifold_view = registry.view<contact_manifold>();
-    auto proc_view = registry.view<procedural_tag>();
+    auto procedural_view = registry.view<procedural_tag>();
     auto static_view = registry.view<static_tag>();
     auto con_view_tuple = get_tuple_of_views(registry, constraints_tuple);
 
     auto for_loop_body = [&registry, body_view, cache_view, origin_view,
-                          manifold_view, proc_view, static_view, con_view_tuple, dt](entt::entity entity) {
+                          manifold_view, procedural_view, static_view, con_view_tuple, dt](entt::entity entity) {
         auto &prep_cache = cache_view.get<constraint_row_prep_cache>(entity);
         prep_cache.clear();
 
         std::apply([&](auto &&... con_view) {
             ((con_view.contains(entity) ?
                 invoke_prepare_constraint(registry, entity, std::get<0>(con_view.get(entity)), prep_cache,
-                                          dt, body_view, origin_view, manifold_view, proc_view, static_view) : void(0)), ...);
+                                          dt, body_view, origin_view, manifold_view, procedural_view, static_view) : void(0)), ...);
         }, con_view_tuple);
     };
 

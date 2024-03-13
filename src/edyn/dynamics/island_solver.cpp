@@ -387,8 +387,8 @@ scalar solve_position_constraints_indexed(entt::registry &registry, const island
                                          [[maybe_unused]] std::tuple<C...>, std::index_sequence<Ints...>) {
     auto body_view = registry.view<position, orientation, mass_inv, inertia_world_inv, inertia_inv>();
     auto origin_view = registry.view<origin, center_of_mass>();
-    auto proc_view = registry.view<procedural_tag>();
-    return max_variadic(solve_position_constraints_each<C>(registry, constraint_entities.entities[Ints], body_view, origin_view, proc_view)...);
+    auto procedural_view = registry.view<procedural_tag>();
+    return max_variadic(solve_position_constraints_each<C>(registry, constraint_entities.entities[Ints], body_view, origin_view, procedural_view)...);
 }
 
 template<typename... C>
