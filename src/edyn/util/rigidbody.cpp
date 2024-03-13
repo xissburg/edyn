@@ -498,6 +498,8 @@ void rigidbody_apply_kind(entt::registry &registry, entt::entity entity, rigidbo
     if (kind == rigidbody_kind::rb_dynamic) {
         auto &mass = registry.get<edyn::mass>(entity);
         EDYN_ASSERT(mass > EDYN_EPSILON && mass < large_scalar, "Dynamic rigid body must have non-zero mass.");
+        auto &inertia = registry.get<edyn::inertia>(entity);
+        EDYN_ASSERT(inertia != matrix3x3_zero, "Dynamic rigid body must have non-zero inertia.");
     }
 
     const bool procedural = kind == rigidbody_kind::rb_dynamic;
