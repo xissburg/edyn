@@ -630,17 +630,17 @@ void island_manager::set_procedural(entt::entity entity, bool is_procedural) {
 
                 insert_to_island(island_entity, node_entities, {});
             } else {
-                auto island_entities = std::vector<entt::entity>(resident->island_entities.begin(), resident->island_entities.end());
-                if (island_entities.size() > 1) {
+                if (resident->island_entities.size() > 1) {
+                    auto island_entities = std::vector(resident->island_entities.begin(), resident->island_entities.end());
                     merged_island_entity = merge_islands(island_entities, {}, {});
                 } else {
-                    merged_island_entity = island_entities.front();
+                    merged_island_entity = *resident->island_entities.begin();
                 }
-            }
 
-            resident->island_entities.clear();
-            m_registry->remove<multi_island_resident>(entity);
-            m_registry->emplace<island_resident>(entity, merged_island_entity);
+                resident->island_entities.clear(); // Must clear because `on_destroy_multi_island_resident` will be called.
+                m_registry->remove<multi_island_resident>(entity);
+                m_registry->emplace<island_resident>(entity, merged_island_entity);
+            }
         }
     } else {
         if (auto *resident = m_registry->try_get<island_resident>(entity)) {

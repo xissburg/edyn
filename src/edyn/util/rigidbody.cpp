@@ -243,14 +243,12 @@ bool validate_rigidbody(entt::registry &registry, entt::entity &entity) {
 
 void set_rigidbody_mass(entt::registry &registry, entt::entity entity, scalar mass) {
     EDYN_ASSERT(mass > EDYN_EPSILON && mass < large_scalar);
-    EDYN_ASSERT(registry.any_of<dynamic_tag>(entity));
     EDYN_ASSERT(registry.any_of<rigidbody_tag>(entity));
     registry.replace<edyn::mass>(entity, mass);
     registry.replace<edyn::mass_inv>(entity, scalar(1.0) / mass);
 }
 
 void set_rigidbody_inertia(entt::registry &registry, entt::entity entity, const matrix3x3 &inertia) {
-    EDYN_ASSERT(registry.any_of<dynamic_tag>(entity));
     EDYN_ASSERT(registry.any_of<rigidbody_tag>(entity));
     auto I_inv = inverse_matrix_symmetric(inertia);
     registry.replace<edyn::inertia>(entity, inertia);

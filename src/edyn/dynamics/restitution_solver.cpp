@@ -30,17 +30,34 @@
 
 namespace edyn {
 
-template<typename BodyView, typename OriginView>
+template<typename BodyView, typename OriginView, typename StaticView>
 scalar get_manifold_min_relvel(const contact_manifold &manifold, const BodyView &body_view,
-                               const OriginView &origin_view) {
+                               const OriginView &origin_view, const StaticView &static_view) {
     if (manifold.num_points == 0) {
         return EDYN_SCALAR_MAX;
     }
 
-    auto [posA, ornA, linvelA, angvelA] =
-        body_view.template get<position, orientation, linvel, angvel>(manifold.body[0]);
-    auto [posB, ornB, linvelB, angvelB] =
-        body_view.template get<position, orientation, linvel, angvel>(manifold.body[1]);
+    auto [posA, ornA] = body_view.template get<position, orientation>(manifold.body[0]);
+    auto [posB, ornB] = body_view.template get<position, orientation>(manifold.body[1]);
+
+    vector3 linvelA, linvelB;
+    vector3 angvelA, angvelB;
+
+    if (static_view.contains(manifold.body[0])) {
+        linvelA = vector3_zero;
+        angvelA = vector3_zero;
+    } else {
+        linvelA = body_view.template get<linvel>(manifold.body[0]);
+        angvelA = body_view.template get<angvel>(manifold.body[0]);
+    }
+
+    if (static_view.contains(manifold.body[1])) {
+        linvelB = vector3_zero;
+        angvelB = vector3_zero;
+    } else {
+        linvelB = body_view.template get<linvel>(manifold.body[1]);
+        angvelB = body_view.template get<angvel>(manifold.body[1]);
+    }
 
     auto originA = origin_view.contains(manifold.body[0]) ? origin_view.template get<origin>(manifold.body[0]) : static_cast<vector3>(posA);
     auto originB = origin_view.contains(manifold.body[1]) ? origin_view.template get<origin>(manifold.body[1]) : static_cast<vector3>(posB);
@@ -95,7 +112,7 @@ bool solve_restitution_iteration(entt::registry &registry, entt::entity island_e
         }
 
         auto &manifold = manifold_view.get<contact_manifold>(entity);
-        auto local_min_relvel = get_manifold_min_relvel(manifold, body_view, origin_view);
+        auto local_min_relvel = get_manifold_min_relvel(manifold, body_view, origin_view, static_view);
 
         if (local_min_relvel < min_relvel) {
             min_relvel = local_min_relvel;
@@ -141,6 +158,9 @@ bool solve_restitution_iteration(entt::registry &registry, entt::entity island_e
             auto originB = origin_view.contains(manifold.body[1]) ?
                 origin_view.get<origin>(manifold.body[1]) : static_cast<vector3>(posB);
 
+            // Get velocity from registry for non-static entities (dynamic and kinematic).
+            // Get mass and inertia from registry for procedural entities (dynamic only).
+            // Use zero mass, inertia and velocities otherwise.
             vector3 linvelA, linvelB;
             vector3 angvelA, angvelB;
             scalar inv_mA, inv_mB;
@@ -317,7 +337,7 @@ bool solve_restitution_iteration(entt::registry &registry, entt::entity island_e
             auto &manifold = manifold_view.get<contact_manifold>(edge_entity);
 
             // Ignore manifolds which are not penetrating fast enough.
-            auto local_min_relvel = get_manifold_min_relvel(manifold, body_view, origin_view);
+            auto local_min_relvel = get_manifold_min_relvel(manifold, body_view, origin_view, static_view);
 
             if (local_min_relvel < relvel_threshold) {
                 manifold_entities.push_back(edge_entity);

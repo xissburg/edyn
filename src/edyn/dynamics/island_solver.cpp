@@ -306,13 +306,15 @@ public:
 template<typename C, typename BodyView, typename OriginView, typename ProceduralView>
 scalar solve_position_constraints_each(entt::registry &registry, const std::vector<entt::entity> &entities,
                                        const BodyView &body_view, const OriginView &origin_view,
-                                       const ProceduralView &proc_view) {
+                                       const ProceduralView &procedural_view) {
     auto max_error = scalar(0);
 
     if constexpr(has_solve_position<C>::value) {
         auto con_view = registry.view<C>();
         auto manifold_view = registry.view<contact_manifold>();
         auto solver = position_solver{};
+
+        // Masses and inertias to be used for non-procedural entities.
         mass inv_mA {0}, inv_mB {0};
         inertia_world_inv inv_IA {matrix3x3_zero}, inv_IB{matrix3x3_zero};
         inertia_inv inv_IA_local{matrix3x3_zero}, inv_IB_local{matrix3x3_zero};
@@ -327,7 +329,7 @@ scalar solve_position_constraints_each(entt::registry &registry, const std::vect
             solver.ornA = &ornA;
             solver.ornB = &ornB;
 
-            if (proc_view.contains(con.body[0])) {
+            if (procedural_view.contains(con.body[0])) {
                 solver.inv_mA = body_view.template get<mass_inv>(con.body[0]);
                 solver.inv_IA = &body_view.template get<inertia_world_inv>(con.body[0]);
                 solver.inv_IA_local = &body_view.template get<inertia_inv>(con.body[0]);
@@ -337,7 +339,7 @@ scalar solve_position_constraints_each(entt::registry &registry, const std::vect
                 solver.inv_IA_local = &inv_IA_local;
             }
 
-            if (proc_view.contains(con.body[1])) {
+            if (procedural_view.contains(con.body[1])) {
                 solver.inv_mB = body_view.template get<mass_inv>(con.body[1]);
                 solver.inv_IB = &body_view.template get<inertia_world_inv>(con.body[1]);
                 solver.inv_IB_local = &body_view.template get<inertia_inv>(con.body[1]);

@@ -57,6 +57,9 @@ void invoke_prepare_constraint(entt::registry &registry, entt::entity entity, C 
     auto [posA, ornA, dvA, dwA] = body_view.template get<position, orientation, delta_linvel, delta_angvel>(con.body[0]);
     auto [posB, ornB, dvB, dwB] = body_view.template get<position, orientation, delta_linvel, delta_angvel>(con.body[1]);
 
+    // Get velocity from registry for non-static entities (dynamic and kinematic).
+    // Get mass and inertia from registry for procedural entities (dynamic only).
+    // Use zero mass, inertia and velocities otherwise.
     vector3 linvelA, linvelB;
     vector3 angvelA, angvelB;
     scalar inv_mA, inv_mB;

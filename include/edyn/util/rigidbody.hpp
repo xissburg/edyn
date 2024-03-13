@@ -205,6 +205,18 @@ void wake_up_entity(entt::registry &, entt::entity);
  */
 void rigidbody_set_shape(entt::registry &, entt::entity, std::optional<shapes_variant_t> shape_opt);
 
+/**
+ * @brief Assign a new kind to an existing rigid body: dynamic, kinematic or
+ * static.
+ * @remark Ensure non-zero mass and inertia are assigned when setting the kind
+ * to dynamic.
+ * @remark If setting kind to static or kinematic, destroy all constraints
+ * between this body and any other static and kinematic bodies. One of the
+ * constrained bodies must be dynamic.
+ * @param registry Data source.
+ * @param entity Rigid body entity.
+ * @param kind The new kind.
+ */
 void rigidbody_set_kind(entt::registry &, entt::entity, rigidbody_kind);
 
 }
