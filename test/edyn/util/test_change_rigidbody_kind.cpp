@@ -1,5 +1,6 @@
 #include "../common/common.hpp"
 #include "edyn/comp/tag.hpp"
+#include "edyn/math/matrix3x3.hpp"
 #include "edyn/util/rigidbody.hpp"
 
 TEST(test_change_rigidbody_kind, change_kind_kinematic_dynamic) {
@@ -14,6 +15,9 @@ TEST(test_change_rigidbody_kind, change_kind_kinematic_dynamic) {
     auto rb = edyn::make_rigidbody(registry, def);
     edyn::update(registry, 0.01);
 
+    // Must ensure non-zero mass before making it dynamic.
+    edyn::set_rigidbody_mass(registry, rb, 10);
+    edyn::set_rigidbody_inertia(registry, rb, edyn::matrix3x3_identity);
     edyn::rigidbody_set_kind(registry, rb, edyn::rigidbody_kind::rb_dynamic);
     edyn::update(registry, 0.01);
 
