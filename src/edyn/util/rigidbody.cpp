@@ -1,4 +1,5 @@
 #include <entt/entity/registry.hpp>
+#include "edyn/collision/broadphase.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/comp/center_of_mass.hpp"
 #include "edyn/comp/island.hpp"
@@ -10,6 +11,8 @@
 #include "edyn/math/transform.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/shapes/shapes.hpp"
+#include "edyn/simulation/island_manager.hpp"
+#include "edyn/simulation/stepper_sequential.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/util/island_util.hpp"
 #include "edyn/util/rigidbody.hpp"
@@ -430,6 +433,14 @@ void rigidbody_set_shape(entt::registry &registry, entt::entity entity, std::opt
     });
 }
 
+void rigidbody_set_kind(entt::registry &registry, entt::entity entity, rigidbody_kind kind) {
+    if (auto *stepper = registry.ctx().find<stepper_async>()) {
+        stepper->set_rigidbody_kind(entity, kind);
+    } else {
+        internal::rigidbody_apply_kind(registry, entity,kind, registry.ctx().at<stepper_sequential>().get_island_manager());
+    }
+}
+
 }
 
 namespace edyn::internal {
@@ -464,6 +475,54 @@ void apply_center_of_mass(entt::registry &registry, entt::entity entity, const v
     } else if (has_com) {
         registry.remove<center_of_mass>(entity);
         registry.remove<edyn::origin>(entity);
+    }
+}
+
+void rigidbody_apply_kind(entt::registry &registry, entt::entity entity, rigidbody_kind kind,
+                          island_manager &isle_mgr) {
+
+    switch (kind) {
+    case rigidbody_kind::rb_dynamic:
+        registry.remove<static_tag, kinematic_tag>(entity);
+        registry.emplace<dynamic_tag>(entity);
+        registry.emplace<procedural_tag>(entity);
+        break;
+    case rigidbody_kind::rb_kinematic:
+        registry.remove<dynamic_tag, static_tag, procedural_tag>(entity);
+        registry.emplace<kinematic_tag>(entity);
+        break;
+    case rigidbody_kind::rb_static:
+        registry.remove<dynamic_tag, kinematic_tag, procedural_tag>(entity);
+        registry.emplace<static_tag>(entity);
+        break;
+    }
+
+    if (kind == rigidbody_kind::rb_dynamic) {
+        auto &mass = registry.get<edyn::mass>(entity);
+        EDYN_ASSERT(mass > EDYN_EPSILON && mass < large_scalar, "Dynamic rigid body must have non-zero mass.");
+    }
+
+    const bool procedural = kind == rigidbody_kind::rb_dynamic;
+
+    auto &node = registry.get<graph_node>(entity);
+    registry.ctx().at<entity_graph>().set_connecting_node(node.node_index, procedural);
+    registry.ctx().at<broadphase>().set_procedural(entity, procedural);
+    isle_mgr.set_procedural(entity, procedural);
+
+    // Remove all contacts between non-procedural entities. Constraints must have
+    // at least one dynamic entity.
+    if (!procedural) {
+        auto manifold_view = registry.view<contact_manifold>();
+        visit_edges(registry, entity, [&](entt::entity edge_entity) {
+            if (manifold_view.contains(edge_entity)) {
+                auto [manifold] = manifold_view.get(edge_entity);
+                auto other = manifold.body[0] == entity ? manifold.body[1] : manifold.body[0];
+
+                if (!registry.all_of<procedural_tag>(other)) {
+                    registry.destroy(edge_entity);
+                }
+            }
+        });
     }
 }
 

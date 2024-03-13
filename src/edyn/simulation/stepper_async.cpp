@@ -330,6 +330,12 @@ void stepper_async::wake_up_entity(entt::entity entity) {
     send_message_to_worker<msg::wake_up_residents>(std::move(msg));
 }
 
+void stepper_async::set_rigidbody_kind(entt::entity entity, rigidbody_kind kind) {
+    auto msg = msg::change_rigidbody_kind{};
+    msg.changes.emplace_back(entity, kind);
+    send_message_to_worker<msg::change_rigidbody_kind>(std::move(msg));
+}
+
 raycast_id_type stepper_async::raycast(vector3 p0, vector3 p1,
                                        const raycast_delegate_type &delegate,
                                        std::vector<entt::entity> ignore_entities) {

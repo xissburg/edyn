@@ -225,4 +225,23 @@ void broadphase::clear() {
     m_pair_results.clear();
 }
 
+void broadphase::set_procedural(entt::entity entity, bool procedural) {
+    auto &resident = m_registry->get<tree_resident>(entity);
+
+    if (resident.procedural == procedural) {
+        return;
+    }
+
+    if (resident.procedural) {
+        m_tree.destroy(resident.id);
+    } else {
+        m_np_tree.destroy(resident.id);
+    }
+
+    auto &tree = procedural ? m_tree : m_np_tree;
+    auto &aabb = m_registry->get<AABB>(entity);
+    resident.id = tree.create(aabb, entity);
+    resident.procedural = procedural;
+}
+
 }

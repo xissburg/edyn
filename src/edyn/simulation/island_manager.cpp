@@ -286,9 +286,9 @@ void island_manager::insert_to_island(entt::entity island_entity,
     wake_up_island(*m_registry, island_entity);
 }
 
-void island_manager::merge_islands(const std::vector<entt::entity> &island_entities,
-                                   const std::vector<entt::entity> &new_nodes,
-                                   const std::vector<entt::entity> &new_edges) {
+entt::entity island_manager::merge_islands(const std::vector<entt::entity> &island_entities,
+                                           const std::vector<entt::entity> &new_nodes,
+                                           const std::vector<entt::entity> &new_edges) {
     EDYN_ASSERT(island_entities.size() > 1);
 
     // Pick biggest island and move the other entities into it.
@@ -336,6 +336,9 @@ void island_manager::merge_islands(const std::vector<entt::entity> &island_entit
     for (auto [entity, resident] : m_registry->view<multi_island_resident>().each()) {
         resident.island_entities.remove(other_island_entities.begin(), other_island_entities.end());
     }
+
+    // Return island that survived the merge.
+    return island_entity;
 }
 
 void island_manager::split_islands() {
@@ -608,6 +611,45 @@ void island_manager::put_islands_to_sleep() {
             }
         } else {
             island.sleep_timestamp.reset();
+        }
+    }
+}
+
+void island_manager::set_procedural(entt::entity entity, bool is_procedural) {
+    if (is_procedural) {
+        if (auto *resident = m_registry->try_get<multi_island_resident>(entity)) {
+            entt::entity merged_island_entity;
+
+            if (resident->island_entities.empty()) {
+                m_registry->remove<multi_island_resident>(entity);
+                m_registry->emplace<island_resident>(entity);
+
+                auto island_entity = create_island();
+                auto node_entities = std::vector<entt::entity>{};
+                node_entities.push_back(entity);
+
+                insert_to_island(island_entity, node_entities, {});
+            } else {
+                auto island_entities = std::vector<entt::entity>(resident->island_entities.begin(), resident->island_entities.end());
+                if (island_entities.size() > 1) {
+                    merged_island_entity = merge_islands(island_entities, {}, {});
+                } else {
+                    merged_island_entity = island_entities.front();
+                }
+            }
+
+            resident->island_entities.clear();
+            m_registry->remove<multi_island_resident>(entity);
+            m_registry->emplace<island_resident>(entity, merged_island_entity);
+        }
+    } else {
+        if (auto *resident = m_registry->try_get<island_resident>(entity)) {
+            entt::sparse_set island_entities;
+            island_entities.emplace(resident->island_entity);
+            resident->island_entity = entt::null;
+
+            m_registry->emplace<multi_island_resident>(entity, std::move(island_entities));
+            m_registry->remove<island_resident>(entity);
         }
     }
 }

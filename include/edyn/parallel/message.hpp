@@ -15,6 +15,7 @@
 #include "edyn/parallel/message_dispatcher.hpp"
 #include "edyn/core/entity_pair.hpp"
 #include "edyn/replication/registry_operation.hpp"
+#include "edyn/util/rigidbody.hpp"
 
 namespace edyn::msg {
 
@@ -66,6 +67,10 @@ struct apply_network_pools {
 
 struct wake_up_residents {
     std::vector<entt::entity> residents;
+};
+
+struct change_rigidbody_kind {
+    std::vector<std::pair<entt::entity, rigidbody_kind>> changes;
 };
 
 struct raycast_request {

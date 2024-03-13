@@ -53,6 +53,8 @@ public:
 
     void clear();
 
+    void set_procedural(entt::entity, bool);
+
 private:
     entt::registry *m_registry;
     dynamic_tree m_tree; // Procedural dynamic tree.

@@ -303,31 +303,49 @@ public:
     static constexpr bool value = sizeof(test<T>(0)) == sizeof(yes);
 };
 
-template<typename C, typename BodyView, typename OriginView>
+template<typename C, typename BodyView, typename OriginView, typename ProceduralView>
 scalar solve_position_constraints_each(entt::registry &registry, const std::vector<entt::entity> &entities,
-                                       const BodyView &body_view, const OriginView &origin_view) {
+                                       const BodyView &body_view, const OriginView &origin_view,
+                                       const ProceduralView &proc_view) {
     auto max_error = scalar(0);
 
     if constexpr(has_solve_position<C>::value) {
         auto con_view = registry.view<C>();
         auto manifold_view = registry.view<contact_manifold>();
         auto solver = position_solver{};
+        mass inv_mA {0}, inv_mB {0};
+        inertia_world_inv inv_IA {matrix3x3_zero}, inv_IB{matrix3x3_zero};
+        inertia_inv inv_IA_local{matrix3x3_zero}, inv_IB_local{matrix3x3_zero};
 
         for (auto entity : entities) {
             auto [con] = con_view.get(entity);
-            auto [posA, ornA, inv_mA, inv_IA, inv_IA_local] = body_view.get(con.body[0]);
-            auto [posB, ornB, inv_mB, inv_IB, inv_IB_local] = body_view.get(con.body[1]);
+            auto [posA, ornA] = body_view.template get<position, orientation>(con.body[0]);
+            auto [posB, ornB] = body_view.template get<position, orientation>(con.body[1]);
 
             solver.posA = &posA;
             solver.posB = &posB;
             solver.ornA = &ornA;
             solver.ornB = &ornB;
-            solver.inv_mA = inv_mA;
-            solver.inv_mB = inv_mB;
-            solver.inv_IA = &inv_IA;
-            solver.inv_IB = &inv_IB;
-            solver.inv_IA_local = &inv_IA_local;
-            solver.inv_IB_local = &inv_IB_local;
+
+            if (proc_view.contains(con.body[0])) {
+                solver.inv_mA = body_view.template get<mass_inv>(con.body[0]);
+                solver.inv_IA = &body_view.template get<inertia_world_inv>(con.body[0]);
+                solver.inv_IA_local = &body_view.template get<inertia_inv>(con.body[0]);
+            } else {
+                solver.inv_mA = inv_mA;
+                solver.inv_IA = &inv_IA;
+                solver.inv_IA_local = &inv_IA_local;
+            }
+
+            if (proc_view.contains(con.body[1])) {
+                solver.inv_mB = body_view.template get<mass_inv>(con.body[1]);
+                solver.inv_IB = &body_view.template get<inertia_world_inv>(con.body[1]);
+                solver.inv_IB_local = &body_view.template get<inertia_inv>(con.body[1]);
+            } else {
+                solver.inv_mB = inv_mB;
+                solver.inv_IB = &inv_IB;
+                solver.inv_IB_local = &inv_IB_local;
+            }
 
             if (origin_view.contains(con.body[0])) {
                 solver.originA = &origin_view.template get<origin>(con.body[0]);
@@ -367,7 +385,8 @@ scalar solve_position_constraints_indexed(entt::registry &registry, const island
                                          [[maybe_unused]] std::tuple<C...>, std::index_sequence<Ints...>) {
     auto body_view = registry.view<position, orientation, mass_inv, inertia_world_inv, inertia_inv>();
     auto origin_view = registry.view<origin, center_of_mass>();
-    return max_variadic(solve_position_constraints_each<C>(registry, constraint_entities.entities[Ints], body_view, origin_view)...);
+    auto proc_view = registry.view<procedural_tag>();
+    return max_variadic(solve_position_constraints_each<C>(registry, constraint_entities.entities[Ints], body_view, origin_view, proc_view)...);
 }
 
 template<typename... C>
