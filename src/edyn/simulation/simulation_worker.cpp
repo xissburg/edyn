@@ -69,6 +69,7 @@ simulation_worker::simulation_worker(const settings &settings,
         msg::update_entities,
         msg::apply_network_pools,
         msg::wake_up_residents,
+        msg::change_rigidbody_kind,
         msg::raycast_request,
         msg::query_aabb_request,
         msg::query_aabb_of_interest_request,
@@ -108,6 +109,7 @@ void simulation_worker::init() {
     m_message_queue.sink<msg::query_aabb_of_interest_request>().connect<&simulation_worker::on_query_aabb_of_interest_request>(*this);
     m_message_queue.sink<msg::apply_network_pools>().connect<&simulation_worker::on_apply_network_pools>(*this);
     m_message_queue.sink<msg::wake_up_residents>().connect<&simulation_worker::on_wake_up_residents>(*this);
+    m_message_queue.sink<msg::change_rigidbody_kind>().connect<&simulation_worker::on_change_rigidbody_kind>(*this);
 
     auto &settings = m_registry.ctx().at<edyn::settings>();
 
@@ -592,6 +594,12 @@ void simulation_worker::on_apply_network_pools(message<msg::apply_network_pools>
 
 void simulation_worker::on_wake_up_residents(message<msg::wake_up_residents> &msg) {
     wake_up_island_residents(m_registry, msg.content.residents, m_entity_map);
+}
+
+void simulation_worker::on_change_rigidbody_kind(message<msg::change_rigidbody_kind> &msg) {
+    for (auto [entity, kind] : msg.content.changes) {
+        internal::rigidbody_apply_kind(m_registry, m_entity_map.at(entity), kind, m_island_manager);
+    }
 }
 
 }

@@ -24,6 +24,8 @@ enum class rigidbody_kind : uint8_t {
     rb_static
 };
 
+class island_manager;
+
 struct rigidbody_def {
     // The entity kind will determine which components are added to it
     // in the `make_rigidbody` call.
@@ -160,10 +162,6 @@ void set_rigidbody_friction(entt::registry &, entt::entity, scalar);
  */
 void set_center_of_mass(entt::registry &, entt::entity, const vector3 &com);
 
-namespace internal {
-    void apply_center_of_mass(entt::registry &, entt::entity, const vector3 &com);
-}
-
 /**
  * @brief Get location of rigid body's origin in world space. The position and
  * origin will match if the center of mass offset is zero.
@@ -207,6 +205,26 @@ void wake_up_entity(entt::registry &, entt::entity);
  */
 void rigidbody_set_shape(entt::registry &, entt::entity, std::optional<shapes_variant_t> shape_opt);
 
+/**
+ * @brief Assign a new kind to an existing rigid body: dynamic, kinematic or
+ * static.
+ * @remark Ensure non-zero mass and inertia are assigned when setting the kind
+ * to dynamic.
+ * @remark If setting kind to static or kinematic, destroy all constraints
+ * between this body and any other static and kinematic bodies. One of the
+ * constrained bodies must be dynamic.
+ * @param registry Data source.
+ * @param entity Rigid body entity.
+ * @param kind The new kind.
+ */
+void rigidbody_set_kind(entt::registry &, entt::entity, rigidbody_kind);
+
+}
+
+namespace edyn::internal {
+    void apply_center_of_mass(entt::registry &, entt::entity, const vector3 &com);
+    void rigidbody_apply_kind(entt::registry &registry, entt::entity entity, rigidbody_kind kind,
+                              island_manager &isle_mgr);
 }
 
 #endif // EDYN_UTIL_RIGIDBODY_HPP

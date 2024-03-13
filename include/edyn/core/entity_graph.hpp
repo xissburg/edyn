@@ -76,12 +76,13 @@ public:
     entity_pair edge_node_entities(index_type edge_index) const;
 
     bool is_connecting_node(index_type node_index) const;
+    void set_connecting_node(index_type node_index, bool connecting);
 
     /**
      * @brief Calculate whether this graph contains a single connected component.
      * @return Whether this graph is a single connected component.
      */
-    bool is_single_connected_component();
+    bool is_single_connected_component() const;
 
     /**
      * @brief Visit neighboring nodes of a node.
@@ -145,7 +146,7 @@ public:
      * multiple connected components.
      * @return The connected components.
      */
-    connected_components_t connected_components();
+    connected_components_t connected_components() const;
 
     /**
      * @brief Traverses nodes starting at the given node. Neighbors of

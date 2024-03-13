@@ -14,17 +14,14 @@ class island_manager {
     void insert_to_island(entt::entity island_entity,
                           const std::vector<entt::entity> &nodes,
                           const std::vector<entt::entity> &edges);
-    void merge_islands(const std::vector<entt::entity> &island_entities,
-                       const std::vector<entt::entity> &new_nodes,
-                       const std::vector<entt::entity> &new_edges);
+    entt::entity merge_islands(const std::vector<entt::entity> &island_entities,
+                               const std::vector<entt::entity> &new_nodes,
+                               const std::vector<entt::entity> &new_edges);
     void split_islands();
     void wake_up_islands();
 
     bool could_go_to_sleep(entt::entity island_entity) const;
     void put_islands_to_sleep();
-
-public:
-    island_manager(entt::registry &registry);
 
     void on_construct_graph_node(entt::registry &, entt::entity);
     void on_construct_graph_edge(entt::registry &, entt::entity);
@@ -33,10 +30,15 @@ public:
     void on_destroy_island_resident(entt::registry &, entt::entity);
     void on_destroy_multi_island_resident(entt::registry &, entt::entity);
 
+public:
+    island_manager(entt::registry &registry);
+
     void put_to_sleep(entt::entity island_entity);
     void put_all_to_sleep();
 
     void update(double timestamp);
+
+    void set_procedural(entt::entity entity, bool is_procedural);
 
     void set_last_time(double time) {
         m_last_time = time;
