@@ -118,12 +118,12 @@ void stepper_async::on_step_update(message<msg::step_update> &msg) {
     m_should_calculate_presentation_delay = true;
 
     // Insert entity mappings for new entities into the current op.
-    for (auto remote_entity : ops.create_entities) {
+    ops.create_for_each([&](entt::entity remote_entity) {
         if (m_entity_map.contains(remote_entity)) {
             auto local_entity = m_entity_map.at(remote_entity);
             m_op_builder->add_entity_mapping(local_entity, remote_entity);
         }
-    }
+    });
 
     auto node_view = registry.view<graph_node>();
 

@@ -216,13 +216,13 @@ void extrapolation_worker::on_extrapolation_operation_create(message<extrapolati
 
     entt::sparse_set local_create_entities;
 
-    for (auto remote_entity : ops.create_entities) {
+    ops.create_for_each([&](entt::entity remote_entity) {
         auto local_entity = emap.at(remote_entity);
         local_create_entities.emplace(local_entity);
 
         // Observe component changes for this entity.
         m_modified_comp->add_entity(local_entity);
-    }
+    });
 
     // Store copy of imported state into local state storage. This represents
     // the remote state that's been most recently seen.

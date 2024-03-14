@@ -43,6 +43,7 @@
 #include "edyn/context/settings.hpp"
 #include "edyn/context/registry_operation_context.hpp"
 #include "edyn/networking/extrapolation/extrapolation_result.hpp"
+#include <entt/entity/fwd.hpp>
 #include <entt/entity/registry.hpp>
 #include <algorithm>
 #include <atomic>
@@ -266,8 +267,16 @@ void simulation_worker::on_update_entities(message<msg::update_entities> &msg) {
 void simulation_worker::wake_up_affected_islands(const registry_operation &ops) {
     // Collect islands of all entities which had a component
     // emplaced/replaced/removed by the registry operations and wake them up.
-    for (auto &op : ops.replace_components) {
-        wake_up_island_residents(m_registry, op->entities, m_entity_map);
+    entt::sparse_set entities;
+
+    for (auto *op : ops.operations) {
+        if (op->operation_type() == registry_operation_type::replace && !entities.contains(op->entity)) {
+            entities.emplace(op->entity);
+        }
+    }
+
+    if (!entities.empty()) {
+        wake_up_island_residents(m_registry, entities, m_entity_map);
     }
 }
 
