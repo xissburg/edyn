@@ -14,6 +14,29 @@ namespace edyn {
  * @brief Utility to build a registry operation collection bit by bit.
  */
 class registry_operation_builder {
+    static constexpr auto data_block_unit_size {32ul};
+    static constexpr auto max_block_size {8192ul};
+
+    template<typename T, typename... Args>
+    T * make_op(Args &&... args) {
+        constexpr auto size = sizeof(T);
+
+        if (m_data_index + size > operation.data_blocks.back().size()) {
+            auto data = std::vector<uint8_t>{};
+            data.resize(std::min(size * data_block_unit_size, max_block_size));
+            operation.data_blocks.emplace_back(std::move(data));
+            m_data_index = 0;
+        }
+
+        auto buff = &operation.data_blocks.back()[m_data_index];
+        m_data_index += size;
+
+        auto *op = new(buff) T(std::forward(args)...);
+        operation.operations.push_back(op);
+
+        return op;
+    }
+
 public:
     registry_operation_builder(entt::registry &registry) : registry(&registry) {}
     virtual ~registry_operation_builder() = default;
@@ -21,26 +44,26 @@ public:
     template<typename It>
     void create(It first, It last) {
         for (; first != last; ++first) {
-            auto *op = operation.make_op<operation_create>();
+            auto *op = make_op<operation_create>();
             op->entity = *first;
         }
     }
 
     void create(entt::entity entity) {
-        auto *op = operation.make_op<operation_create>();
+        auto *op = make_op<operation_create>();
         op->entity = entity;
     }
 
     template<typename It>
     void destroy(It first, It last) {
         for (; first != last; ++first) {
-            auto *op = operation.make_op<operation_destroy>();
+            auto *op = make_op<operation_destroy>();
             op->entity = *first;
         }
     }
 
     void destroy(entt::entity entity) {
-        auto *op = operation.make_op<operation_destroy>();
+        auto *op = make_op<operation_destroy>();
         op->entity = entity;
     }
 
@@ -49,7 +72,7 @@ public:
         auto view = registry->view<Component>();
 
         for (; first != last; ++first) {
-            auto *op = operation.make_op<operation_emplace<Component>>();
+            auto *op = make_op<operation_emplace<Component>>();
             op->entity = *first;
 
             if constexpr(!std::is_empty_v<Component>) {
@@ -66,7 +89,7 @@ public:
 
     template<typename Component>
     void emplace(entt::entity entity) {
-        auto *op = operation.make_op<operation_emplace<Component>>();
+        auto *op = make_op<operation_emplace<Component>>();
         op->entity = entity;
 
         if constexpr(!std::is_empty_v<Component>) {
@@ -79,7 +102,7 @@ public:
         auto view = registry->view<Component>();
 
         for (; first != last; ++first) {
-            auto *op = operation.make_op<operation_replace<Component>>();
+            auto *op = make_op<operation_replace<Component>>();
             op->entity = *first;
 
             if constexpr(!std::is_empty_v<Component>) {
@@ -96,7 +119,7 @@ public:
 
     template<typename Component>
     void replace(entt::entity entity) {
-        auto *op = operation.make_op<operation_replace<Component>>();
+        auto *op = make_op<operation_replace<Component>>();
         op->entity = entity;
 
         if constexpr(!std::is_empty_v<Component>) {
@@ -106,7 +129,7 @@ public:
 
     template<typename Component>
     void replace(entt::entity entity, const Component &comp) {
-        auto *op = operation.make_op<operation_replace<Component>>();
+        auto *op = make_op<operation_replace<Component>>();
         op->entity = entity;
         op->component = comp;
     }
@@ -114,7 +137,7 @@ public:
     template<typename Component, typename It>
     void remove(It first, It last) {
         for (; first != last; ++first) {
-            auto *op = operation.make_op<operation_remove<Component>>();
+            auto *op = make_op<operation_remove<Component>>();
             op->entity = *first;
         }
     }
@@ -127,8 +150,26 @@ public:
 
     template<typename Component>
     void remove(entt::entity entity) {
-        auto *op = operation.make_op<operation_remove<Component>>();
+        auto *op = make_op<operation_remove<Component>>();
         op->entity = entity;
+    }
+
+    void add_entity_mapping(entt::entity local_entity, entt::entity remote_entity) {
+        auto *op = make_op<operation_map_entity>();
+        op->entity = local_entity;
+        op->local_entity = remote_entity;
+    }
+
+    bool empty() const {
+        return operation.empty();
+    }
+
+    registry_operation && finish() {
+        return std::move(operation);
+    }
+
+    entt::registry & get_registry() {
+        return *registry;
     }
 
     virtual void emplace_all(const std::vector<entt::entity> &entities) = 0;
@@ -168,27 +209,10 @@ public:
         }
     }
 
-    void add_entity_mapping(entt::entity local_entity, entt::entity remote_entity) {
-        auto *op = operation.make_op<operation_map_entity>();
-        op->entity = local_entity;
-        op->local_entity = remote_entity;
-    }
-
-    bool empty() const {
-        return operation.empty();
-    }
-
-    registry_operation && finish() {
-        return std::move(operation);
-    }
-
-    entt::registry & get_registry() {
-        return *registry;
-    }
-
 protected:
     entt::registry *registry;
     registry_operation operation;
+    size_t m_data_index {};
 };
 
 template<typename... Components>

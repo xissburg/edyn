@@ -324,9 +324,11 @@ class registry_operation final {
     }
 
 public:
+    static constexpr auto default_block_size{128ul};
+
     registry_operation() {
         auto data = std::vector<uint8_t>{};
-        data.resize(64);
+        data.resize(default_block_size);
         data_blocks.emplace_back(std::move(data));
     };
 
@@ -334,8 +336,9 @@ public:
         data_blocks = std::move(other.data_blocks);
         operations = std::move(other.operations);
 
+        // Ensure there's always one data block.
         auto data = std::vector<uint8_t>{};
-        data.resize(128);
+        data.resize(default_block_size);
         other.data_blocks.emplace_back(std::move(data));
     }
 
@@ -344,7 +347,7 @@ public:
         operations = std::move(other.operations);
 
         auto data = std::vector<uint8_t>{};
-        data.resize(128);
+        data.resize(default_block_size);
         other.data_blocks.emplace_back(std::move(data));
 
         return *this;
@@ -362,29 +365,6 @@ public:
 
     std::vector<std::vector<uint8_t>> data_blocks;
     std::vector<operation_base *> operations;
-
-    static constexpr auto data_block_unit_size {32ul};
-    static constexpr auto max_block_size {8192ul};
-
-    template<typename T, typename... Args>
-    T * make_op(Args &&... args) {
-        constexpr auto size = sizeof(T);
-
-        if (m_data_index + size > data_blocks.back().size()) {
-            auto data = std::vector<uint8_t>{};
-            data.resize(std::min(size * data_block_unit_size, max_block_size));
-            data_blocks.emplace_back(std::move(data));
-            m_data_index = 0;
-        }
-
-        auto buff = &data_blocks.back()[m_data_index];
-        m_data_index += size;
-
-        auto *op = new(buff) T(std::forward(args)...);
-        operations.push_back(op);
-
-        return op;
-    }
 
     template<typename... Func>
     void execute(entt::registry &registry, entity_map &entity_map, Func... func) const {
@@ -457,9 +437,6 @@ public:
     void remove_for_each([[maybe_unused]] std::tuple<Component...>, Func func) const {
         (for_each_remove<Component>(func), ...);
     }
-
-private:
-    size_t m_data_index {};
 };
 
 }
