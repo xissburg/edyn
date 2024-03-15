@@ -124,10 +124,8 @@ void stepper_async::on_step_update(message<msg::step_update> &msg) {
 
         // Insert entity mappings for new entities into the current op.
         if (op_type == registry_operation_type::create) {
-            if (m_entity_map.contains(remote_entity)) {
-                auto local_entity = m_entity_map.at(remote_entity);
-                m_op_builder->add_entity_mapping(local_entity, remote_entity);
-            }
+            auto local_entity = m_entity_map.at(remote_entity);
+            m_op_builder->add_entity_mapping(local_entity, remote_entity);
         }
 
         // Insert nodes in the graph for each new rigid body.

@@ -274,6 +274,8 @@ struct operation_remove : public operation_base {
 
 /**
  * @brief An operation to replicate contents of one registry into another.
+ * It contains an array of buffers which hold the data of each operation.
+ * Placement new is used to allocate operation objects into these buffers.
  */
 class registry_operation final {
 

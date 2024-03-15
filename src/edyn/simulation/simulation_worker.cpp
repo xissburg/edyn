@@ -168,6 +168,15 @@ void simulation_worker::on_update_entities(message<msg::update_entities> &msg) {
         auto op_type = op->operation_type();
         auto remote_entity = op->entity;
 
+        // Add all new entity mappings to current op builder which will be sent
+        // over to the main thread so it can create corresponding mappings between
+        // its new entities and the entities that were just created here in this
+        // import.
+        if (op_type == registry_operation_type::create) {
+            auto local_entity = emap.at(remote_entity);
+            m_op_builder->add_entity_mapping(local_entity, remote_entity);
+        }
+
         // Insert nodes in the graph for rigid bodies and external entities, and
         // edges for constraints, because `graph_node` and `graph_edge` are not
         // shared components.
@@ -250,15 +259,6 @@ void simulation_worker::on_update_entities(message<msg::update_entities> &msg) {
             auto local_entity = emap.at(remote_entity);
             registry.emplace<previous_position>(local_entity);
             registry.emplace<previous_orientation>(local_entity);
-        }
-
-        // Add all new entity mappings to current op builder which will be sent
-        // over to the main thread so it can create corresponding mappings between
-        // its new entities and the entities that were just created here in this
-        // import.
-        if (op_type == registry_operation_type::create) {
-            auto local_entity = m_entity_map.at(remote_entity);
-            m_op_builder->add_entity_mapping(local_entity, remote_entity);
         }
     });
 

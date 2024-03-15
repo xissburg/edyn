@@ -21,6 +21,7 @@ class registry_operation_builder {
     T * make_op(Args &&... args) {
         constexpr auto size = sizeof(T);
 
+        // Create new data block if current block size would be exceeded.
         if (m_data_index + size > operation.data_blocks.back().size()) {
             auto data = std::vector<uint8_t>{};
             data.resize(std::min(size * data_block_unit_size, max_block_size));
@@ -31,6 +32,7 @@ class registry_operation_builder {
         auto buff = &operation.data_blocks.back()[m_data_index];
         m_data_index += size;
 
+        // Use placement new to allocate object in the current buffer.
         auto *op = new(buff) T(std::forward(args)...);
         operation.operations.push_back(op);
 
