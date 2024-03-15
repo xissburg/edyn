@@ -8,27 +8,35 @@
 TEST(test_registry_operation, test_create_destroy) {
     auto reg0 = entt::registry{};
     auto reg1 = entt::registry{};
+    auto emap = edyn::entity_map{};
 
     auto ent0 = reg0.create();
 
-    edyn::registry_operation opc;
-    opc.create_entities.push_back(ent0);
+    {
+        auto builder = edyn::registry_operation_builder_impl(reg0);
+        builder.create(ent0);
 
-    auto emap = edyn::entity_map{};
-    // Should create a corresponding entity in reg1 and add it to the emap.
-    opc.execute(reg1, emap);
+        // Should create a corresponding entity in reg1 and add it to the emap.
+        auto op = builder.finish();
+        op.execute(reg1, emap);
 
-    ASSERT_TRUE(emap.contains(ent0));
-    auto ent1 = emap.at(ent0);
-    ASSERT_TRUE(reg1.valid(ent1));
+        ASSERT_TRUE(emap.contains(ent0));
+        auto ent1 = emap.at(ent0);
+        ASSERT_TRUE(reg1.valid(ent1));
+    }
 
-    edyn::registry_operation opd;
-    opd.destroy_entities.push_back(ent0);
-    // Should destroy entity in reg1 and remove it from emap.
-    opd.execute(reg1, emap);
+    {
+        auto ent1 = emap.at(ent0);
 
-    ASSERT_FALSE(emap.contains(ent0));
-    ASSERT_FALSE(reg1.valid(ent1));
+        auto builder = edyn::registry_operation_builder_impl(reg1);
+        builder.destroy(ent0);
+        // Should destroy entity in reg1 and remove it from emap.
+        auto op = builder.finish();
+        op.execute(reg1, emap);
+
+        ASSERT_FALSE(emap.contains(ent0));
+        ASSERT_FALSE(reg1.valid(ent1));
+    }
 }
 
 struct comp_with_entity {

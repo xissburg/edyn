@@ -180,8 +180,15 @@ void add_entities_to_extrapolator(entt::registry &registry,
     auto &reg_op_ctx = registry.ctx().at<registry_operation_context>();
     auto builder = (*reg_op_ctx.make_reg_op_builder)(registry);
 
+    // Add all _create_ operations first so all entities are created in the extrapolator
+    // before components are inserted. This will ensure entities will be available in the
+    // entity map ready to be used in child entity mapping for all entity properties of
+    // all components.
     for (auto entity : entities) {
         builder->create(entity);
+    }
+
+    for (auto entity : entities) {
         builder->emplace_all(entity);
     }
 
