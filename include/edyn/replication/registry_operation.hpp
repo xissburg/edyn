@@ -362,7 +362,9 @@ public:
 
     std::vector<std::vector<uint8_t>> data_blocks;
     std::vector<operation_base *> operations;
-    static constexpr auto data_block_unit_size {32u};
+
+    static constexpr auto data_block_unit_size {32ul};
+    static constexpr auto max_block_size {8192ul};
 
     template<typename T, typename... Args>
     T * make_op(Args &&... args) {
@@ -370,7 +372,7 @@ public:
 
         if (m_data_index + size > data_blocks.back().size()) {
             auto data = std::vector<uint8_t>{};
-            data.resize(size * data_block_unit_size);
+            data.resize(std::min(size * data_block_unit_size, max_block_size));
             data_blocks.emplace_back(std::move(data));
             m_data_index = 0;
         }
