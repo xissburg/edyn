@@ -12,7 +12,7 @@ TEST(test_registry_operation, test_create_destroy) {
     auto ent0 = reg0.create();
 
     edyn::registry_operation opc;
-    opc.create_entities.push_back(ent0);
+    opc.make_op<edyn::operation_create>()->entity = ent0;
 
     auto emap = edyn::entity_map{};
     // Should create a corresponding entity in reg1 and add it to the emap.
@@ -23,7 +23,7 @@ TEST(test_registry_operation, test_create_destroy) {
     ASSERT_TRUE(reg1.valid(ent1));
 
     edyn::registry_operation opd;
-    opd.destroy_entities.push_back(ent0);
+    opd.make_op<edyn::operation_destroy>()->entity = ent0;
     // Should destroy entity in reg1 and remove it from emap.
     opd.execute(reg1, emap);
 

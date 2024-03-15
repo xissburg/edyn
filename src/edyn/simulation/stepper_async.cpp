@@ -17,6 +17,7 @@
 #include "edyn/replication/registry_operation.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
+#include "edyn/util/constraint_util.hpp"
 #include <entt/entity/registry.hpp>
 #include <numeric>
 
@@ -106,66 +107,57 @@ void stepper_async::on_destroy_graph_edge(entt::registry &registry, entt::entity
 }
 
 void stepper_async::on_step_update(message<msg::step_update> &msg) {
+    auto &registry = *m_registry;
+    auto &graph = registry.ctx().at<entity_graph>();
+
     m_importing = true;
     m_op_observer->set_active(false);
-
-    auto &registry = *m_registry;
-    auto &ops = msg.content.ops;
-    ops.execute(registry, m_entity_map);
 
     m_sim_time = msg.content.timestamp;
     // Only calculate delay if the sim time was set.
     m_should_calculate_presentation_delay = true;
 
-    // Insert entity mappings for new entities into the current op.
-    ops.create_for_each([&](entt::entity remote_entity) {
-        if (m_entity_map.contains(remote_entity)) {
+    auto &ops = msg.content.ops;
+    ops.execute(registry, m_entity_map, [&](operation_base *op) {
+        auto op_type = op->operation_type();
+        auto remote_entity = op->entity;
+
+        // Insert entity mappings for new entities into the current op.
+        if (op_type == registry_operation_type::create) {
+            if (m_entity_map.contains(remote_entity)) {
+                auto local_entity = m_entity_map.at(remote_entity);
+                m_op_builder->add_entity_mapping(local_entity, remote_entity);
+            }
+        }
+
+        // Insert nodes in the graph for each new rigid body.
+        if (op_type == registry_operation_type::emplace && op->payload_type_any_of<rigidbody_tag, external_tag>()) {
             auto local_entity = m_entity_map.at(remote_entity);
-            m_op_builder->add_entity_mapping(local_entity, remote_entity);
+            auto non_connecting = !registry.any_of<procedural_tag>(local_entity);
+            auto node_index = graph.insert_node(local_entity, non_connecting);
+            registry.emplace<graph_node>(local_entity, node_index);
+
+            if (non_connecting) {
+                // `multi_island_resident` is not a shared component thus add it
+                // manually here.
+                registry.emplace<multi_island_resident>(local_entity);
+            }
+        }
+
+        // Insert edges in the graph for constraints.
+        if (op_type == registry_operation_type::emplace &&
+           (op->payload_type_any_of(constraints_tuple) || op->payload_type_any_of<null_constraint>()))
+        {
+            auto local_entity = m_entity_map.at(remote_entity);
+
+            // There could be multiple constraints (of different types) assigned to
+            // the same entity, which means it could already have an edge.
+            if (!registry.any_of<graph_edge>(local_entity)) {
+                create_graph_edge_for_constraints(registry, local_entity, graph, constraints_tuple);
+                create_graph_edge_for_constraint<null_constraint>(registry, local_entity, graph);
+            }
         }
     });
-
-    auto node_view = registry.view<graph_node>();
-
-    // Insert nodes in the graph for each new rigid body.
-    auto &graph = registry.ctx().at<entity_graph>();
-    auto insert_node = [&](entt::entity remote_entity) {
-        if (!m_entity_map.contains(remote_entity)) {
-            return;
-        }
-
-        auto local_entity = m_entity_map.at(remote_entity);
-        auto non_connecting = !registry.any_of<procedural_tag>(local_entity);
-        auto node_index = graph.insert_node(local_entity, non_connecting);
-        registry.emplace<graph_node>(local_entity, node_index);
-
-        if (non_connecting) {
-            // `multi_island_resident` is not a shared component thus add it
-            // manually here.
-            registry.emplace<multi_island_resident>(local_entity);
-        }
-    };
-    ops.emplace_for_each<rigidbody_tag, external_tag>(insert_node);
-
-    // Insert edges in the graph for constraints.
-    auto insert_edge = [&](entt::entity remote_entity, const auto &con) {
-        if (!m_entity_map.contains(remote_entity)) {
-            return;
-        }
-
-        auto local_entity = m_entity_map.at(remote_entity);
-
-        // There could be multiple constraints (of different types) assigned to
-        // the same entity, which means it could already have an edge.
-        if (registry.any_of<graph_edge>(local_entity)) return;
-
-        auto [node0] = node_view.get(m_entity_map.at(con.body[0]));
-        auto [node1] = node_view.get(m_entity_map.at(con.body[1]));
-        auto edge_index = graph.insert_edge(local_entity, node0.node_index, node1.node_index);
-        registry.emplace<graph_edge>(local_entity, edge_index);
-    };
-    ops.emplace_for_each(constraints_tuple, insert_edge);
-    ops.emplace_for_each<null_constraint>(insert_edge);
 
     m_importing = false;
     m_op_observer->set_active(true);

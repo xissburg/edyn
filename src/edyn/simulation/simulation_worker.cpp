@@ -21,6 +21,7 @@
 #include "edyn/parallel/job.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/parallel/message_dispatcher.hpp"
+#include "edyn/replication/entity_map.hpp"
 #include "edyn/sys/update_aabbs.hpp"
 #include "edyn/sys/update_inertias.hpp"
 #include "edyn/sys/update_rotated_meshes.hpp"
@@ -43,6 +44,7 @@
 #include "edyn/context/settings.hpp"
 #include "edyn/context/registry_operation_context.hpp"
 #include "edyn/networking/extrapolation/extrapolation_result.hpp"
+#include <entt/core/type_info.hpp>
 #include <entt/entity/fwd.hpp>
 #include <entt/entity/registry.hpp>
 #include <algorithm>
@@ -153,112 +155,115 @@ void simulation_worker::on_update_entities(message<msg::update_entities> &msg) {
     auto &registry = m_registry;
     auto &emap = m_entity_map;
 
+    const auto &settings = registry.ctx().at<edyn::settings>();
+    const bool is_client = std::holds_alternative<client_network_settings>(settings.network_settings);
+
+    auto &graph = registry.ctx().at<entity_graph>();
+    auto procedural_view = registry.view<procedural_tag>();
+
     // Import components from main registry.
     m_importing = true;
     m_op_observer->set_active(false);
-    ops.execute(registry, emap);
+    ops.execute(registry, emap, [&](operation_base *op){
+        auto op_type = op->operation_type();
+        auto remote_entity = op->entity;
 
-    auto &graph = registry.ctx().at<entity_graph>();
-    auto node_view = registry.view<graph_node>();
-    auto procedural_view = registry.view<procedural_tag>();
+        // Insert nodes in the graph for rigid bodies and external entities, and
+        // edges for constraints, because `graph_node` and `graph_edge` are not
+        // shared components.
+        if (op_type == registry_operation_type::emplace &&
+            op->payload_type_any_of<rigidbody_tag, external_tag>())
+        {
+            auto local_entity = emap.at(remote_entity);
+            auto procedural = procedural_view.contains(local_entity);
+            auto node_index = graph.insert_node(local_entity, !procedural);
+            registry.emplace<graph_node>(local_entity, node_index);
 
-    // Insert nodes in the graph for rigid bodies and external entities, and
-    // edges for constraints, because `graph_node` and `graph_edge` are not
-    // shared components.
-    ops.emplace_for_each<rigidbody_tag, external_tag>([&](entt::entity remote_entity) {
-        auto local_entity = emap.at(remote_entity);
-        auto procedural = procedural_view.contains(local_entity);
-        auto node_index = graph.insert_node(local_entity, !procedural);
-        registry.emplace<graph_node>(local_entity, node_index);
-
-        if (!procedural) {
-            // `multi_island_resident` is not a shared component thus add it
-            // manually here.
-            registry.emplace<multi_island_resident>(local_entity);
-        }
-    });
-
-    auto insert_edge = [&](entt::entity remote_entity, const auto &con) {
-        auto local_entity = emap.at(remote_entity);
-
-        // There could be multiple constraints (of different types) assigned to
-        // the same entity, which means it could already have an edge.
-        if (registry.any_of<graph_edge>(local_entity)) return;
-
-        auto &node0 = node_view.get<graph_node>(emap.at(con.body[0]));
-        auto &node1 = node_view.get<graph_node>(emap.at(con.body[1]));
-        auto edge_index = graph.insert_edge(local_entity, node0.node_index, node1.node_index);
-        registry.emplace<graph_edge>(local_entity, edge_index);
-    };
-    ops.emplace_for_each(constraints_tuple, insert_edge);
-    ops.emplace_for_each<null_constraint>(insert_edge);
-
-    // When orientation is set manually, a few dependent components must be
-    // updated, e.g. AABB, cached origin, inertia_world_inv, rotated meshes...
-    ops.replace_for_each<orientation>([&](entt::entity remote_entity, const orientation &orn) {
-        if (!emap.contains(remote_entity)) return;
-
-        auto local_entity = emap.at(remote_entity);
-
-        if (auto *origin = registry.try_get<edyn::origin>(local_entity)) {
-            auto &com = registry.get<center_of_mass>(local_entity);
-            auto &pos = registry.get<position>(local_entity);
-            *origin = to_world_space(-com, pos, orn);
+            if (!procedural) {
+                // `multi_island_resident` is not a shared component thus add it
+                // manually here.
+                registry.emplace<multi_island_resident>(local_entity);
+            }
         }
 
-        if (registry.any_of<AABB>(local_entity)) {
-            update_aabb(registry, local_entity);
+        if (op_type == registry_operation_type::emplace &&
+           (op->payload_type_any_of(constraints_tuple) || op->payload_type_any_of<null_constraint>()))
+        {
+            auto local_entity = emap.at(remote_entity);
+
+            // There could be multiple constraints (of different types) assigned to
+            // the same entity, which means it could already have an edge.
+            if (!registry.any_of<graph_edge>(local_entity)) {
+                create_graph_edge_for_constraints(registry, local_entity, graph, constraints_tuple);
+                create_graph_edge_for_constraint<null_constraint>(registry, local_entity, graph);
+            }
         }
 
-        if (registry.any_of<dynamic_tag>(local_entity)) {
-            update_inertia(registry, local_entity);
+        // When orientation is set manually, a few dependent components must be
+        // updated, e.g. AABB, cached origin, inertia_world_inv, rotated meshes...
+        if (op_type == registry_operation_type::replace &&
+            op->payload_type_any_of<orientation>())
+        {
+            auto local_entity = emap.at(remote_entity);
+
+            if (auto *origin = registry.try_get<edyn::origin>(local_entity)) {
+                auto &com = registry.get<center_of_mass>(local_entity);
+                auto &pos = registry.get<position>(local_entity);
+                auto &orn = static_cast<operation_replace<orientation> *>(op)->component;
+                *origin = to_world_space(-com, pos, orn);
+            }
+
+            if (registry.any_of<AABB>(local_entity)) {
+                update_aabb(registry, local_entity);
+            }
+
+            if (registry.any_of<dynamic_tag>(local_entity)) {
+                update_inertia(registry, local_entity);
+            }
+
+            if (registry.any_of<rotated_mesh_list>(local_entity)) {
+                update_rotated_mesh(registry, local_entity);
+            }
         }
 
-        if (registry.any_of<rotated_mesh_list>(local_entity)) {
-            update_rotated_mesh(registry, local_entity);
+        // When position is set manually, the AABB and cached origin must be updated.
+        if (op_type == registry_operation_type::replace &&
+            op->payload_type_any_of<position>())
+        {
+            auto local_entity = emap.at(remote_entity);
+
+            if (auto *origin = registry.try_get<edyn::origin>(local_entity)) {
+                auto &com = registry.get<center_of_mass>(local_entity);
+                auto &orn = registry.get<orientation>(local_entity);
+                auto &pos = static_cast<operation_replace<position> *>(op)->component;
+                *origin = to_world_space(-com, pos, orn);
+            }
+
+            if (registry.any_of<AABB>(local_entity)) {
+                update_aabb(registry, local_entity);
+            }
         }
-    });
 
-    // When position is set manually, the AABB and cached origin must be updated.
-    ops.replace_for_each<position>([&](entt::entity remote_entity, const position &pos) {
-        if (!emap.contains(remote_entity)) return;
-
-        auto local_entity = emap.at(remote_entity);
-
-        if (auto *origin = registry.try_get<edyn::origin>(local_entity)) {
-            auto &com = registry.get<center_of_mass>(local_entity);
-            auto &orn = registry.get<orientation>(local_entity);
-            *origin = to_world_space(-com, pos, orn);
-        }
-
-        if (registry.any_of<AABB>(local_entity)) {
-            update_aabb(registry, local_entity);
-        }
-    });
-
-    auto &settings = registry.ctx().at<edyn::settings>();
-
-    if (std::holds_alternative<client_network_settings>(settings.network_settings)) {
         // Assign previous position and orientation components to dynamic entities
         // for client-side networking extrapolation discontinuity mitigation.
-        ops.emplace_for_each<dynamic_tag>([&](entt::entity remote_entity) {
+        if (is_client && op_type == registry_operation_type::emplace && op->payload_type_any_of<dynamic_tag>()) {
             auto local_entity = emap.at(remote_entity);
             registry.emplace<previous_position>(local_entity);
             registry.emplace<previous_orientation>(local_entity);
-        });
-    }
+        }
+
+        // Add all new entity mappings to current op builder which will be sent
+        // over to the main thread so it can create corresponding mappings between
+        // its new entities and the entities that were just created here in this
+        // import.
+        if (op_type == registry_operation_type::create) {
+            auto local_entity = m_entity_map.at(remote_entity);
+            m_op_builder->add_entity_mapping(local_entity, remote_entity);
+        }
+    });
 
     m_importing = false;
     m_op_observer->set_active(true);
-
-    // Add all new entity mappings to current op builder which will be sent
-    // over to the main thread so it can create corresponding mappings between
-    // its new entities and the entities that were just created here in this
-    // import.
-    msg.content.ops.create_for_each([&](entt::entity remote_entity) {
-        auto local_entity = m_entity_map.at(remote_entity);
-        m_op_builder->add_entity_mapping(local_entity, remote_entity);
-    });
 
     // Wake up all islands involved.
     wake_up_affected_islands(msg.content.ops);

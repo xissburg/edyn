@@ -20,82 +20,41 @@ public:
 
     template<typename It>
     void create(It first, It last) {
-        auto size = sizeof(operation_create);
-        auto total_size = size * std::distance(first, last);
-        auto data_index = operation.data.size();
-        operation.data.resize(operation.data.size() + total_size);
-
         for (; first != last; ++first) {
-            auto *op_data = &operation.data[data_index];
-            auto *op = new(op_data) operation_create;
+            auto *op = operation.make_op<operation_create>();
             op->entity = *first;
-            operation.operations.push_back(op);
-            data_index += size;
         }
     }
 
     void create(entt::entity entity) {
-        auto size = sizeof(operation_create);
-        auto data_index = operation.data.size();
-        operation.data.resize(operation.data.size() + size);
-
-        auto *op_data = &operation.data[data_index];
-        auto *op = new(op_data) operation_create;
+        auto *op = operation.make_op<operation_create>();
         op->entity = entity;
-        operation.operations.push_back(op);
     }
 
     template<typename It>
     void destroy(It first, It last) {
-        auto size = sizeof(operation_destroy);
-        auto total_size = size * std::distance(first, last);
-        auto data_index = operation.data.size();
-        operation.data.resize(operation.data.size() + total_size);
-
         for (; first != last; ++first) {
-            auto *op_data = &operation.data[data_index];
-            auto *op = new(op_data) operation_destroy;
+            auto *op = operation.make_op<operation_destroy>();
             op->entity = *first;
-            operation.operations.push_back(op);
-            data_index += size;
         }
     }
 
     void destroy(entt::entity entity) {
-        auto size = sizeof(operation_destroy);
-        auto data_index = operation.data.size();
-        operation.data.resize(operation.data.size() + size);
-
-        auto *op_data = &operation.data[data_index];
-        auto *op = new(op_data) operation_destroy;
+        auto *op = operation.make_op<operation_destroy>();
         op->entity = entity;
-        operation.operations.push_back(op);
     }
 
     template<typename Component, typename It>
     void emplace(It first, It last) {
-        if (first == last) {
-            return;
-        }
-
         auto view = registry->view<Component>();
 
-        auto size = sizeof(operation_emplace<Component>);
-        auto total_size = size * std::distance(first, last);
-        auto data_index = operation.data.size();
-        operation.data.resize(operation.data.size() + total_size);
-
         for (; first != last; ++first) {
-            auto *op_data = &operation.data[data_index];
-            auto *op = new(op_data) operation_emplace<Component>;
+            auto *op = operation.make_op<operation_emplace<Component>>();
             op->entity = *first;
 
             if constexpr(!std::is_empty_v<Component>) {
                 op->component = view.template get<Component>(op->entity);
             }
-
-            operation.operations.push_back(op);
-            data_index += size;
         }
     }
 
@@ -107,45 +66,25 @@ public:
 
     template<typename Component>
     void emplace(entt::entity entity) {
-        auto size = sizeof(operation_emplace<Component>);
-        auto data_index = operation.data.size();
-        operation.data.resize(operation.data.size() + size);
-
-        auto *op_data = &operation.data[data_index];
-        auto *op = new(op_data) operation_emplace<Component>;
+        auto *op = operation.make_op<operation_emplace<Component>>();
         op->entity = entity;
 
         if constexpr(!std::is_empty_v<Component>) {
             op->component = registry->get<Component>(entity);
         }
-
-        operation.operations.push_back(op);
     }
 
     template<typename Component, typename It>
     void replace(It first, It last) {
-        if (first == last) {
-            return;
-        }
-
         auto view = registry->view<Component>();
 
-        auto size = sizeof(operation_replace<Component>);
-        auto total_size = size * std::distance(first, last);
-        auto data_index = operation.data.size();
-        operation.data.resize(operation.data.size() + total_size);
-
         for (; first != last; ++first) {
-            auto *op_data = &operation.data[data_index];
-            auto *op = new(op_data) operation_replace<Component>;
+            auto *op = operation.make_op<operation_replace<Component>>();
             op->entity = *first;
 
             if constexpr(!std::is_empty_v<Component>) {
                 op->component = view.template get<Component>(op->entity);
             }
-
-            operation.operations.push_back(op);
-            data_index += size;
         }
     }
 
@@ -157,51 +96,26 @@ public:
 
     template<typename Component>
     void replace(entt::entity entity) {
-        auto size = sizeof(operation_replace<Component>);
-        auto data_index = operation.data.size();
-        operation.data.resize(operation.data.size() + size);
-
-        auto *op_data = &operation.data[data_index];
-        auto *op = new(op_data) operation_replace<Component>;
+        auto *op = operation.make_op<operation_replace<Component>>();
         op->entity = entity;
 
         if constexpr(!std::is_empty_v<Component>) {
             op->component = registry->get<Component>(entity);
         }
-
-        operation.operations.push_back(op);
     }
 
     template<typename Component>
     void replace(entt::entity entity, const Component &comp) {
-        auto size = sizeof(operation_replace<Component>);
-        auto data_index = operation.data.size();
-        operation.data.resize(operation.data.size() + size);
-
-        auto *op_data = &operation.data[data_index];
-        auto *op = new(op_data) operation_replace<Component>;
+        auto *op = operation.make_op<operation_replace<Component>>();
         op->entity = entity;
         op->component = comp;
-        operation.operations.push_back(op);
     }
 
     template<typename Component, typename It>
     void remove(It first, It last) {
-        if (first == last) {
-            return;
-        }
-
-        auto size = sizeof(operation_remove<Component>);
-        auto total_size = size * std::distance(first, last);
-        auto data_index = operation.data.size();
-        operation.data.resize(operation.data.size() + total_size);
-
         for (; first != last; ++first) {
-            auto *op_data = &operation.data[data_index];
-            auto *op = new(op_data) operation_remove<Component>;
+            auto *op = operation.make_op<operation_remove<Component>>();
             op->entity = *first;
-            operation.operations.push_back(op);
-            data_index += size;
         }
     }
 
@@ -213,15 +127,8 @@ public:
 
     template<typename Component>
     void remove(entt::entity entity) {
-        auto size = sizeof(operation_remove<Component>);
-        auto data_index = operation.data.size();
-        operation.data.resize(operation.data.size() + size);
-
-        auto *op_data = &operation.data[data_index];
-        auto *op = new(op_data) operation_remove<Component>;
+        auto *op = operation.make_op<operation_remove<Component>>();
         op->entity = entity;
-        operation.operations.push_back(op);
-        data_index += size;
     }
 
     virtual void emplace_all(const std::vector<entt::entity> &entities) = 0;
@@ -262,15 +169,9 @@ public:
     }
 
     void add_entity_mapping(entt::entity local_entity, entt::entity remote_entity) {
-        auto size = sizeof(operation_create);
-        auto data_index = operation.data.size();
-        operation.data.resize(operation.data.size() + size);
-
-        auto *op_data = &operation.data[data_index];
-        auto *op = new(op_data) operation_map_entity;
+        auto *op = operation.make_op<operation_map_entity>();
         op->entity = local_entity;
         op->local_entity = remote_entity;
-        operation.operations.push_back(op);
     }
 
     bool empty() const {

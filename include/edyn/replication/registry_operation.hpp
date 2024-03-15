@@ -37,8 +37,19 @@ struct operation_base {
 
     virtual void remap(const entity_map &emap) = 0;
 
-    virtual entt::id_type get_type_id() const = 0;
+    virtual entt::id_type payload_type_id() const = 0;
     virtual registry_operation_type operation_type() const = 0;
+
+    template<typename... Ts>
+    bool payload_type_any_of() const {
+        const auto id = payload_type_id();
+        return ((entt::type_index<Ts>::value() == id) || ...);
+    }
+
+    template<typename... Ts>
+    bool payload_type_any_of([[maybe_unused]] const std::tuple<Ts...> &) const {
+        return payload_type_any_of<Ts...>();
+    }
 };
 
 struct operation_create : public operation_base {
@@ -55,8 +66,8 @@ struct operation_create : public operation_base {
         entity = emap.at(entity);
     }
 
-    entt::id_type get_type_id() const override {
-        return entt::type_index<std::decay_t<decltype(this)>>::value();
+    entt::id_type payload_type_id() const override {
+        return entt::type_index<void>::value();
     }
 
     registry_operation_type operation_type() const override {
@@ -66,6 +77,8 @@ struct operation_create : public operation_base {
 
 struct operation_destroy : public operation_base {
     void execute(entt::registry &registry, entity_map &entity_map) const override {
+        if (!entity_map.contains(entity)) return;
+
         auto local_entity = entity_map.at(entity);
         entity_map.erase(entity);
 
@@ -84,8 +97,8 @@ struct operation_destroy : public operation_base {
         entity = emap.at(entity);
     }
 
-    entt::id_type get_type_id() const override {
-        return entt::type_index<std::decay_t<decltype(this)>>::value();
+    entt::id_type payload_type_id() const override {
+        return entt::type_index<void>::value();
     }
 
     registry_operation_type operation_type() const override {
@@ -113,8 +126,8 @@ struct operation_map_entity : public operation_base {
         local_entity = emap.at_local(local_entity);
     }
 
-    entt::id_type get_type_id() const override {
-        return entt::type_index<std::decay_t<decltype(this)>>::value();
+    entt::id_type payload_type_id() const override {
+        return entt::type_index<entt::entity>::value();
     }
 
     registry_operation_type operation_type() const override {
@@ -164,8 +177,8 @@ struct operation_emplace : public operation_base {
         internal::map_child_entity_no_validation(emap, component);
     }
 
-    entt::id_type get_type_id() const override {
-        return entt::type_index<std::decay_t<decltype(this)>>::value();
+    entt::id_type payload_type_id() const override {
+        return entt::type_index<Component>::value();
     }
 
     registry_operation_type operation_type() const override {
@@ -215,8 +228,8 @@ struct operation_replace : public operation_base {
         internal::map_child_entity_no_validation(emap, component);
     }
 
-    entt::id_type get_type_id() const override {
-        return entt::type_index<std::decay_t<decltype(this)>>::value();
+    entt::id_type payload_type_id() const override {
+        return entt::type_index<Component>::value();
     }
 
     registry_operation_type operation_type() const override {
@@ -250,8 +263,8 @@ struct operation_remove : public operation_base {
         entity = emap.at(entity);
     }
 
-    entt::id_type get_type_id() const override {
-        return entt::type_index<std::decay_t<decltype(this)>>::value();
+    entt::id_type payload_type_id() const override {
+        return entt::type_index<Component>::value();
     }
 
     registry_operation_type operation_type() const override {
@@ -267,7 +280,9 @@ class registry_operation final {
     template<typename Component, typename Func>
     void for_each_emplace(Func func) const {
         for (auto *op : operations) {
-            if (op->get_type_id() == entt::type_index<operation_emplace<Component>>::value()) {
+            if (op->operation_type() == registry_operation_type::emplace &&
+                op->payload_type_id() == entt::type_index<Component>::value())
+            {
                 auto *typed_op = static_cast<const operation_emplace<Component> *>(op);
 
                 if constexpr(std::is_empty_v<Component>) {
@@ -282,7 +297,9 @@ class registry_operation final {
     template<typename Component, typename Func>
     void for_each_replace(Func func) const {
         for (auto *op : operations) {
-            if (op->get_type_id() == entt::type_index<operation_replace<Component>>::value()) {
+            if (op->operation_type() == registry_operation_type::replace &&
+                op->payload_type_id() == entt::type_index<Component>::value())
+            {
                 auto *typed_op = static_cast<const operation_replace<Component> *>(op);
 
                 if constexpr(std::is_empty_v<Component>) {
@@ -297,7 +314,9 @@ class registry_operation final {
     template<typename Component, typename Func>
     void for_each_remove(Func func) const {
         for (auto *op : operations) {
-            if (op->get_type_id() == entt::type_index<operation_remove<Component>>::value()) {
+            if (op->operation_type() == registry_operation_type::remove &&
+                op->payload_type_id() == entt::type_index<Component>::value())
+            {
                 auto *typed_op = static_cast<const operation_remove<Component> *>(op);
                 func(typed_op->entity);
             }
@@ -305,11 +324,35 @@ class registry_operation final {
     }
 
 public:
-    registry_operation() = default;
+    registry_operation() {
+        auto data = std::vector<uint8_t>{};
+        data.resize(64);
+        data_blocks.emplace_back(std::move(data));
+    };
+
+    registry_operation(registry_operation &&other) {
+        data_blocks = std::move(other.data_blocks);
+        operations = std::move(other.operations);
+
+        auto data = std::vector<uint8_t>{};
+        data.resize(128);
+        other.data_blocks.emplace_back(std::move(data));
+    }
+
+    registry_operation & operator=(registry_operation &&other) {
+        data_blocks = std::move(other.data_blocks);
+        operations = std::move(other.operations);
+
+        auto data = std::vector<uint8_t>{};
+        data.resize(128);
+        other.data_blocks.emplace_back(std::move(data));
+
+        return *this;
+    }
+
     registry_operation(registry_operation &) = delete;
-    registry_operation(registry_operation &&) = default;
     registry_operation & operator=(registry_operation &) = delete;
-    registry_operation & operator=(registry_operation &&) = default;
+
 
     ~registry_operation() {
         for (auto *op : operations) {
@@ -317,12 +360,35 @@ public:
         }
     }
 
-    std::vector<uint8_t> data;
+    std::vector<std::vector<uint8_t>> data_blocks;
     std::vector<operation_base *> operations;
+    static constexpr auto data_block_unit_size {32u};
 
-    void execute(entt::registry &registry, entity_map &entity_map) const {
+    template<typename T, typename... Args>
+    T * make_op(Args &&... args) {
+        constexpr auto size = sizeof(T);
+
+        if (m_data_index + size > data_blocks.back().size()) {
+            auto data = std::vector<uint8_t>{};
+            data.resize(size * data_block_unit_size);
+            data_blocks.emplace_back(std::move(data));
+            m_data_index = 0;
+        }
+
+        auto buff = &data_blocks.back()[m_data_index];
+        m_data_index += size;
+
+        auto *op = new(buff) T(std::forward(args)...);
+        operations.push_back(op);
+
+        return op;
+    }
+
+    template<typename... Func>
+    void execute(entt::registry &registry, entity_map &entity_map, Func... func) const {
         for (auto *op : operations) {
             op->execute(registry, entity_map);
+            (func(op), ...);
         }
     }
 
@@ -345,7 +411,7 @@ public:
     template<typename Func>
     void create_for_each(Func func) const {
         for (auto *op : operations) {
-            if (op->get_type_id() == entt::type_index<operation_create>::value()) {
+            if (op->operation_type() == registry_operation_type::create) {
                 func(static_cast<const operation_create *>(op)->entity);
             }
         }
@@ -354,7 +420,7 @@ public:
     template<typename Func>
     void destroy_for_each(Func func) const {
         for (auto *op : operations) {
-            if (op->get_type_id() == entt::type_index<operation_destroy>::value()) {
+            if (op->operation_type() == registry_operation_type::destroy) {
                 func(static_cast<const operation_destroy *>(op)->entity);
             }
         }
@@ -389,6 +455,9 @@ public:
     void remove_for_each([[maybe_unused]] std::tuple<Component...>, Func func) const {
         (for_each_remove<Component>(func), ...);
     }
+
+private:
+    size_t m_data_index {};
 };
 
 }

@@ -31,6 +31,7 @@
 #include "edyn/sys/update_rotated_meshes.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/math/transform.hpp"
+#include "edyn/util/constraint_util.hpp"
 #include "edyn/util/island_util.hpp"
 #include <entt/entity/registry.hpp>
 #include <entt/entity/utility.hpp>
@@ -168,42 +169,51 @@ void extrapolation_worker::on_extrapolation_operation_create(message<extrapolati
     auto &ops = msg.content.ops;
     auto &emap = m_entity_map;
 
-    ops.execute(m_registry, m_entity_map);
-
     auto &graph = m_registry.ctx().at<entity_graph>();
-    auto node_view = m_registry.view<graph_node>();
     auto procedural_view = m_registry.view<procedural_tag>();
+    entt::sparse_set local_create_entities;
 
-    // Insert nodes in the graph for rigid bodies and external entities, and
-    // edges for constraints, because `graph_node` and `graph_edge` are not
-    // shared components.
-    ops.emplace_for_each<rigidbody_tag, external_tag>([&](entt::entity remote_entity) {
-        auto local_entity = emap.at(remote_entity);
-        auto procedural = procedural_view.contains(local_entity);
-        auto node_index = graph.insert_node(local_entity, !procedural);
-        m_registry.emplace<graph_node>(local_entity, node_index);
+    ops.execute(m_registry, m_entity_map, [&](operation_base *op) {
+        auto op_type = op->operation_type();
+        auto remote_entity = op->entity;
 
-        if (!procedural) {
-            // `multi_island_resident` is not a shared component thus add it
-            // manually here.
-            m_registry.emplace<multi_island_resident>(local_entity);
+        // Insert nodes in the graph for rigid bodies and external entities, and
+        // edges for constraints, because `graph_node` and `graph_edge` are not
+        // shared components.
+        if (op_type == registry_operation_type::emplace && op->payload_type_any_of<rigidbody_tag, external_tag>()) {
+            auto local_entity = emap.at(remote_entity);
+            auto procedural = procedural_view.contains(local_entity);
+            auto node_index = graph.insert_node(local_entity, !procedural);
+            m_registry.emplace<graph_node>(local_entity, node_index);
+
+            if (!procedural) {
+                // `multi_island_resident` is not a shared component thus add it
+                // manually here.
+                m_registry.emplace<multi_island_resident>(local_entity);
+            }
+        }
+
+        if (op_type == registry_operation_type::emplace &&
+           (op->payload_type_any_of<null_constraint>() || op->payload_type_any_of(constraints_tuple)))
+        {
+            auto local_entity = emap.at(remote_entity);
+
+            // There could be multiple constraints (of different types) assigned to
+            // the same entity, which means it could already have an edge.
+            if (!m_registry.any_of<graph_edge>(local_entity)) {
+                create_graph_edge_for_constraints(m_registry, local_entity, graph, constraints_tuple);
+                create_graph_edge_for_constraint<null_constraint>(m_registry, local_entity, graph);
+            }
+        }
+
+        if (op_type == registry_operation_type::create) {
+            auto local_entity = emap.at(remote_entity);
+            local_create_entities.emplace(local_entity);
+
+            // Observe component changes for this entity.
+            m_modified_comp->add_entity(local_entity);
         }
     });
-
-    auto insert_edge = [&](entt::entity remote_entity, const auto &con) {
-        auto local_entity = emap.at(remote_entity);
-
-        // There could be multiple constraints (of different types) assigned to
-        // the same entity, which means it could already have an edge.
-        if (m_registry.any_of<graph_edge>(local_entity)) return;
-
-        auto &node0 = node_view.get<graph_node>(emap.at(con.body[0]));
-        auto &node1 = node_view.get<graph_node>(emap.at(con.body[1]));
-        auto edge_index = graph.insert_edge(local_entity, node0.node_index, node1.node_index);
-        m_registry.emplace<graph_edge>(local_entity, edge_index);
-    };
-    ops.emplace_for_each(constraints_tuple, insert_edge);
-    ops.emplace_for_each<null_constraint>(insert_edge);
 
     // Initialize shapes for new entities.
     m_poly_initializer.init_new_shapes();
@@ -213,16 +223,6 @@ void extrapolation_worker::on_extrapolation_operation_create(message<extrapolati
 
     // Force all new islands to sleep.
     m_island_manager.put_all_to_sleep();
-
-    entt::sparse_set local_create_entities;
-
-    ops.create_for_each([&](entt::entity remote_entity) {
-        auto local_entity = emap.at(remote_entity);
-        local_create_entities.emplace(local_entity);
-
-        // Observe component changes for this entity.
-        m_modified_comp->add_entity(local_entity);
-    });
 
     // Store copy of imported state into local state storage. This represents
     // the remote state that's been most recently seen.
