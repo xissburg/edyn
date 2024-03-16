@@ -239,6 +239,8 @@ void rigidbody_set_kind(entt::registry &, entt::entity, rigidbody_kind);
 
 namespace edyn::internal {
     void apply_center_of_mass(entt::registry &, entt::entity, const vector3 &com);
+    void rigidbody_replace_kind_tags(entt::registry &registry, entt::entity entity, rigidbody_kind kind);
+    void rigidbody_assert_supports_kind(entt::registry &registry, entt::entity entity, rigidbody_kind kind);
     void rigidbody_apply_kind(entt::registry &registry, entt::entity entity, rigidbody_kind kind,
                               island_manager &isle_mgr);
 }

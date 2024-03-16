@@ -474,6 +474,10 @@ bool rigidbody_has_shape(const entt::registry &registry, entt::entity entity) {
 
 void rigidbody_set_kind(entt::registry &registry, entt::entity entity, rigidbody_kind kind) {
     if (auto *stepper = registry.ctx().find<stepper_async>()) {
+        // Replace tags immediately in main registry. The effective change will happen
+        // in the simulation thread.
+        internal::rigidbody_replace_kind_tags(registry, entity, kind);
+        internal::rigidbody_assert_supports_kind(registry, entity, kind);
         stepper->set_rigidbody_kind(entity, kind);
     } else {
         internal::rigidbody_apply_kind(registry, entity,kind, registry.ctx().at<stepper_sequential>().get_island_manager());
@@ -517,31 +521,37 @@ void apply_center_of_mass(entt::registry &registry, entt::entity entity, const v
     }
 }
 
-void rigidbody_apply_kind(entt::registry &registry, entt::entity entity, rigidbody_kind kind,
-                          island_manager &isle_mgr) {
-
+void rigidbody_replace_kind_tags(entt::registry &registry, entt::entity entity, rigidbody_kind kind) {
     switch (kind) {
     case rigidbody_kind::rb_dynamic:
         registry.remove<static_tag, kinematic_tag>(entity);
-        registry.emplace<dynamic_tag>(entity);
-        registry.emplace<procedural_tag>(entity);
+        registry.emplace_or_replace<dynamic_tag>(entity);
+        registry.emplace_or_replace<procedural_tag>(entity);
         break;
     case rigidbody_kind::rb_kinematic:
         registry.remove<dynamic_tag, static_tag, procedural_tag>(entity);
-        registry.emplace<kinematic_tag>(entity);
+        registry.emplace_or_replace<kinematic_tag>(entity);
         break;
     case rigidbody_kind::rb_static:
         registry.remove<dynamic_tag, kinematic_tag, procedural_tag>(entity);
-        registry.emplace<static_tag>(entity);
+        registry.emplace_or_replace<static_tag>(entity);
         break;
     }
+}
 
+void rigidbody_assert_supports_kind(entt::registry &registry, entt::entity entity, rigidbody_kind kind) {
     if (kind == rigidbody_kind::rb_dynamic) {
         auto &mass = registry.get<edyn::mass>(entity);
         EDYN_ASSERT(mass > EDYN_EPSILON && mass < large_scalar, "Dynamic rigid body must have non-zero mass.");
         auto &inertia = registry.get<edyn::inertia>(entity);
         EDYN_ASSERT(inertia != matrix3x3_zero, "Dynamic rigid body must have non-zero inertia.");
     }
+}
+
+void rigidbody_apply_kind(entt::registry &registry, entt::entity entity, rigidbody_kind kind,
+                          island_manager &isle_mgr) {
+    rigidbody_replace_kind_tags(registry, entity, kind);
+    rigidbody_assert_supports_kind(registry, entity, kind);
 
     const bool procedural = kind == rigidbody_kind::rb_dynamic;
 
