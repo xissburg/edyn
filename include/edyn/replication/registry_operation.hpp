@@ -278,61 +278,16 @@ struct operation_remove : public operation_base {
  * Placement new is used to allocate operation objects into these buffers.
  */
 class registry_operation final {
-
-    template<typename Component, typename Func>
-    void for_each_emplace(Func func) const {
-        for (auto *op : operations) {
-            if (op->operation_type() == registry_operation_type::emplace &&
-                op->payload_type_id() == entt::type_index<Component>::value())
-            {
-                auto *typed_op = static_cast<const operation_emplace<Component> *>(op);
-
-                if constexpr(std::is_empty_v<Component>) {
-                    func(typed_op->entity);
-                } else {
-                    func(typed_op->entity, typed_op->component);
-                }
-            }
-        }
-    }
-
-    template<typename Component, typename Func>
-    void for_each_replace(Func func) const {
-        for (auto *op : operations) {
-            if (op->operation_type() == registry_operation_type::replace &&
-                op->payload_type_id() == entt::type_index<Component>::value())
-            {
-                auto *typed_op = static_cast<const operation_replace<Component> *>(op);
-
-                if constexpr(std::is_empty_v<Component>) {
-                    func(typed_op->entity);
-                } else {
-                    func(typed_op->entity, typed_op->component);
-                }
-            }
-        }
-    }
-
-    template<typename Component, typename Func>
-    void for_each_remove(Func func) const {
-        for (auto *op : operations) {
-            if (op->operation_type() == registry_operation_type::remove &&
-                op->payload_type_id() == entt::type_index<Component>::value())
-            {
-                auto *typed_op = static_cast<const operation_remove<Component> *>(op);
-                func(typed_op->entity);
-            }
-        }
-    }
-
 public:
     static constexpr auto default_block_size{128ul};
+    std::vector<std::vector<uint8_t>> data_blocks;
+    std::vector<operation_base *> operations;
 
     registry_operation() {
         auto data = std::vector<uint8_t>{};
         data.resize(default_block_size);
         data_blocks.emplace_back(std::move(data));
-    };
+    }
 
     registry_operation(registry_operation &&other) {
         data_blocks = std::move(other.data_blocks);
@@ -358,15 +313,11 @@ public:
     registry_operation(registry_operation &) = delete;
     registry_operation & operator=(registry_operation &) = delete;
 
-
     ~registry_operation() {
         for (auto *op : operations) {
             op->~operation_base();
         }
     }
-
-    std::vector<std::vector<uint8_t>> data_blocks;
-    std::vector<operation_base *> operations;
 
     template<typename... Func>
     void execute(entt::registry &registry, entity_map &entity_map, Func... func) const {
@@ -390,54 +341,6 @@ public:
 
     bool empty() const {
         return operations.empty();
-    }
-
-    template<typename Func>
-    void create_for_each(Func func) const {
-        for (auto *op : operations) {
-            if (op->operation_type() == registry_operation_type::create) {
-                func(static_cast<const operation_create *>(op)->entity);
-            }
-        }
-    }
-
-    template<typename Func>
-    void destroy_for_each(Func func) const {
-        for (auto *op : operations) {
-            if (op->operation_type() == registry_operation_type::destroy) {
-                func(static_cast<const operation_destroy *>(op)->entity);
-            }
-        }
-    }
-
-    template<typename... Component, typename Func>
-    void emplace_for_each(Func func) const {
-        (for_each_emplace<Component>(func), ...);
-    }
-
-    template<typename... Component, typename Func>
-    void replace_for_each(Func func) const {
-        (for_each_replace<Component>(func), ...);
-    }
-
-    template<typename... Component, typename Func>
-    void remove_for_each(Func func) const {
-        (for_each_remove<Component>(func), ...);
-    }
-
-    template<typename... Component, typename Func>
-    void emplace_for_each([[maybe_unused]] std::tuple<Component...>, Func func) const {
-        (for_each_emplace<Component>(func), ...);
-    }
-
-    template<typename... Component, typename Func>
-    void replace_for_each([[maybe_unused]] std::tuple<Component...>, Func func) const {
-        (for_each_replace<Component>(func), ...);
-    }
-
-    template<typename... Component, typename Func>
-    void remove_for_each([[maybe_unused]] std::tuple<Component...>, Func func) const {
-        (for_each_remove<Component>(func), ...);
     }
 };
 
