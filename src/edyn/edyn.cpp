@@ -80,7 +80,6 @@ void attach(entt::registry &registry, const init_config &config) {
         }
 
         dispatcher.start(num_workers);
-        dispatcher.assure_current_queue();
     }
 
     auto &settings = registry.ctx().emplace<edyn::settings>();
@@ -174,9 +173,6 @@ void update(entt::registry &registry) {
 }
 
 void update(entt::registry &registry, double time) {
-    // Run jobs scheduled to run in this thread.
-    job_dispatcher::global().once_current_queue();
-
     if (registry.ctx().contains<stepper_async>()) {
         registry.ctx().at<stepper_async>().update(time);
     } else if (registry.ctx().contains<stepper_sequential>()) {

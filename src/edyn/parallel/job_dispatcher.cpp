@@ -1,13 +1,10 @@
 #include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/parallel/job_queue.hpp"
-#include "edyn/parallel/job_queue_scheduler.hpp"
 #include "edyn/parallel/worker.hpp"
 #include "edyn/config/config.h"
 #include <cstdint>
 
 namespace edyn {
-
-thread_local job_queue job_dispatcher::m_queue;
 
 job_dispatcher &job_dispatcher::global() {
     static job_dispatcher instance;
@@ -85,54 +82,6 @@ void job_dispatcher::async(const job &j) {
     EDYN_ASSERT(m_workers.count(best_id));
 
     m_workers[best_id]->push_job(j);
-}
-
-void job_dispatcher::async(std::thread::id id, const job &j) {
-    auto lock = std::shared_lock(m_queues_mutex);
-    EDYN_ASSERT(m_queues_map.count(id));
-    auto index = m_queues_map.at(id);
-    m_queues[index]->push(j);
-}
-
-void job_dispatcher::async(size_t queue_index, const job &j) {
-    auto lock = std::shared_lock(m_queues_mutex);
-    EDYN_ASSERT(queue_index < m_queues.size());
-    m_queues[queue_index]->push(j);
-}
-
-job_queue_scheduler job_dispatcher::get_current_scheduler() {
-    auto id = std::this_thread::get_id();
-    auto lock = std::shared_lock(m_queues_mutex);
-    EDYN_ASSERT(m_queues_map.count(id));
-    auto index = m_queues_map.at(id);
-    return job_queue_scheduler(m_queues[index]);
-}
-
-void job_dispatcher::assure_current_queue() {
-    auto id = std::this_thread::get_id();
-    // Must not be called from a worker thread.
-    EDYN_ASSERT(!m_workers.count(id));
-
-    auto lock = std::lock_guard(m_queues_mutex);
-    if (!m_queues_map.count(id)) {
-        m_queues_map[id] = m_queues.size();
-        m_queues.push_back(&m_queue);
-    }
-}
-
-size_t job_dispatcher::current_queue_index() const {
-    auto id = std::this_thread::get_id();
-    auto lock = std::shared_lock(m_queues_mutex);
-    EDYN_ASSERT(m_queues_map.count(id));
-    auto index = m_queues_map.at(id);
-    return index;
-}
-
-void job_dispatcher::once_current_queue() {
-    job j;
-    while (m_queue.try_pop(j)) {
-        j();
-    }
 }
 
 size_t job_dispatcher::num_workers() const {
