@@ -262,6 +262,11 @@ bool entity_graph::is_connecting_node(index_type node_index) const {
     return !m_nodes[node_index].non_connecting;
 }
 
+void entity_graph::set_connecting_node(index_type node_index, bool connecting) {
+    EDYN_ASSERT(node_index < m_nodes.size());
+    m_nodes[node_index].non_connecting = !connecting;
+}
+
 void entity_graph::insert_adjacency(index_type node_index0, index_type node_index1, index_type edge_index) {
     m_edges[edge_index].adj_index0 = insert_adjacency_one_way(node_index0, node_index1, edge_index);
 
@@ -349,7 +354,7 @@ void entity_graph::remove_adjacency(index_type source_node_index, index_type adj
     m_adjacencies_free_list = adj_index;
 }
 
-bool entity_graph::is_single_connected_component() {
+bool entity_graph::is_single_connected_component() const {
     EDYN_ASSERT(m_node_count > 0);
 
     std::vector<bool> visited;
@@ -401,7 +406,7 @@ bool entity_graph::is_single_connected_component() {
     return true;
 }
 
-entity_graph::connected_components_t entity_graph::connected_components() {
+entity_graph::connected_components_t entity_graph::connected_components() const {
     auto components = entity_graph::connected_components_t{};
 
     std::vector<bool> visited;

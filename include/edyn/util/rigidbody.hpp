@@ -25,6 +25,8 @@ enum class rigidbody_kind : uint8_t {
     rb_static
 };
 
+class island_manager;
+
 struct rigidbody_def {
     // The entity kind will determine which components are added to it
     // in the `make_rigidbody` call.
@@ -98,6 +100,14 @@ void make_rigidbody(entt::entity, entt::registry &, const rigidbody_def &);
 entt::entity make_rigidbody(entt::registry &, const rigidbody_def &);
 
 /**
+ * @brief Destroys a rigid body without destroying the entity. All components
+ * assigned in `make_rigidbody` are removed.
+ * @param registry Data source.
+ * @param entity Rigid body entity.
+ */
+void clear_rigidbody(entt::registry &, entt::entity);
+
+/**
  * @brief Applies `impulse` to entity.
  * @param registry Data source.
  * @param entity Rigid body entity.
@@ -118,11 +128,12 @@ void rigidbody_apply_impulse(entt::registry &, entt::entity,
 void rigidbody_apply_torque_impulse(entt::registry &, entt::entity,
                                     const vector3 &torque_impulse);
 
+// TODO: Review and document these functions that properly handle kinematic movement.
 void update_kinematic_position(entt::registry &, entt::entity, const vector3 &, scalar dt);
 void update_kinematic_orientation(entt::registry &, entt::entity, const quaternion &, scalar dt);
 void clear_kinematic_velocities(entt::registry &);
 
-bool validate_rigidbody(entt::entity &, entt::registry &);
+bool validate_rigidbody(entt::registry &, entt::entity &);
 
 /**
  * @brief Set the mass of a rigid body.
@@ -166,8 +177,6 @@ void set_rigidbody_friction(entt::registry &, entt::entity, scalar);
  */
 void set_center_of_mass(entt::registry &, entt::entity, const vector3 &com);
 
-void apply_center_of_mass(entt::registry &, entt::entity, const vector3 &com);
-
 /**
  * @brief Get location of rigid body's origin in world space. The position and
  * origin will match if the center of mass offset is zero.
@@ -202,6 +211,45 @@ void rigidbody_update_origin(entt::registry &, entt::entity);
  */
 void wake_up_entity(entt::registry &, entt::entity);
 
+/**
+ * @brief Change rigid body shape.
+ * @param registry Data source.
+ * @param entity Rigid body entity.
+ * @param shape_opt Optional shape. If empty, rigid body is converted into an
+ * amorphous body which does not registers collisions.
+ */
+void rigidbody_set_shape(entt::registry &, entt::entity, std::optional<shapes_variant_t> shape_opt);
+
+/**
+ * @brief Check whether a rigid body is amorphous.
+ * @param registry Data source.
+ * @param entity Rigid body entity.
+ * @return False if rigid body is amorphous.
+ */
+bool rigidbody_has_shape(const entt::registry &, entt::entity);
+
+/**
+ * @brief Assign a new kind to an existing rigid body: dynamic, kinematic or
+ * static.
+ * @remark Ensure non-zero mass and inertia are assigned when setting the kind
+ * to dynamic.
+ * @remark If setting kind to static or kinematic, destroy all constraints
+ * between this body and any other static and kinematic bodies. One of the
+ * constrained bodies must be dynamic.
+ * @param registry Data source.
+ * @param entity Rigid body entity.
+ * @param kind The new kind.
+ */
+void rigidbody_set_kind(entt::registry &, entt::entity, rigidbody_kind);
+
+}
+
+namespace edyn::internal {
+    void apply_center_of_mass(entt::registry &, entt::entity, const vector3 &com);
+    void rigidbody_replace_kind_tags(entt::registry &registry, entt::entity entity, rigidbody_kind kind);
+    void rigidbody_assert_supports_kind(entt::registry &registry, entt::entity entity, rigidbody_kind kind);
+    void rigidbody_apply_kind(entt::registry &registry, entt::entity entity, rigidbody_kind kind,
+                              island_manager &isle_mgr);
 }
 
 #endif // EDYN_UTIL_RIGIDBODY_HPP

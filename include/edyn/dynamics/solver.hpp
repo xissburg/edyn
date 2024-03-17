@@ -19,6 +19,7 @@ class solver final {
 
 public:
     solver(entt::registry &);
+    ~solver();
 
     void update(bool mt);
 

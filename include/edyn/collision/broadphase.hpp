@@ -3,13 +3,14 @@
 
 #include <vector>
 #include <entt/entity/fwd.hpp>
+#include <entt/signal/sigh.hpp>
 #include "edyn/comp/aabb.hpp"
 #include "edyn/core/entity_pair.hpp"
 #include "edyn/collision/dynamic_tree.hpp"
 
 namespace edyn {
 
-class broadphase {
+class broadphase final {
     // Offset applied to AABBs when querying the trees.
     constexpr static auto m_aabb_offset = vector3_one * -contact_breaking_threshold;
 
@@ -24,8 +25,18 @@ class broadphase {
     void collide_parallel();
     void finish_collide();
 
+    void on_construct_aabb(entt::registry &, entt::entity);
+    void on_destroy_aabb(entt::registry &, entt::entity);
+    void on_destroy_tree_resident(entt::registry &, entt::entity);
+    void on_construct_island_aabb(entt::registry &, entt::entity);
+    void on_destroy_island_tree_resident(entt::registry &, entt::entity);
+
 public:
     broadphase(entt::registry &);
+    broadphase(const broadphase &) = delete;
+    broadphase & operator=(const broadphase &) = delete;
+    ~broadphase();
+
     void init_new_aabb_entities();
     void update(bool mt);
 
@@ -43,10 +54,7 @@ public:
 
     void clear();
 
-    void on_construct_aabb(entt::registry &, entt::entity);
-    void on_destroy_tree_resident(entt::registry &, entt::entity);
-    void on_construct_island_aabb(entt::registry &, entt::entity);
-    void on_destroy_island_tree_resident(entt::registry &, entt::entity);
+    void set_procedural(entt::entity, bool);
 
 private:
     entt::registry *m_registry;
@@ -56,6 +64,7 @@ private:
     std::vector<entt::entity> m_new_aabb_entities;
     std::vector<entity_pair_vector> m_pair_results;
     size_t m_max_sequential_size {8};
+    std::vector<entt::scoped_connection> m_connections;
 };
 
 template<typename Func>

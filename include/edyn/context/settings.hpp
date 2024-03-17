@@ -31,6 +31,7 @@ struct settings {
     init_callback_t deinit_callback {nullptr};
     step_callback_t pre_step_callback {nullptr};
     step_callback_t post_step_callback {nullptr};
+
     should_collide_func_t should_collide_func {&should_collide_default};
 
     using clear_actions_func_t = void(entt::registry &);

@@ -25,10 +25,11 @@ struct island_tree_resident {
 broadphase::broadphase(entt::registry &registry)
     : m_registry(&registry)
 {
-    registry.on_construct<AABB>().connect<&broadphase::on_construct_aabb>(*this);
-    registry.on_destroy<tree_resident>().connect<&broadphase::on_destroy_tree_resident>(*this);
-    registry.on_construct<island_AABB>().connect<&broadphase::on_construct_island_aabb>(*this);
-    registry.on_destroy<island_tree_resident>().connect<&broadphase::on_destroy_island_tree_resident>(*this);
+    m_connections.emplace_back(registry.on_construct<AABB>().connect<&broadphase::on_construct_aabb>(*this));
+    m_connections.emplace_back(registry.on_destroy<AABB>().connect<&broadphase::on_destroy_aabb>(*this));
+    m_connections.emplace_back(registry.on_destroy<tree_resident>().connect<&broadphase::on_destroy_tree_resident>(*this));
+    m_connections.emplace_back(registry.on_construct<island_AABB>().connect<&broadphase::on_construct_island_aabb>(*this));
+    m_connections.emplace_back(registry.on_destroy<island_tree_resident>().connect<&broadphase::on_destroy_island_tree_resident>(*this));
 
     // The `should_collide_func` function will be invoked in parallel when
     // running broadphase in parallel, in the call to `broadphase::collide_tree_async`.
@@ -38,9 +39,25 @@ broadphase::broadphase(entt::registry &registry)
     static_cast<void>(registry.storage<collision_exclusion>());
 }
 
+broadphase::~broadphase() {
+    m_connections.clear();
+
+    // This class creates all contact manifolds thus destroy them all.
+    auto manifold_view = m_registry->view<contact_manifold>();
+    m_registry->destroy(manifold_view.begin(), manifold_view.end());
+
+    m_registry->clear<tree_resident>();
+}
+
 void broadphase::on_construct_aabb(entt::registry &, entt::entity entity) {
     // Perform initialization later when the entity is fully constructed.
     m_new_aabb_entities.push_back(entity);
+}
+
+void broadphase::on_destroy_aabb(entt::registry &registry, entt::entity entity) {
+    // No AABB means no longer being present in the broadphase AABB tree.
+    // This will trigger `on_destroy_tree_resident` which will do the cleanup.
+    registry.remove<tree_resident>(entity);
 }
 
 void broadphase::on_destroy_tree_resident(entt::registry &registry, entt::entity entity) {
@@ -65,6 +82,8 @@ void broadphase::on_destroy_island_tree_resident(entt::registry &registry, entt:
 }
 
 void broadphase::init_new_aabb_entities() {
+    entity_vector_erase_invalid(m_new_aabb_entities, *m_registry);
+
     if (m_new_aabb_entities.empty()) {
         return;
     }
@@ -73,8 +92,8 @@ void broadphase::init_new_aabb_entities() {
     auto procedural_view = m_registry->view<procedural_tag>();
 
     for (auto entity : m_new_aabb_entities) {
-        // Entity might've been destroyed, thus skip it.
-        if (!m_registry->valid(entity)) continue;
+        // Entity might've been cleared.
+        if (!aabb_view.contains(entity)) continue;
 
         auto &aabb = aabb_view.get<AABB>(entity);
         bool procedural = procedural_view.contains(entity);
@@ -216,6 +235,31 @@ void broadphase::clear() {
     m_island_tree.clear();
     m_new_aabb_entities.clear();
     m_pair_results.clear();
+}
+
+void broadphase::set_procedural(entt::entity entity, bool procedural) {
+    // It's an amorphous rigid body if it doesn't have an AABB and thus it does
+    // not participate in broadphase collision detection.
+    if (!m_registry->all_of<AABB, tree_resident>(entity)) {
+        return;
+    }
+
+    auto &resident = m_registry->get<tree_resident>(entity);
+
+    if (resident.procedural == procedural) {
+        return;
+    }
+
+    if (resident.procedural) {
+        m_tree.destroy(resident.id);
+    } else {
+        m_np_tree.destroy(resident.id);
+    }
+
+    auto &tree = procedural ? m_tree : m_np_tree;
+    auto &aabb = m_registry->get<AABB>(entity);
+    resident.id = tree.create(aabb, entity);
+    resident.procedural = procedural;
 }
 
 }

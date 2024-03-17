@@ -14,6 +14,7 @@ namespace edyn {
 class polyhedron_shape_initializer {
 public:
     polyhedron_shape_initializer(entt::registry &);
+    ~polyhedron_shape_initializer();
 
     void on_construct_polyhedron_shape(entt::registry &, entt::entity);
     void on_construct_compound_shape(entt::registry &, entt::entity);

@@ -2,6 +2,7 @@
 #define EDYN_UTIL_CONSTRAINT_UTIL_HPP
 
 #include <entt/entity/registry.hpp>
+#include "edyn/comp/graph_edge.hpp"
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/core/entity_pair.hpp"
 #include "edyn/math/vector3.hpp"
@@ -52,9 +53,17 @@ auto make_constraint(entt::registry &registry,
 }
 
 /**
+ * @brief Destroy a constraint without destroying the entity.
+ * @param registry Data source.
+ * @param entity Constraint entity.
+ */
+void clear_constraint(entt::registry &registry, entt::entity entity);
+
+/**
  * @brief Visit all edges of a node in the entity graph. This can be used to
  * iterate over all constraints assigned to a rigid body, including contacts.
  * @tparam Func Visitor function type.
+ * @param registry Data source.
  * @param entity Node entity.
  * @param func Visitor function with signature `void(entt::entity)` or
  * `bool(entt::entity)`. The latter can return false to abort the visit.
@@ -77,6 +86,7 @@ void visit_edges(entt::registry &registry, entt::entity entity, Func func) {
  * be used to iterate over all rigid bodies that are connected one body via
  * constraints.
  * @tparam Func Visitor function type.
+ * @param registry Data source.
  * @param entity Node entity.
  * @param func Visitor function with signature `void(entt::entity)` or
  * `bool(entt::entity)`. The latter can return false to abort the visit.
@@ -114,6 +124,22 @@ scalar get_relative_speed(const std::array<vector3, 4> &J,
                           const vector3 &angvelA,
                           const vector3 &linvelB,
                           const vector3 &angvelB);
+
+
+template<typename Constraint>
+void create_graph_edge_for_constraint(entt::registry &registry, entt::entity entity, entity_graph &graph) {
+    if (!registry.all_of<Constraint>(entity) || registry.all_of<graph_edge>(entity)) return;
+    auto &con = registry.get<Constraint>(entity);
+    auto &node0 = registry.get<graph_node>(con.body[0]);
+    auto &node1 = registry.get<graph_node>(con.body[1]);
+    auto edge_index = graph.insert_edge(entity, node0.node_index, node1.node_index);
+    registry.emplace<graph_edge>(entity, edge_index);
+}
+
+template<typename... Constraints>
+void create_graph_edge_for_constraints(entt::registry &registry, entt::entity entity, entity_graph &graph, [[maybe_unused]] const std::tuple<Constraints...> &) {
+    (create_graph_edge_for_constraint<Constraints>(registry, entity, graph), ...);
+}
 
 }
 

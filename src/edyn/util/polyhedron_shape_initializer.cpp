@@ -4,6 +4,7 @@
 #include "edyn/shapes/compound_shape.hpp"
 #include "edyn/shapes/polyhedron_shape.hpp"
 #include "edyn/util/entt_util.hpp"
+#include <entt/entity/fwd.hpp>
 #include <entt/entity/registry.hpp>
 
 namespace edyn {
@@ -16,6 +17,27 @@ polyhedron_shape_initializer::polyhedron_shape_initializer(entt::registry &regis
     m_connections.push_back(registry.on_construct<compound_shape>().connect<&polyhedron_shape_initializer::on_construct_compound_shape>(*this));
     m_connections.push_back(registry.on_update<compound_shape>().connect<&polyhedron_shape_initializer::on_construct_compound_shape>(*this));
     m_connections.push_back(registry.on_destroy<rotated_mesh_list>().connect<&polyhedron_shape_initializer::on_destroy_rotated_mesh_list>(*this));
+}
+
+polyhedron_shape_initializer::~polyhedron_shape_initializer() {
+    m_connections.clear();
+
+    // New entities are created for compound shapes that contain more than one
+    // polyhedron shape. Destroy those here to avoid dangling entities.
+    auto rotated_view = m_registry->view<rotated_mesh_list>();
+
+    for (auto entity : m_registry->view<compound_shape>()) {
+        if (rotated_view.contains(entity)) {
+            auto [rotated] = rotated_view.get(entity);
+            auto next = rotated.next;
+
+            while (next != entt::null) {
+                auto after_next = std::get<0>(rotated_view.get(next)).next;
+                m_registry->destroy(next);
+                next = after_next;
+            }
+        }
+    }
 }
 
 void polyhedron_shape_initializer::on_construct_polyhedron_shape(entt::registry &registry, entt::entity entity) {

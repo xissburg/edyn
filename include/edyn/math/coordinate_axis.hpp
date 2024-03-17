@@ -1,7 +1,6 @@
 #ifndef EDYN_SHAPES_COORDINATE_AXIS_HPP
 #define EDYN_SHAPES_COORDINATE_AXIS_HPP
 
-#include <array>
 #include "edyn/config/config.h"
 #include "edyn/math/quaternion.hpp"
 #include "edyn/math/vector3.hpp"

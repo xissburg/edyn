@@ -54,6 +54,8 @@ void attach(entt::registry &registry, const init_config &config = {});
 
 /**
  * @brief Detaches Edyn from an EnTT registry.
+ * @remark It will cleanup existing rigid body and constraint entities but will
+ * not destroy them.
  * @param registry The registry to be freed from Edyn's context.
  */
 void detach(entt::registry &registry);

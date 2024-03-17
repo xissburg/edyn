@@ -52,4 +52,10 @@ TEST_F(matrix3x3_test, comparison) {
     auto n = m;
     n[0][0] += 1;
     ASSERT_NE(n, m);
+    ASSERT_GE(n, m);
+    ASSERT_LE(m, n);
+
+    n += edyn::matrix3x3_one;
+    ASSERT_GT(n, m);
+    ASSERT_LT(m, n);
 }

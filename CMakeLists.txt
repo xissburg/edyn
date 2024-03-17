@@ -132,7 +132,6 @@ add_library(Edyn
     src/edyn/core/entity_graph.cpp
     src/edyn/parallel/job_queue.cpp
     src/edyn/parallel/job_dispatcher.cpp
-    src/edyn/parallel/job_queue_scheduler.cpp
     src/edyn/simulation/simulation_worker.cpp
     src/edyn/simulation/stepper_async.cpp
     src/edyn/simulation/stepper_sequential.cpp

@@ -10,19 +10,11 @@ namespace edyn {
 entt::sparse_set get_entities_from_extrapolation_result(const extrapolation_result &result) {
     auto entities = entt::sparse_set{};
 
-    auto add_entities = [&entities](const std::vector<std::unique_ptr<component_operation>> &ops) {
-        for (auto &op : ops) {
-            for (auto remote_entity : op->entities) {
-                if (!entities.contains(remote_entity)) {
-                    entities.emplace(remote_entity);
-                }
-            }
+    for (auto *op : result.ops.operations) {
+        if (!entities.contains(op->entity)) {
+            entities.emplace(op->entity);
         }
-    };
-
-    add_entities(result.ops.emplace_components);
-    add_entities(result.ops.replace_components);
-    add_entities(result.ops.remove_components);
+    }
 
     return entities;
 }

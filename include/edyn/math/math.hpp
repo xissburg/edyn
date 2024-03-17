@@ -16,7 +16,7 @@ constexpr scalar to_degrees(scalar radians) noexcept {
 }
 
 /**
- * @return Value of `degress` converted to radians.
+ * @return Value of `degrees` converted to radians.
  */
 constexpr scalar to_radians(scalar degrees) noexcept {
     return degrees / 180 * pi;

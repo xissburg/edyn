@@ -6,8 +6,8 @@
 namespace edyn {
 
 /**
- * Base struct for scalar components (e.g. mass). Provides functions for 
- * implict conversion to scalar.
+ * Base struct for scalar components (e.g. mass). Provides functions for
+ * implicit conversion to scalar.
  */
 struct scalar_comp {
     scalar s;

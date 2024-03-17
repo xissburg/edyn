@@ -56,13 +56,62 @@ solver::solver(entt::registry &registry)
     m_connections.emplace_back(registry.on_construct<constraint_tag>().connect<&entt::registry::emplace<constraint_row_prep_cache>>());
 }
 
-template<typename C, typename BodyView, typename OriginView, typename ManifoldView, typename SpinView>
+solver::~solver() {
+    m_registry->clear<delta_linvel, delta_angvel>();
+    m_registry->clear<row_cache>();
+    m_registry->clear<island_constraint_entities>();
+    m_registry->clear<constraint_row_prep_cache>();
+}
+
+template<typename C, typename BodyView, typename OriginView, typename ManifoldView,
+         typename SpinView, typename ProceduralView, typename StaticView>
 void invoke_prepare_constraint(entt::registry &registry, entt::entity entity, C &&con,
                                constraint_row_prep_cache &cache, scalar dt,
                                const BodyView &body_view, const OriginView &origin_view,
-                               const ManifoldView &manifold_view, SpinView &spin_view) {
-    auto [posA, ornA, linvelA, angvelA, inv_mA, inv_IA, dvA, dwA] = body_view.get(con.body[0]);
-    auto [posB, ornB, linvelB, angvelB, inv_mB, inv_IB, dvB, dwB] = body_view.get(con.body[1]);
+                               const ManifoldView &manifold_view, const SpinView &spin_view,
+                               const ProceduralView &procedural_view, const StaticView &static_view) {
+    auto [posA, ornA, dvA, dwA] = body_view.template get<position, orientation, delta_linvel, delta_angvel>(con.body[0]);
+    auto [posB, ornB, dvB, dwB] = body_view.template get<position, orientation, delta_linvel, delta_angvel>(con.body[1]);
+
+    // Get velocity from registry for non-static entities (dynamic and kinematic).
+    // Get mass and inertia from registry for procedural entities (dynamic only).
+    // Use zero mass, inertia and velocities otherwise.
+    vector3 linvelA, linvelB;
+    vector3 angvelA, angvelB;
+    scalar inv_mA, inv_mB;
+    matrix3x3 inv_IA, inv_IB;
+
+    if (procedural_view.contains(con.body[0])) {
+        inv_mA = body_view.template get<mass_inv>(con.body[0]);
+        inv_IA = body_view.template get<inertia_world_inv>(con.body[0]);
+    } else {
+        inv_mA = 0;
+        inv_IA = matrix3x3_zero;
+    }
+
+    if (static_view.contains(con.body[0])) {
+        linvelA = vector3_zero;
+        angvelA = vector3_zero;
+    } else {
+        linvelA = body_view.template get<linvel>(con.body[0]);
+        angvelA = body_view.template get<angvel>(con.body[0]);
+    }
+
+    if (procedural_view.contains(con.body[1])) {
+        inv_mB = body_view.template get<mass_inv>(con.body[1]);
+        inv_IB = body_view.template get<inertia_world_inv>(con.body[1]);
+    } else {
+        inv_mB = 0;
+        inv_IB = matrix3x3_zero;
+    }
+
+    if (static_view.contains(con.body[1])) {
+        linvelB = vector3_zero;
+        angvelB = vector3_zero;
+    } else {
+        linvelB = body_view.template get<linvel>(con.body[1]);
+        angvelB = body_view.template get<angvel>(con.body[1]);
+    }
 
     auto originA = origin_view.contains(con.body[0]) ?
         origin_view.template get<origin>(con.body[0]) : static_cast<vector3>(posA);
@@ -234,17 +283,21 @@ static void prepare_constraints(entt::registry &registry, scalar dt, bool mt) {
     auto spin_view = registry.view<spin, spin_angle, delta_spin>();
     auto cache_view = registry.view<constraint_row_prep_cache>(exclude_sleeping_disabled);
     auto manifold_view = registry.view<contact_manifold>();
+    auto procedural_view = registry.view<procedural_tag>();
+    auto static_view = registry.view<static_tag>();
     auto con_view_tuple = get_tuple_of_views(registry, constraints_tuple);
 
     auto for_loop_body = [&registry, body_view, cache_view, origin_view,
-                          manifold_view, spin_view, con_view_tuple, dt](entt::entity entity) {
+                          manifold_view, spin_view, procedural_view,
+                          static_view, con_view_tuple, dt](entt::entity entity) {
         auto &prep_cache = cache_view.get<constraint_row_prep_cache>(entity);
         prep_cache.clear();
 
         std::apply([&](auto &&... con_view) {
             ((con_view.contains(entity) ?
                 invoke_prepare_constraint(registry, entity, std::get<0>(con_view.get(entity)), prep_cache,
-                                          dt, body_view, origin_view, manifold_view, spin_view) : void(0)), ...);
+                                          dt, body_view, origin_view, manifold_view, spin_view,
+                                          procedural_view, static_view) : void(0)), ...);
         }, con_view_tuple);
     };
 
