@@ -89,16 +89,21 @@ simulation_worker::simulation_worker(const settings &settings,
 
 simulation_worker::~simulation_worker() {
     stop();
+
+    // The destructor of `polyhedron_shape_initializer` touches `m_registry` when
+    // destroying `rotated_mesh_list` elements it creates for compound shapes
+    // containing polyhedrons. It's called after `stop()` which finishes the
+    // simulation thread. Thus there won't be race conditions in that destructor.
 }
 
 void simulation_worker::init() {
-    m_registry.on_construct<graph_node>().connect<&simulation_worker::on_construct_shared_entity>(*this);
-    m_registry.on_construct<graph_edge>().connect<&simulation_worker::on_construct_shared_entity>(*this);
-    m_registry.on_construct<island_tag>().connect<&simulation_worker::on_construct_shared_entity>(*this);
+    m_connections.push_back(m_registry.on_construct<graph_node>().connect<&simulation_worker::on_construct_shared_entity>(*this));
+    m_connections.push_back(m_registry.on_construct<graph_edge>().connect<&simulation_worker::on_construct_shared_entity>(*this));
+    m_connections.push_back(m_registry.on_construct<island_tag>().connect<&simulation_worker::on_construct_shared_entity>(*this));
 
-    m_registry.on_destroy<graph_node>().connect<&simulation_worker::on_destroy_shared_entity>(*this);
-    m_registry.on_destroy<graph_edge>().connect<&simulation_worker::on_destroy_shared_entity>(*this);
-    m_registry.on_destroy<island_tag>().connect<&simulation_worker::on_destroy_shared_entity>(*this);
+    m_connections.push_back(m_registry.on_destroy<graph_node>().connect<&simulation_worker::on_destroy_shared_entity>(*this));
+    m_connections.push_back(m_registry.on_destroy<graph_edge>().connect<&simulation_worker::on_destroy_shared_entity>(*this));
+    m_connections.push_back(m_registry.on_destroy<island_tag>().connect<&simulation_worker::on_destroy_shared_entity>(*this));
 
     m_message_queue.sink<msg::update_entities>().connect<&simulation_worker::on_update_entities>(*this);
     m_message_queue.sink<msg::set_paused>().connect<&simulation_worker::on_set_paused>(*this);

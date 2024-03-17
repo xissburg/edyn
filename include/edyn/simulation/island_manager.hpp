@@ -32,6 +32,7 @@ class island_manager {
 
 public:
     island_manager(entt::registry &registry);
+    ~island_manager();
 
     void put_to_sleep(entt::entity island_entity);
     void put_all_to_sleep();

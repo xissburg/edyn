@@ -10,7 +10,7 @@
 
 namespace edyn {
 
-class broadphase {
+class broadphase final {
     // Offset applied to AABBs when querying the trees.
     constexpr static auto m_aabb_offset = vector3_one * -contact_breaking_threshold;
 
@@ -35,6 +35,7 @@ public:
     broadphase(entt::registry &);
     broadphase(const broadphase &) = delete;
     broadphase & operator=(const broadphase &) = delete;
+    ~broadphase();
 
     void init_new_aabb_entities();
     void update(bool mt);

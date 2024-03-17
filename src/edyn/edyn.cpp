@@ -7,6 +7,7 @@
 #include "edyn/comp/child_list.hpp"
 #include "edyn/comp/collision_exclusion.hpp"
 #include "edyn/comp/island.hpp"
+#include "edyn/comp/tag.hpp"
 #include "edyn/config/config.h"
 #include "edyn/config/execution_mode.hpp"
 #include "edyn/constraints/constraint.hpp"
@@ -15,9 +16,12 @@
 #include "edyn/context/settings.hpp"
 #include "edyn/networking/comp/entity_owner.hpp"
 #include "edyn/networking/context/client_network_context.hpp"
+#include "edyn/shapes/shapes.hpp"
 #include "edyn/simulation/stepper_async.hpp"
 #include "edyn/simulation/stepper_sequential.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
+#include "edyn/util/constraint_util.hpp"
+#include "edyn/util/rigidbody.hpp"
 #include <entt/meta/factory.hpp>
 #include <entt/core/hashed_string.hpp>
 
@@ -107,6 +111,11 @@ void attach(entt::registry &registry, const init_config &config) {
     }
 }
 
+template<typename... Ts>
+void registry_clear(entt::registry &registry, [[maybe_unused]] const std::tuple<Ts...> &) {
+    registry.clear<Ts...>();
+}
+
 void detach(entt::registry &registry) {
     registry.ctx().erase<settings>();
     registry.ctx().erase<entity_graph>();
@@ -118,6 +127,37 @@ void detach(entt::registry &registry) {
     registry.ctx().erase<narrowphase>();
     registry.ctx().erase<stepper_async>();
     registry.ctx().erase<stepper_sequential>();
+
+    registry.clear<rigidbody_tag, constraint_tag, dynamic_tag, kinematic_tag, static_tag,
+                   procedural_tag, networked_tag, external_tag, network_exclude_tag,
+                   sleeping_disabled_tag, sleeping_tag, disabled_tag>();
+    registry.clear<collision_filter>();
+
+    registry.clear<shape_index>();
+    registry.clear<AABB>();
+    registry.clear<rolling_tag>();
+    registry.clear<roll_direction>();
+
+    registry_clear(registry, shapes_tuple);
+    registry_clear(registry, constraints_tuple);
+
+    registry.clear<material, gravity, center_of_mass>();
+
+    registry.clear<linvel, angvel>();
+    registry.clear<mass, mass_inv>();
+    registry.clear<inertia, inertia_inv, inertia_world_inv>();
+
+    registry.clear<present_position, present_orientation>();
+    registry.clear<position, orientation>();
+
+    registry.clear<graph_node>();
+    registry.clear<graph_edge>();
+    registry.clear<island_resident, multi_island_resident>();
+    registry.clear<null_constraint>();
+
+    // All manifolds are created by the engine thus destroy all entities.
+    auto manifold_view = registry.view<contact_manifold>();
+    registry.destroy(manifold_view.begin(), manifold_view.end());
 
     job_dispatcher::global().stop();
 }

@@ -48,6 +48,13 @@ solver::solver(entt::registry &registry)
     m_connections.emplace_back(registry.on_construct<constraint_tag>().connect<&entt::registry::emplace<constraint_row_prep_cache>>());
 }
 
+solver::~solver() {
+    m_registry->clear<delta_linvel, delta_angvel>();
+    m_registry->clear<row_cache>();
+    m_registry->clear<island_constraint_entities>();
+    m_registry->clear<constraint_row_prep_cache>();
+}
+
 template<typename C, typename BodyView, typename OriginView, typename ManifoldView, typename ProceduralView, typename StaticView>
 void invoke_prepare_constraint(entt::registry &registry, entt::entity entity, C &&con,
                                constraint_row_prep_cache &cache, scalar dt,

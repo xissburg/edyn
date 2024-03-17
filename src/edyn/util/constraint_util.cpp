@@ -6,6 +6,7 @@
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/graph_edge.hpp"
 #include "edyn/comp/graph_node.hpp"
+#include "edyn/constraints/constraint.hpp"
 #include "edyn/constraints/contact_constraint.hpp"
 #include "edyn/constraints/null_constraint.hpp"
 #include "edyn/context/settings.hpp"
@@ -40,6 +41,18 @@ namespace internal {
 
         return true;
     }
+}
+
+template<typename... T>
+void remove_components(entt::registry &registry, entt::entity entity, [[maybe_unused]] const std::tuple<T...> &) {
+    (registry.remove<T>(entity), ...);
+}
+
+void clear_constraint(entt::registry &registry, entt::entity entity) {
+    registry.erase<constraint_tag>(entity);
+    registry.erase<graph_edge, island_resident>(entity);
+    registry.remove<null_constraint>(entity);
+    remove_components(registry, entity, constraints_tuple);
 }
 
 entt::entity make_contact_manifold(entt::registry &registry,

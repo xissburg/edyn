@@ -50,9 +50,17 @@ auto make_constraint(entt::registry &registry,
 }
 
 /**
+ * @brief Destroy a constraint without destroying the entity.
+ * @param registry Data source.
+ * @param entity Constraint entity.
+ */
+void clear_constraint(entt::registry &registry, entt::entity entity);
+
+/**
  * @brief Visit all edges of a node in the entity graph. This can be used to
  * iterate over all constraints assigned to a rigid body, including contacts.
  * @tparam Func Visitor function type.
+ * @param registry Data source.
  * @param entity Node entity.
  * @param func Visitor function with signature `void(entt::entity)` or
  * `bool(entt::entity)`. The latter can return false to abort the visit.
@@ -75,6 +83,7 @@ void visit_edges(entt::registry &registry, entt::entity entity, Func func) {
  * be used to iterate over all rigid bodies that are connected one body via
  * constraints.
  * @tparam Func Visitor function type.
+ * @param registry Data source.
  * @param entity Node entity.
  * @param func Visitor function with signature `void(entt::entity)` or
  * `bool(entt::entity)`. The latter can return false to abort the visit.
