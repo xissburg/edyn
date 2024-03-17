@@ -238,6 +238,12 @@ void broadphase::clear() {
 }
 
 void broadphase::set_procedural(entt::entity entity, bool procedural) {
+    // It's an amorphous rigid body if it doesn't have an AABB and thus it does
+    // not participate in broadphase collision detection.
+    if (!m_registry->all_of<AABB, tree_resident>(entity)) {
+        return;
+    }
+
     auto &resident = m_registry->get<tree_resident>(entity);
 
     if (resident.procedural == procedural) {

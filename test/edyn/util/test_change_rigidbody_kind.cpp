@@ -68,3 +68,25 @@ TEST(test_change_rigidbody_kind, change_kind_dynamic_kinematic) {
 
     edyn::detach(registry);
 }
+
+TEST(test_change_rigidbody_kind, change_kind_dynamic_kinematic_amorphous) {
+    entt::registry registry;
+    auto config = edyn::init_config{};
+    config.execution_mode = edyn::execution_mode::sequential;
+    edyn::attach(registry, config);
+
+    auto def = edyn::rigidbody_def{};
+    def.kind = edyn::rigidbody_kind::rb_dynamic;
+    def.mass = 1;
+    def.inertia = edyn::matrix3x3_identity;
+    auto rb = edyn::make_rigidbody(registry, def);
+    edyn::update(registry, 0.01);
+
+    edyn::rigidbody_set_kind(registry, rb, edyn::rigidbody_kind::rb_kinematic);
+    edyn::update(registry, 0.01);
+
+    ASSERT_TRUE((registry.all_of<edyn::kinematic_tag>(rb)));
+    ASSERT_FALSE((registry.any_of<edyn::procedural_tag>(rb)));
+
+    edyn::detach(registry);
+}
