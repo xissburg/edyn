@@ -35,8 +35,10 @@ void paged_triangle_mesh::load_node_if_needed(size_t trimesh_idx) {
     }
 
     auto &node = m_cache[trimesh_idx];
+    // Make copy of shared_ptr to increment reference count and avoid concurrent deallocation.
+    auto trimesh = node.trimesh;
 
-    if (node.trimesh) {
+    if (trimesh) {
         m_is_loading_submesh[trimesh_idx].store(false, std::memory_order_relaxed);
         return;
     }
@@ -62,8 +64,10 @@ void paged_triangle_mesh::unload_least_recently_visited_node() {
 
     for (auto it = m_lru_indices.rbegin(); it != m_lru_indices.rend(); ++it) {
         auto &node = m_cache[*it];
-        if (node.trimesh) {
-            node.trimesh.reset();
+        auto trimesh = node.trimesh;
+
+        if (trimesh) {
+            trimesh.reset();
             break;
         }
     }
@@ -91,7 +95,9 @@ void paged_triangle_mesh::assign_mesh(size_t index, std::shared_ptr<triangle_mes
 
 bool paged_triangle_mesh::has_per_vertex_friction() const {
     for (auto &node : m_cache) {
-        if (node.trimesh && node.trimesh->has_per_vertex_friction()) {
+        auto trimesh = node.trimesh;
+
+        if (trimesh && trimesh->has_per_vertex_friction()) {
             return true;
         }
     }
@@ -101,7 +107,9 @@ bool paged_triangle_mesh::has_per_vertex_friction() const {
 
 bool paged_triangle_mesh::has_per_vertex_restitution() const {
     for (auto &node : m_cache) {
-        if (node.trimesh && node.trimesh->has_per_vertex_restitution()) {
+        auto trimesh = node.trimesh;
+
+        if (trimesh && trimesh->has_per_vertex_restitution()) {
             return true;
         }
     }
