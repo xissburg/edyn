@@ -321,6 +321,9 @@ void stepper_async::wake_up_entity(entt::entity entity) {
 }
 
 void stepper_async::set_rigidbody_kind(entt::entity entity, rigidbody_kind kind) {
+    // Must sync existing component changes to ensure the simulation registry
+    // contains the latest changes before processing the `change_rigidbody_kind` message.
+    sync();
     auto msg = msg::change_rigidbody_kind{};
     msg.changes.emplace_back(entity, kind);
     send_message_to_worker<msg::change_rigidbody_kind>(std::move(msg));
