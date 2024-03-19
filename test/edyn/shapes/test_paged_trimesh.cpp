@@ -4,13 +4,7 @@
 
 class triangle_mesh_page_loader: public edyn::triangle_mesh_page_loader_base {
 public:
-    void load(size_t index) override {}
-    virtual entt::sink<entt::sigh<loaded_mesh_func_t>> on_load_sink() override {
-        return {m_loaded_signal};
-    }
-
-private:
-    entt::sigh<loaded_mesh_func_t> m_loaded_signal;
+    void load(edyn::paged_triangle_mesh *trimesh, size_t index) override {}
 };
 
 TEST(test_paged_trimesh, voronoi_regions) {

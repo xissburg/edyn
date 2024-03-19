@@ -10,7 +10,6 @@ namespace edyn {
 paged_triangle_mesh::paged_triangle_mesh(std::shared_ptr<triangle_mesh_page_loader_base> loader)
     : m_page_loader(loader)
 {
-    m_page_loader->on_load_sink().connect<&paged_triangle_mesh::assign_mesh>(*this);
 }
 
 size_t paged_triangle_mesh::cache_num_vertices() const {
@@ -49,7 +48,7 @@ void paged_triangle_mesh::load_node_if_needed(size_t trimesh_idx) {
         unload_least_recently_visited_node();
     }
 
-    m_page_loader->load(trimesh_idx);
+    m_page_loader->load(this, trimesh_idx);
 }
 
 void paged_triangle_mesh::mark_recent_visit(size_t trimesh_idx) {

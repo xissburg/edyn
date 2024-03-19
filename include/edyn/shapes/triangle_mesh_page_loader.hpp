@@ -1,21 +1,16 @@
 #ifndef EDYN_SHAPES_TRIANGLE_MESH_PAGE_LOADER_HPP
 #define EDYN_SHAPES_TRIANGLE_MESH_PAGE_LOADER_HPP
 
-#include <memory>
-#include <entt/signal/fwd.hpp>
+#include <cstddef>
 
 namespace edyn {
 
-class triangle_mesh;
+class paged_triangle_mesh;
 
 class triangle_mesh_page_loader_base {
 public:
-    virtual ~triangle_mesh_page_loader_base() {}
-
-    virtual void load(size_t index) = 0;
-
-    using loaded_mesh_func_t = void(size_t, std::shared_ptr<triangle_mesh>);
-    virtual entt::sink<entt::sigh<loaded_mesh_func_t>> on_load_sink() = 0;
+    virtual ~triangle_mesh_page_loader_base() = default;
+    virtual void load(paged_triangle_mesh *trimesh, size_t index) = 0;
 };
 
 

@@ -5,7 +5,9 @@
 #include "edyn/serialization/std_s11n.hpp"
 #include "edyn/serialization/memory_archive.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
+#include "edyn/shapes/paged_triangle_mesh.hpp"
 #include "edyn/shapes/triangle_mesh.hpp"
+#include <cstdint>
 #include <memory>
 #include <string>
 
@@ -105,13 +107,13 @@ void serialize(paged_triangle_mesh_file_input_archive &archive,
 
 template<typename Archive>
 void serialize(Archive &archive, load_mesh_context &ctx) {
-    archive(ctx.m_input);
-    archive(ctx.m_index);
+    archive(ctx.m_input, ctx.m_trimesh, ctx.m_index);
 }
 
-void paged_triangle_mesh_file_input_archive::load(size_t index) {
+void paged_triangle_mesh_file_input_archive::load(paged_triangle_mesh *trimesh, size_t index) {
     auto ctx = load_mesh_context();
     ctx.m_input = reinterpret_cast<intptr_t>(this);
+    ctx.m_trimesh = reinterpret_cast<intptr_t>(trimesh);
     ctx.m_index = index;
 
     auto j = job();
@@ -142,7 +144,8 @@ void load_mesh_job_func(job::data_type &data) {
     }
     }
 
-    input->m_loaded_signal.publish(ctx.m_index, mesh);
+    auto *paged = reinterpret_cast<paged_triangle_mesh *>(ctx.m_trimesh);
+    paged->assign_mesh(ctx.m_index, mesh);
 }
 
 }
