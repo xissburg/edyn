@@ -16,11 +16,13 @@
 #include "edyn/context/settings.hpp"
 #include "edyn/networking/comp/entity_owner.hpp"
 #include "edyn/networking/context/client_network_context.hpp"
+#include "edyn/parallel/message_dispatcher.hpp"
 #include "edyn/shapes/shapes.hpp"
 #include "edyn/simulation/stepper_async.hpp"
 #include "edyn/simulation/stepper_sequential.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
 #include "edyn/util/constraint_util.hpp"
+#include "edyn/util/paged_mesh_load_reporting.hpp"
 #include "edyn/util/rigidbody.hpp"
 #include <entt/meta/factory.hpp>
 #include <entt/core/hashed_string.hpp>
@@ -112,6 +114,8 @@ void attach(entt::registry &registry, const init_config &config) {
         registry.ctx().emplace<stepper_async>(registry, timestamp);
         break;
     }
+
+    internal::init_paged_mesh_load_reporting(registry);
 }
 
 template<typename... Ts>
@@ -120,6 +124,8 @@ void registry_clear(entt::registry &registry, [[maybe_unused]] const std::tuple<
 }
 
 void detach(entt::registry &registry) {
+    internal::deinit_paged_mesh_load_reporting(registry);
+
     registry.ctx().erase<settings>();
     registry.ctx().erase<entity_graph>();
     registry.ctx().erase<material_mix_table>();
@@ -163,6 +169,7 @@ void detach(entt::registry &registry) {
     registry.destroy(manifold_view.begin(), manifold_view.end());
 
     job_dispatcher::global().stop();
+    message_dispatcher::global().clear_queues();
 }
 
 scalar get_fixed_dt(const entt::registry &registry) {
@@ -221,6 +228,8 @@ void update(entt::registry &registry, double time) {
     } else if (registry.ctx().contains<stepper_sequential>()) {
         registry.ctx().at<stepper_sequential>().update(time);
     }
+
+    internal::update_paged_mesh_load_reporting(registry);
 }
 
 void step_simulation(entt::registry &registry) {
@@ -233,6 +242,8 @@ void step_simulation(entt::registry &registry) {
         auto time = (*settings.time_func)();
         registry.ctx().at<stepper_sequential>().step_simulation(time);
     }
+
+    internal::update_paged_mesh_load_reporting(registry);
 }
 
 void step_simulation(entt::registry &registry, double time) {
@@ -243,6 +254,8 @@ void step_simulation(entt::registry &registry, double time) {
     } else {
         registry.ctx().at<stepper_sequential>().step_simulation(time);
     }
+
+    internal::update_paged_mesh_load_reporting(registry);
 }
 
 execution_mode get_execution_mode(const entt::registry &registry) {

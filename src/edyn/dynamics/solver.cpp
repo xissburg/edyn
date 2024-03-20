@@ -63,8 +63,7 @@ solver::~solver() {
     m_registry->clear<constraint_row_prep_cache>();
 }
 
-template<typename C, typename BodyView, typename OriginView, typename ManifoldView,
-         typename SpinView, typename ProceduralView, typename StaticView>
+template<typename C, typename BodyView, typename OriginView, typename ManifoldView, typename SpinView, typename ProceduralView, typename StaticView>
 void invoke_prepare_constraint(entt::registry &registry, entt::entity entity, C &&con,
                                constraint_row_prep_cache &cache, scalar dt,
                                const BodyView &body_view, const OriginView &origin_view,
@@ -288,16 +287,14 @@ static void prepare_constraints(entt::registry &registry, scalar dt, bool mt) {
     auto con_view_tuple = get_tuple_of_views(registry, constraints_tuple);
 
     auto for_loop_body = [&registry, body_view, cache_view, origin_view,
-                          manifold_view, spin_view, procedural_view,
-                          static_view, con_view_tuple, dt](entt::entity entity) {
+                          manifold_view, spin_view, procedural_view, static_view, con_view_tuple, dt](entt::entity entity) {
         auto &prep_cache = cache_view.get<constraint_row_prep_cache>(entity);
         prep_cache.clear();
 
         std::apply([&](auto &&... con_view) {
             ((con_view.contains(entity) ?
                 invoke_prepare_constraint(registry, entity, std::get<0>(con_view.get(entity)), prep_cache,
-                                          dt, body_view, origin_view, manifold_view, spin_view,
-                                          procedural_view, static_view) : void(0)), ...);
+                                          dt, body_view, origin_view, manifold_view, spin_view, procedural_view, static_view) : void(0)), ...);
         }, con_view_tuple);
     };
 

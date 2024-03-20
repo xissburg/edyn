@@ -113,11 +113,7 @@ public:
         m_path = path;
     }
 
-    void load(size_t index) override;
-
-    virtual entt::sink<entt::sigh<loaded_mesh_func_t>> on_load_sink() override {
-        return {m_loaded_signal};
-    }
+    void load(paged_triangle_mesh *trimesh, size_t index) override;
 
     friend void serialize(paged_triangle_mesh_file_input_archive &archive,
                           paged_triangle_mesh &paged_tri_mesh);
@@ -129,7 +125,6 @@ private:
     size_t m_base_offset;
     std::vector<size_t> m_offsets;
     paged_triangle_mesh_serialization_mode m_mode;
-    entt::sigh<loaded_mesh_func_t> m_loaded_signal;
 };
 
 /**
@@ -139,6 +134,8 @@ struct load_mesh_context {
     // Integral value of a pointer to and instance of
     // `paged_triangle_mesh_file_input_archive`.
     intptr_t m_input;
+    // Pointer to paged triangle mesh.
+    intptr_t m_trimesh;
     // Index of submesh to be loaded.
     size_t m_index;
 };

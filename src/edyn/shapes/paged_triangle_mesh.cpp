@@ -1,16 +1,17 @@
 #include "edyn/shapes/paged_triangle_mesh.hpp"
+#include "edyn/parallel/message.hpp"
 #include "edyn/parallel/parallel_for.hpp"
 #include <atomic>
 #include <limits>
 #include <mutex>
 #include <entt/entity/registry.hpp>
+#include "edyn/parallel/message_dispatcher.hpp"
 
 namespace edyn {
 
 paged_triangle_mesh::paged_triangle_mesh(std::shared_ptr<triangle_mesh_page_loader_base> loader)
     : m_page_loader(loader)
 {
-    m_page_loader->on_load_sink().connect<&paged_triangle_mesh::assign_mesh>(*this);
 }
 
 size_t paged_triangle_mesh::cache_num_vertices() const {
@@ -35,23 +36,24 @@ void paged_triangle_mesh::load_node_if_needed(size_t trimesh_idx) {
         return;
     }
 
-    const auto &node = m_cache[trimesh_idx];
+    auto &node = m_cache[trimesh_idx];
+    // Make copy of shared_ptr to increment reference count and avoid concurrent deallocation.
+    auto trimesh = node.trimesh;
 
-    if (node.trimesh) {
+    if (trimesh) {
         m_is_loading_submesh[trimesh_idx].store(false, std::memory_order_relaxed);
         return;
     }
 
     EDYN_ASSERT(node.num_vertices < m_max_cache_num_vertices);
-    // TODO: Fix race condition when unloading submeshes.
 
     // Load triangle mesh into cache. Clear cache if it would go
     // above limits.
-    /* while (cache_num_vertices() + node.num_vertices > m_max_cache_num_vertices) {
+    while (cache_num_vertices() + node.num_vertices > m_max_cache_num_vertices) {
         unload_least_recently_visited_node();
-    } */
+    }
 
-    m_page_loader->load(trimesh_idx);
+    m_page_loader->load(this, trimesh_idx);
 }
 
 void paged_triangle_mesh::mark_recent_visit(size_t trimesh_idx) {
@@ -65,8 +67,10 @@ void paged_triangle_mesh::unload_least_recently_visited_node() {
 
     for (auto it = m_lru_indices.rbegin(); it != m_lru_indices.rend(); ++it) {
         auto &node = m_cache[*it];
+
         if (node.trimesh) {
             node.trimesh.reset();
+            message_dispatcher::global().send<msg::paged_triangle_mesh_load_page>({"paged_triangle_mesh_page_load"}, {}, this, *it);
             break;
         }
     }

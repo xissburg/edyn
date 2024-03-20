@@ -124,6 +124,7 @@ add_library(Edyn
     src/edyn/util/contact_manifold_util.cpp
     src/edyn/util/insert_material_mixing.cpp
     src/edyn/util/island_util.cpp
+    src/edyn/util/paged_mesh_load_reporting.cpp
     src/edyn/shapes/box_shape.cpp
     src/edyn/shapes/cylinder_shape.cpp
     src/edyn/shapes/polyhedron_shape.cpp
