@@ -8,6 +8,7 @@
 #include "edyn/comp/collision_exclusion.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/tag.hpp"
+#include "edyn/comp/tree_resident.hpp"
 #include "edyn/config/config.h"
 #include "edyn/config/execution_mode.hpp"
 #include "edyn/constraints/constraint.hpp"
@@ -159,6 +160,7 @@ void detach(entt::registry &registry) {
     registry.clear<graph_node>();
     registry.clear<graph_edge>();
     registry.clear<island_resident, multi_island_resident>();
+    registry.clear<tree_resident>();
     registry.clear<null_constraint>();
 
     // All manifolds are created by the engine thus destroy all entities.
