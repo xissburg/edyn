@@ -6,6 +6,7 @@
 #include <mutex>
 #include <entt/entity/registry.hpp>
 #include "edyn/parallel/message_dispatcher.hpp"
+#include "edyn/util/paged_mesh_load_reporting.hpp"
 
 namespace edyn {
 
@@ -70,7 +71,7 @@ void paged_triangle_mesh::unload_least_recently_visited_node() {
 
         if (node.trimesh) {
             node.trimesh.reset();
-            message_dispatcher::global().send<msg::paged_triangle_mesh_load_page>({"paged_triangle_mesh_page_load"}, {}, this, *it);
+            message_dispatcher::global().send<msg::paged_triangle_mesh_load_page>({internal::paged_mesh_load_queue_identifier}, {}, this, *it);
             break;
         }
     }
@@ -94,6 +95,7 @@ void paged_triangle_mesh::assign_mesh(size_t index, std::shared_ptr<triangle_mes
     auto lock = std::lock_guard(m_lru_mutex);
     m_cache[index].trimesh = mesh;
     m_is_loading_submesh[index].store(false, std::memory_order_release);
+    message_dispatcher::global().send<msg::paged_triangle_mesh_load_page>({internal::paged_mesh_load_queue_identifier}, {}, this, index);
 }
 
 bool paged_triangle_mesh::has_per_vertex_friction() const {
