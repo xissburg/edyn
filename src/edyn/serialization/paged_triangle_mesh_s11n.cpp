@@ -1,4 +1,6 @@
 #include "edyn/serialization/paged_triangle_mesh_s11n.hpp"
+#include "edyn/parallel/message.hpp"
+#include "edyn/parallel/message_dispatcher.hpp"
 #include "edyn/serialization/triangle_mesh_s11n.hpp"
 #include "edyn/serialization/static_tree_s11n.hpp"
 #include "edyn/serialization/math_s11n.hpp"
@@ -146,6 +148,8 @@ void load_mesh_job_func(job::data_type &data) {
 
     auto *paged = reinterpret_cast<paged_triangle_mesh *>(ctx.m_trimesh);
     paged->assign_mesh(ctx.m_index, mesh);
+
+    message_dispatcher::global().send<msg::paged_triangle_mesh_load_page>({"paged_triangle_mesh_page_load"}, {}, paged, ctx.m_index);
 }
 
 }

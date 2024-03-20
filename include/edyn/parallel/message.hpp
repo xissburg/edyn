@@ -109,6 +109,11 @@ struct set_extrapolator_context_settings {
     make_extrapolation_modified_comp_func_t *make_extrapolation_modified_comp;
 };
 
+struct paged_triangle_mesh_load_page {
+    paged_triangle_mesh *trimesh;
+    size_t mesh_index;
+};
+
 }
 
 #endif // EDYN_PARALLEL_MESSAGE_HPP

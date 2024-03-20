@@ -6,6 +6,7 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include "edyn/config/config.h"
 #include "edyn/parallel/message_queue.hpp"
 
 namespace edyn {
@@ -58,6 +59,7 @@ public:
     template<typename... MessageTypes>
     auto make_queue(const std::string &name) {
         auto lock = std::lock_guard(m_queues_mutex);
+        EDYN_ASSERT(!m_queues.count(name));
         m_queues[name] = std::make_unique<message_queue>();
         return message_queue_handle<MessageTypes...>({name}, *m_queues.at(name));
     }
@@ -65,7 +67,14 @@ public:
     template<typename T, typename... Args>
     void send(message_queue_identifier destination, message_queue_identifier source, Args&& ... args) {
         auto lock = std::shared_lock(m_queues_mutex);
-        m_queues.at(destination.value)->push<T>(source, std::forward<Args>(args)...);
+        if (m_queues.count(destination.value)) {
+            m_queues.at(destination.value)->push<T>(source, std::forward<Args>(args)...);
+        }
+    }
+
+    void clear_queues() {
+        auto lock = std::shared_lock(m_queues_mutex);
+        m_queues.clear();
     }
 
 private:
