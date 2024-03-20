@@ -35,7 +35,6 @@ public:
     broadphase(entt::registry &);
     broadphase(const broadphase &) = delete;
     broadphase & operator=(const broadphase &) = delete;
-    ~broadphase();
 
     void init_new_aabb_entities();
     void update(bool mt);
