@@ -1,9 +1,12 @@
 #include "edyn/shapes/paged_triangle_mesh.hpp"
+#include "edyn/parallel/message.hpp"
 #include "edyn/parallel/parallel_for.hpp"
 #include <atomic>
 #include <limits>
 #include <mutex>
 #include <entt/entity/registry.hpp>
+#include "edyn/parallel/message_dispatcher.hpp"
+#include "edyn/util/paged_mesh_load_reporting.hpp"
 
 namespace edyn {
 
@@ -44,6 +47,7 @@ void paged_triangle_mesh::load_node_if_needed(size_t trimesh_idx) {
     }
 
     EDYN_ASSERT(node.num_vertices < m_max_cache_num_vertices);
+
     // Load triangle mesh into cache. Clear cache if it would go
     // above limits.
     while (cache_num_vertices() + node.num_vertices > m_max_cache_num_vertices) {
@@ -64,10 +68,10 @@ void paged_triangle_mesh::unload_least_recently_visited_node() {
 
     for (auto it = m_lru_indices.rbegin(); it != m_lru_indices.rend(); ++it) {
         auto &node = m_cache[*it];
-        auto trimesh = node.trimesh;
 
-        if (trimesh) {
-            trimesh.reset();
+        if (node.trimesh) {
+            node.trimesh.reset();
+            message_dispatcher::global().send<msg::paged_triangle_mesh_load_page>({internal::paged_mesh_load_queue_identifier}, {}, this, *it);
             break;
         }
     }
@@ -91,6 +95,7 @@ void paged_triangle_mesh::assign_mesh(size_t index, std::shared_ptr<triangle_mes
     auto lock = std::lock_guard(m_lru_mutex);
     m_cache[index].trimesh = mesh;
     m_is_loading_submesh[index].store(false, std::memory_order_release);
+    message_dispatcher::global().send<msg::paged_triangle_mesh_load_page>({internal::paged_mesh_load_queue_identifier}, {}, this, index);
 }
 
 bool paged_triangle_mesh::has_per_vertex_friction() const {

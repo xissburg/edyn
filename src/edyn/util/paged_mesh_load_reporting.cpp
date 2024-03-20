@@ -22,7 +22,8 @@ void on_paged_triangle_mesh_load_page(entt::registry &registry, message<msg::pag
 }
 
 void init_paged_mesh_load_reporting(entt::registry &registry) {
-    auto &ctx = registry.ctx().emplace<paged_mesh_page_load_context>(message_dispatcher::global().make_queue<msg::paged_triangle_mesh_load_page>("paged_triangle_mesh_page_load"));
+    auto &dispatcher = message_dispatcher::global();
+    auto &ctx = registry.ctx().emplace<paged_mesh_page_load_context>(dispatcher.make_queue<msg::paged_triangle_mesh_load_page>(paged_mesh_load_queue_identifier));
     ctx.queue.sink<msg::paged_triangle_mesh_load_page>().connect<&on_paged_triangle_mesh_load_page>(registry);
 }
 
