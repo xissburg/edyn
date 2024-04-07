@@ -1,4 +1,5 @@
 #include "edyn/shapes/triangle_mesh.hpp"
+#include <array>
 #include <limits>
 #include <set>
 
@@ -209,15 +210,51 @@ scalar triangle_mesh::get_face_restitution(size_t tri_idx, vector3 point) const 
     return  interpolate_triangle(tri_idx, point, {f0, f1, f2});
 }
 
-scalar triangle_mesh::interpolate_triangle(size_t tri_idx, vector3 point, vector3 values) const {
-    // Use barycentric coordinates to interpolate the values at vertices.
+bool triangle_mesh::has_per_vertex_material_id() const {
+    return !m_material_ids.empty();
+}
+
+material::id_type triangle_mesh::get_vertex_material_id(size_t vertex_idx) const {
+    return m_material_ids[vertex_idx];
+}
+
+std::array<triangle_mesh::material_influence, 2> triangle_mesh::get_edge_material_id(size_t edge_idx, scalar fraction) const {
+    auto influence = std::array<material_influence, 2>{};
+    influence[0].id = get_vertex_material_id(m_edge_vertex_indices[edge_idx][0]);
+    influence[1].id = get_vertex_material_id(m_edge_vertex_indices[edge_idx][1]);
+    influence[0].fraction = 1 - fraction;
+    influence[1].fraction = fraction;
+    return influence;
+}
+
+std::array<triangle_mesh::material_influence, 2> triangle_mesh::get_edge_material_id(size_t edge_idx, vector3 point) const {
+    auto [v0, v1] = get_edge_vertices(edge_idx);
+    auto fraction = distance_sqr(point, v0) / distance_sqr(v1, v0);
+    EDYN_ASSERT(fraction < scalar(1) + EDYN_EPSILON);
+    EDYN_ASSERT(std::abs(length_sqr(cross(point - v0, v1 - v0))) <= EDYN_EPSILON);
+    return get_edge_material_id(edge_idx, fraction);
+}
+
+std::array<triangle_mesh::material_influence, 3> triangle_mesh::get_face_material_id(size_t tri_idx, vector3 point) const {
+    auto influence = std::array<material_influence, 3>{};
+    auto coord = barycentric_coordinates(tri_idx, point);
+
+    for (int i = 0; i < 3; ++i) {
+        influence[i].id = get_vertex_material_id(m_indices[tri_idx][i]);
+        influence[i].fraction = coord[i];
+    }
+
+    return influence;
+}
+
+vector3 triangle_mesh::barycentric_coordinates(size_t tri_idx, vector3 point) const {
     auto vertices = get_triangle_vertices(tri_idx);
     auto normal = get_triangle_normal(tri_idx);
 
     // The contribution of a vertex to the interpolation is equals to the ratio
-    // between the area of the sub-triangle where the vertices are the point and
-    // the two vertices of the edge opposite to this vertex and the area of the
-    // full triangle.
+    // between the area of the sub-triangle where the vertices are the given point
+    // and the two vertices of the edge opposite to this vertex and the area
+    // of the whole triangle.
     auto edge_normal0 = cross(vertices[2] - vertices[1], normal);
     auto t0 = dot(point - vertices[1], edge_normal0) /
               dot(vertices[0] - vertices[1], edge_normal0);
@@ -228,7 +265,13 @@ scalar triangle_mesh::interpolate_triangle(size_t tri_idx, vector3 point, vector
 
     auto t2 = scalar(1) - t0 - t1;
 
-    return values[0] * t0 + values[1] * t1 + values[2] * t2;
+    return {t0, t1, t2};
+}
+
+scalar triangle_mesh::interpolate_triangle(size_t tri_idx, vector3 point, vector3 values) const {
+    // Use barycentric coordinates to interpolate the values at vertices.
+    auto coord = barycentric_coordinates(tri_idx, point);
+    return dot(coord, values);
 }
 
 }

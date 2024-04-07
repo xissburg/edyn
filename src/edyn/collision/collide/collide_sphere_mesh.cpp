@@ -69,6 +69,10 @@ static void collide_sphere_triangle(
         return;
     }
 
+    if (-distance > mesh.get_thickness()) {
+        return;
+    }
+
     collision_result::collision_point point;
     point.normal = sep_axis;
     point.distance = distance;

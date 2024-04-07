@@ -44,6 +44,8 @@ void serialize(Archive &archive, triangle_mesh &tri_mesh) {
     archive(tri_mesh.m_triangle_tree);
     archive(tri_mesh.m_friction);
     archive(tri_mesh.m_restitution);
+    archive(tri_mesh.m_material_ids);
+    archive(tri_mesh.m_thickness);
 }
 
 inline
@@ -61,7 +63,9 @@ size_t serialization_sizeof(const triangle_mesh &tri_mesh) {
         serialization_sizeof(tri_mesh.m_is_convex_edge) +
         serialization_sizeof(tri_mesh.m_triangle_tree) +
         serialization_sizeof(tri_mesh.m_friction) +
-        serialization_sizeof(tri_mesh.m_restitution);
+        serialization_sizeof(tri_mesh.m_restitution) +
+        serialization_sizeof(tri_mesh.m_material_ids) +
+        sizeof(tri_mesh.m_thickness);
 }
 
 }

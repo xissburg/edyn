@@ -9,6 +9,7 @@
 #include "edyn/math/geom.hpp"
 #include "edyn/math/triangle.hpp"
 #include "edyn/comp/aabb.hpp"
+#include "edyn/comp/material.hpp"
 #include "edyn/collision/static_tree.hpp"
 #include "edyn/core/unordered_pair.hpp"
 #include "edyn/core/flat_nested_array.hpp"
@@ -180,6 +181,28 @@ public:
     scalar get_edge_restitution(size_t edge_idx, vector3 point) const;
     scalar get_face_restitution(size_t tri_idx, vector3 point) const;
 
+    struct material_influence {
+        material::id_type id;
+        scalar fraction;
+    };
+
+    bool has_per_vertex_material_id() const;
+    material::id_type get_vertex_material_id(size_t vertex_idx) const;
+    std::array<material_influence, 2> get_edge_material_id(size_t edge_idx, scalar fraction) const;
+    std::array<material_influence, 2> get_edge_material_id(size_t edge_idx, vector3 point) const;
+    std::array<material_influence, 3> get_face_material_id(size_t tri_idx, vector3 point) const;
+
+    /**
+     * @brief Contact point will be ignored if they're deeper than this value.
+     * This helps prevent objects from being pushed across the other side on
+     * regions of the trimesh that have opposing triangles on the other side.
+     * @return Current thickness.
+     */
+    scalar get_thickness() const { return m_thickness; }
+
+    void set_thickness(scalar thickness) { m_thickness = thickness; }
+
+    vector3 barycentric_coordinates(size_t tri_idx, vector3 point) const;
     scalar interpolate_triangle(size_t tri_idx, vector3 point, vector3 values) const;
 
     template<typename Archive>
@@ -226,6 +249,9 @@ private:
     // Per-vertex friction and restitution coefficients.
     std::vector<scalar> m_friction;
     std::vector<scalar> m_restitution;
+    std::vector<material::id_type> m_material_ids;
+
+    scalar m_thickness {1};
 
     static_tree m_triangle_tree;
 };
