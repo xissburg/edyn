@@ -36,7 +36,8 @@ struct submesh_builder {
     template<typename VertexIterator, typename IndexIterator>
     void build(paged_triangle_mesh &paged_tri_mesh, const triangle_mesh &global_tri_mesh,
                VertexIterator vertex_begin, IndexIterator index_begin,
-               const std::vector<vector3> &vertex_colors) {
+               const std::vector<vector3> &vertex_colors,
+               const vector3 &color_scale) {
         // Allocate space in cache for all submeshes.
         paged_tri_mesh.m_cache.resize(infos.size());
 
@@ -71,6 +72,7 @@ struct submesh_builder {
             if (!vertex_colors.empty()) {
                 submesh->m_friction.reserve(local_indices.size());
                 submesh->m_restitution.reserve(local_indices.size());
+                submesh->m_material_ids.reserve(local_indices.size());
             }
 
             // Insert vertices into triangle mesh.
@@ -78,8 +80,11 @@ struct submesh_builder {
                 submesh->m_vertices.push_back(*(vertex_begin + idx));
 
                 if (!vertex_colors.empty()) {
-                    submesh->m_friction.push_back(vertex_colors[idx].x);
-                    submesh->m_restitution.push_back(vertex_colors[idx].y);
+                    auto &color = vertex_colors[idx];
+                    submesh->m_friction.push_back(color.x * color_scale.x);
+                    submesh->m_restitution.push_back(color.y * color_scale.y);
+                    auto mat_id = static_cast<material::id_type>(std::round(color.z * 255));
+                    submesh->m_material_ids.push_back(mat_id);
                 }
             }
 
@@ -182,6 +187,9 @@ struct submesh_builder {
  * @param index_begin Begin iterator for the index list.
  * @param index_end End iterator for the index list.
  * @param max_tri_per_submesh Maximum number of triangles for submeshes.
+ * @param vertex_colors Optional RGB vertex color values for per-vertex material.
+ * R is friction coefficient, G is restitution, B is material ID.
+ * @param color_scale Scaling factor to apply to normalized vertex colors.
  */
 template<typename VertexIterator, typename IndexIterator>
 void create_paged_triangle_mesh(
@@ -189,7 +197,8 @@ void create_paged_triangle_mesh(
         VertexIterator vertex_begin, VertexIterator vertex_end,
         IndexIterator index_begin, IndexIterator index_end,
         size_t max_tri_per_submesh,
-        const std::vector<vector3> &vertex_colors) {
+        const std::vector<vector3> &vertex_colors,
+        vector3 color_scale) {
 
     // Only allowed to create a mesh if this instance is empty.
     EDYN_ASSERT(paged_tri_mesh.m_tree.empty() && paged_tri_mesh.m_cache.empty());
@@ -219,7 +228,7 @@ void create_paged_triangle_mesh(
     // Build tree and submeshes.
     auto builder = detail::submesh_builder{};
     paged_tri_mesh.m_tree.build(aabbs.begin(), aabbs.end(), builder, max_tri_per_submesh);
-    builder.build(paged_tri_mesh, global_tri_mesh, vertex_begin, index_begin, vertex_colors);
+    builder.build(paged_tri_mesh, global_tri_mesh, vertex_begin, index_begin, vertex_colors, color_scale);
 
     // Resize LRU queue to have the number of leaves.
     paged_tri_mesh.m_lru_indices.resize(paged_tri_mesh.m_cache.size());

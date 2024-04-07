@@ -243,7 +243,8 @@ public:
             VertexIterator vertex_begin, VertexIterator vertex_end,
             IndexIterator index_begin, IndexIterator index_end,
             size_t max_tri_per_submesh,
-            const std::vector<vector3> &vertex_colors);
+            const std::vector<vector3> &vertex_colors,
+            vector3 color_scale);
 
     friend struct detail::submesh_builder;
 

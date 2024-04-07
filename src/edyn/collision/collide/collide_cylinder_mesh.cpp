@@ -137,6 +137,10 @@ void collide_cylinder_triangle(
         return;
     }
 
+    if (-distance > mesh.get_thickness()) {
+        return;
+    }
+
     cylinder_feature cyl_feature;
     size_t cyl_feature_index;
     cylinder.support_feature(posA, ornA, -sep_axis, cyl_feature, cyl_feature_index,

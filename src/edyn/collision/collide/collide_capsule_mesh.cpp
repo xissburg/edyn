@@ -96,6 +96,10 @@ static void collide_capsule_triangle(
         return;
     }
 
+    if (-distance > mesh.get_thickness()) {
+        return;
+    }
+
     scalar proj_capsule_vertices[] = {
         dot(capsule_vertices[0], sep_axis),
         dot(capsule_vertices[1], sep_axis)
