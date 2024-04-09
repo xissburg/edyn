@@ -8,6 +8,7 @@
 #include "edyn/comp/collision_exclusion.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/tag.hpp"
+#include "edyn/comp/tire_stats.hpp"
 #include "edyn/comp/tree_resident.hpp"
 #include "edyn/config/config.h"
 #include "edyn/config/execution_mode.hpp"
@@ -60,6 +61,11 @@ static void init_meta() {
     entt::meta<child_list>().type()
         .data<&child_list::parent, entt::as_ref_t>("parent"_hs)
         .data<&child_list::next, entt::as_ref_t>("next"_hs);
+
+    entt::meta<tire_stats>().type()
+        .data<&tire_stats::other_entity, entt::as_ref_t>("other_entity"_hs);
+    entt::meta<tire_stats>().type()
+        .data<&tire_stats::patch_entity, entt::as_ref_t>("patch_entity"_hs);
 }
 
 void attach(entt::registry &registry, const init_config &config) {
