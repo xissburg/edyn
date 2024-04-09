@@ -26,7 +26,8 @@ struct material_base {
  */
 struct material : public material_base {
     using id_type = uint16_t;
-    id_type id {std::numeric_limits<id_type>::max()};
+    static constexpr auto UnassignedID = std::numeric_limits<id_type>::max();
+    id_type id {UnassignedID};
 };
 
 template<typename Archive>

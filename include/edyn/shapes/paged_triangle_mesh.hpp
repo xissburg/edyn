@@ -208,15 +208,31 @@ public:
      */
     size_t cache_num_vertices() const;
 
+    /**
+     * @brief Get total number of sub-meshes this triangle mesh was
+     * subdivided into.
+     * @return Number of sub-meshes.
+     */
     size_t num_submeshes() const {
         return m_cache.size();
     }
 
+    /**
+     * @brief Get a sub-mesh. Will be null if not loaded.
+     * @param idx Sub-mesh index.
+     * @return Pointer to submesh. Null if not loaded.
+     */
     std::shared_ptr<triangle_mesh> get_submesh(size_t idx) {
         return m_cache[idx].trimesh;
     }
 
-    triangle_vertices get_triangle_vertices(size_t mesh_idx, size_t tri_idx);
+    /**
+     * @brief Get position of vertices of a triangle in a submesh.
+     * @param mesh_idx Sub-mesh index.
+     * @param tri_idx Triangle index in the submesh.
+     * @return Vertex positions.
+     */
+    triangle_vertices get_triangle_vertices(size_t mesh_idx, size_t tri_idx) const;
 
     void clear_cache();
 
@@ -226,8 +242,45 @@ public:
         return *m_page_loader;
     }
 
+    /**
+     * @brief Check whether mesh has per-vertex friction.
+     * @return Whether it has per-vertex friction.
+     */
     bool has_per_vertex_friction() const;
+
+    /**
+     * @brief Check whether mesh has per-vertex restitution.
+     * @return Whether it has per-vertex restitution.
+     */
     bool has_per_vertex_restitution() const;
+
+    /**
+     * @brief Check whether mesh has per-vertex material IDs.
+     * @return Whether it has per-vertex material IDs.
+     */
+    bool has_per_vertex_material_id() const;
+
+    /**
+     * @brief Get friction coefficient at a given point on the mesh surface.
+     * @param point Point on mesh surface.
+     * @return Friction coefficient.
+     */
+    scalar get_friction(vector3 point) const;
+
+    /**
+     * @brief Get restitution at a given point on the mesh surface.
+     * @param point Point on mesh surface.
+     * @return Coefficient of restitution.
+     */
+    scalar get_restitution(vector3 point) const;
+
+    /**
+     * @brief Get material IDs at a given point on the mesh surface.
+     * @param point Point on mesh surface.
+     * @return Material ID of each vertex of the triangle containing the given
+     * point along with the influence of each material at that point.
+     */
+    std::array<triangle_mesh::material_influence, 3> get_material_id(vector3 point) const;
 
     /**
      * @brief Maximum number of vertices in the cache. Before a new triangle mesh
