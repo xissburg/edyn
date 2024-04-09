@@ -1,4 +1,5 @@
 #include "edyn/shapes/triangle_mesh.hpp"
+#include "edyn/comp/aabb.hpp"
 #include <array>
 #include <limits>
 #include <set>
@@ -157,6 +158,7 @@ bool triangle_mesh::has_per_vertex_friction() const {
 }
 
 scalar triangle_mesh::get_vertex_friction(size_t vertex_idx) const {
+    EDYN_ASSERT(vertex_idx < m_friction.size());
     return m_friction[vertex_idx];
 }
 
@@ -169,8 +171,6 @@ scalar triangle_mesh::get_edge_friction(size_t edge_idx, scalar fraction) const 
 scalar triangle_mesh::get_edge_friction(size_t edge_idx, vector3 point) const {
     auto [v0, v1] = get_edge_vertices(edge_idx);
     auto fraction = distance_sqr(point, v0) / distance_sqr(v1, v0);
-    EDYN_ASSERT(fraction < scalar(1) + EDYN_EPSILON);
-    EDYN_ASSERT(std::abs(length_sqr(cross(point - v0, v1 - v0))) <= EDYN_EPSILON);
     return get_edge_friction(edge_idx, fraction);
 }
 
@@ -186,6 +186,7 @@ bool triangle_mesh::has_per_vertex_restitution() const {
 }
 
 scalar triangle_mesh::get_vertex_restitution(size_t vertex_idx) const {
+    EDYN_ASSERT(vertex_idx < m_restitution.size());
     return m_restitution[vertex_idx];
 }
 
@@ -198,8 +199,6 @@ scalar triangle_mesh::get_edge_restitution(size_t edge_idx, scalar fraction) con
 scalar triangle_mesh::get_edge_restitution(size_t edge_idx, vector3 point) const {
     auto [v0, v1] = get_edge_vertices(edge_idx);
     auto fraction = distance_sqr(point, v0) / distance_sqr(v1, v0);
-    EDYN_ASSERT(fraction < scalar(1) + EDYN_EPSILON);
-    EDYN_ASSERT(std::abs(length_sqr(cross(point - v0, v1 - v0))) <= EDYN_EPSILON);
     return get_edge_restitution(edge_idx, fraction);
 }
 
@@ -215,6 +214,7 @@ bool triangle_mesh::has_per_vertex_material_id() const {
 }
 
 material::id_type triangle_mesh::get_vertex_material_id(size_t vertex_idx) const {
+    EDYN_ASSERT(vertex_idx < m_material_ids.size());
     return m_material_ids[vertex_idx];
 }
 
@@ -230,8 +230,6 @@ std::array<triangle_mesh::material_influence, 2> triangle_mesh::get_edge_materia
 std::array<triangle_mesh::material_influence, 2> triangle_mesh::get_edge_material_id(size_t edge_idx, vector3 point) const {
     auto [v0, v1] = get_edge_vertices(edge_idx);
     auto fraction = distance_sqr(point, v0) / distance_sqr(v1, v0);
-    EDYN_ASSERT(fraction < scalar(1) + EDYN_EPSILON);
-    EDYN_ASSERT(std::abs(length_sqr(cross(point - v0, v1 - v0))) <= EDYN_EPSILON);
     return get_edge_material_id(edge_idx, fraction);
 }
 

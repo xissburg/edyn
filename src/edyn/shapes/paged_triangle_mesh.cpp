@@ -6,6 +6,7 @@
 #include <mutex>
 #include <entt/entity/registry.hpp>
 #include "edyn/parallel/message_dispatcher.hpp"
+#include "edyn/shapes/triangle_mesh.hpp"
 #include "edyn/util/paged_mesh_load_reporting.hpp"
 
 namespace edyn {
@@ -77,7 +78,7 @@ void paged_triangle_mesh::unload_least_recently_visited_node() {
     }
 }
 
-triangle_vertices paged_triangle_mesh::get_triangle_vertices(size_t mesh_idx, size_t tri_idx) {
+triangle_vertices paged_triangle_mesh::get_triangle_vertices(size_t mesh_idx, size_t tri_idx) const {
     EDYN_ASSERT(mesh_idx < m_cache.size());
     EDYN_ASSERT(m_cache[mesh_idx].trimesh);
     return m_cache[mesh_idx].trimesh->get_triangle_vertices(tri_idx);
@@ -120,6 +121,56 @@ bool paged_triangle_mesh::has_per_vertex_restitution() const {
     }
 
     return false;
+}
+
+bool paged_triangle_mesh::has_per_vertex_material_id() const {
+    for (auto &node : m_cache) {
+        auto trimesh = node.trimesh;
+
+        if (trimesh && trimesh->has_per_vertex_material_id()) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+AABB make_point_aabb(vector3 point, scalar size = 0.005) {
+    auto extents = vector3_one * size;
+    return {point - extents, point + extents};
+}
+
+scalar paged_triangle_mesh::get_friction(vector3 point) const {
+    auto friction = scalar{};
+
+    visit_cached_triangles(make_point_aabb(point), [&](size_t mesh_idx, size_t tri_idx) {
+        auto trimesh = m_cache[mesh_idx].trimesh;
+        friction = trimesh->get_face_friction(tri_idx, point);
+    });
+
+    return friction;
+}
+
+scalar paged_triangle_mesh::get_restitution(vector3 point) const {
+    auto restitution = scalar{};
+
+    visit_cached_triangles(make_point_aabb(point), [&](size_t mesh_idx, size_t tri_idx) {
+        auto trimesh = m_cache[mesh_idx].trimesh;
+        restitution = trimesh->get_face_restitution(tri_idx, point);
+    });
+
+    return restitution;
+}
+
+std::array<triangle_mesh::material_influence, 3> paged_triangle_mesh::get_material_id(vector3 point) const {
+    auto influence = std::array<triangle_mesh::material_influence, 3>{};
+
+    visit_cached_triangles(make_point_aabb(point), [&](size_t mesh_idx, size_t tri_idx) {
+        auto trimesh = m_cache[mesh_idx].trimesh;
+        influence = trimesh->get_face_material_id(tri_idx, point);
+    });
+
+    return influence;
 }
 
 }
