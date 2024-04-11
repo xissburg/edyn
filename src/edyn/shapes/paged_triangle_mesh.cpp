@@ -95,6 +95,7 @@ void paged_triangle_mesh::assign_mesh(size_t index, std::shared_ptr<triangle_mes
     // if `unload_least_recently_visited_node` is executing in another thread.
     auto lock = std::lock_guard(m_lru_mutex);
     m_cache[index].trimesh = mesh;
+    mesh->set_thickness(m_thickness);
     m_is_loading_submesh[index].store(false, std::memory_order_release);
     message_dispatcher::global().send<msg::paged_triangle_mesh_load_page>({internal::paged_mesh_load_queue_identifier}, {}, this, index);
 }
@@ -171,6 +172,16 @@ std::array<triangle_mesh::material_influence, 3> paged_triangle_mesh::get_materi
     });
 
     return influence;
+}
+
+void paged_triangle_mesh::set_thickness(scalar thickness) {
+    for (auto &node : m_cache) {
+        auto trimesh = node.trimesh;
+
+        if (trimesh) {
+            trimesh->set_thickness(thickness);
+        }
+    }
 }
 
 }
