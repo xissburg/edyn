@@ -282,6 +282,10 @@ public:
      */
     std::array<triangle_mesh::material_influence, 3> get_material_id(vector3 point) const;
 
+    scalar get_thickness() const { return m_thickness; }
+
+    void set_thickness(scalar thickness);
+
     /**
      * @brief Maximum number of vertices in the cache. Before a new triangle mesh
      * is loaded, if the number of vertices would exceed this number, the
@@ -321,6 +325,7 @@ private:
     std::mutex m_lru_mutex;
     std::unique_ptr<std::atomic<bool>[]> m_is_loading_submesh;
     std::shared_ptr<triangle_mesh_page_loader_base> m_page_loader;
+    scalar m_thickness {1};
 };
 
 }

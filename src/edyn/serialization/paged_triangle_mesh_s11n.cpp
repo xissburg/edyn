@@ -46,6 +46,7 @@ void serialize(paged_triangle_mesh_file_output_archive &archive,
 
     archive.m_triangle_mesh_index = 0;
 
+    archive(paged_tri_mesh.m_thickness);
     archive(paged_tri_mesh.m_tree);
     auto num_submeshes = paged_tri_mesh.m_cache.size();
     archive(num_submeshes);
@@ -73,6 +74,7 @@ void serialize(paged_triangle_mesh_file_output_archive &archive,
 
 void serialize(paged_triangle_mesh_file_input_archive &archive,
                paged_triangle_mesh &paged_tri_mesh) {
+    archive(paged_tri_mesh.m_thickness);
     archive(paged_tri_mesh.m_tree);
 
     size_t num_submeshes;
