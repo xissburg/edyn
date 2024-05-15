@@ -289,8 +289,8 @@ void simulation_worker::wake_up_affected_islands(const registry_operation &ops) 
             auto remote_entity = op->entity;
             auto local_entity = m_entity_map.at(remote_entity);
 
-            if (m_registry.valid(local_entity) && !entities.contains(op->entity)) {
-                entities.emplace(op->entity);
+            if (m_registry.valid(local_entity) && !entities.contains(local_entity)) {
+                entities.emplace(local_entity);
             }
         }
     }
