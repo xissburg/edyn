@@ -280,13 +280,18 @@ void simulation_worker::wake_up_affected_islands(const registry_operation &ops) 
     entt::sparse_set entities;
 
     for (auto *op : ops.operations) {
-        if (op->operation_type() == registry_operation_type::replace && !entities.contains(op->entity)) {
-            entities.emplace(op->entity);
+        if (op->operation_type() == registry_operation_type::replace && m_entity_map.contains(op->entity)) {
+            auto remote_entity = op->entity;
+            auto local_entity = m_entity_map.at(remote_entity);
+
+            if (m_registry.valid(local_entity) && !entities.contains(op->entity)) {
+                entities.emplace(op->entity);
+            }
         }
     }
 
     if (!entities.empty()) {
-        wake_up_island_residents(m_registry, entities, m_entity_map);
+        wake_up_island_residents(m_registry, entities);
     }
 }
 
