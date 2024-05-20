@@ -86,12 +86,13 @@ struct tire_contact_stats {
     // Linear relative velocity.
     vector3 lin_vel;
 
+    entt::entity other_entity {entt::null};
+    entt::entity patch_entity {entt::null};
+
     std::array<tire_tread_row_stats, contact_patch_constraint::num_tread_rows> tread_rows;
 };
 
 struct tire_stats {
-    entt::entity other_entity {entt::null};
-    entt::entity patch_entity {entt::null};
     size_t num_contacts;
     std::array<tire_contact_stats, max_contacts> contact_stats;
 };

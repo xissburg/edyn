@@ -2,6 +2,7 @@
 #define EDYN_SYS_UPDATE_TIRE_STATS_HPP
 
 #include <entt/entt.hpp>
+#include "edyn/config/constants.hpp"
 #include "edyn/core/entity_graph.hpp"
 #include "edyn/comp/origin.hpp"
 #include "edyn/comp/position.hpp"
@@ -27,8 +28,6 @@ void update_tire_stats(entt::registry &registry, scalar dt) {
     auto &graph = registry.ctx().at<entity_graph>();
 
     for (auto [entity, node, stats] : stats_view.each()) {
-        stats.other_entity = entt::null;
-
         auto &posA = tr_view.get<position>(entity);
         auto &ornA = tr_view.get<orientation>(entity);
         auto &linvelA = vel_view.get<linvel>(entity);
@@ -37,6 +36,7 @@ void update_tire_stats(entt::registry &registry, scalar dt) {
         // Must create another reference to circumvent the compiler limitation:
         // "Reference to local binding declared in enclosing function".
         auto &ts = stats;
+        ts.num_contacts = 0;
 
         graph.visit_edges(node.node_index, [&](auto edge_index) {
             auto edge_entity = graph.edge_entity(edge_index);
@@ -47,25 +47,27 @@ void update_tire_stats(entt::registry &registry, scalar dt) {
 
             auto [con] = patch_view.get(edge_entity);
 
-            EDYN_ASSERT(registry.all_of<tire_stats>(con.body[0]));
-
-            ts.other_entity = con.body[1];
-            ts.patch_entity = edge_entity;
-            ts.num_contacts = con.num_patches;
-
-            if (ts.num_contacts == 0) {
+            if (con.num_patches == 0) {
                 return;
             }
 
-            auto [posB, ornB] = tr_view.get(ts.other_entity);
-            auto [linvelB, angvelB] = vel_view.get(ts.other_entity);
+            EDYN_ASSERT(registry.all_of<tire_stats>(con.body[0]));
+
+
+            auto other_entity = con.body[1];
+            auto [posB, ornB] = tr_view.get(other_entity);
+            auto [linvelB, angvelB] = vel_view.get(other_entity);
             auto spinvelB = vector3_zero;
 
-            if (spin_view.contains(ts.other_entity)) {
-                spinvelB = quaternion_x(ornB) * spin_view.get<spin>(ts.other_entity).s;
+            if (spin_view.contains(other_entity)) {
+                spinvelB = quaternion_x(ornB) * spin_view.get<spin>(other_entity).s;
             }
 
             for (size_t i = 0; i < con.num_patches; ++i) {
+                if (ts.num_contacts == max_contacts) {
+                    break;
+                }
+
                 auto &patch = con.patches[i];
 
                 auto velA = linvelA + cross(angvelA + spinvelA, patch.pivot - posA);
@@ -76,7 +78,9 @@ void update_tire_stats(entt::registry &registry, scalar dt) {
                 auto linspd_rel = length(linvel_rel);
                 auto direction = linspd_rel > EDYN_EPSILON ? linvel_rel / linspd_rel : patch.lon_dir;
 
-                auto &tire_cs = ts.contact_stats[i];
+                auto &tire_cs = ts.contact_stats[ts.num_contacts++];
+                tire_cs.other_entity = other_entity;
+                tire_cs.patch_entity = edge_entity;
                 tire_cs.vertical_deflection = patch.deflection;
                 tire_cs.friction_coefficient = patch.friction;
                 tire_cs.sin_camber = patch.sin_camber;
