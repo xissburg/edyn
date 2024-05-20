@@ -62,6 +62,9 @@ static void init_meta() {
         .data<&child_list::parent, entt::as_ref_t>("parent"_hs)
         .data<&child_list::next, entt::as_ref_t>("next"_hs);
 
+    entt::meta<tire_stats>().type()
+        .data<&tire_stats::contact_stats, entt::as_ref_t>("contact_stats"_hs);
+
     entt::meta<tire_contact_stats>().type()
         .data<&tire_contact_stats::other_entity, entt::as_ref_t>("other_entity"_hs);
     entt::meta<tire_contact_stats>().type()
