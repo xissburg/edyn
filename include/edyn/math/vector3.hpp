@@ -3,6 +3,7 @@
 
 #include <cmath>
 #include <algorithm>
+#include <type_traits>
 #include "edyn/math/scalar.hpp"
 #include "edyn/config/config.h"
 
@@ -19,6 +20,25 @@ struct vector3 {
     constexpr scalar operator[](size_t i) const noexcept {
         EDYN_ASSERT(i < 3);
         return (&x)[i];
+    }
+
+    // Iterate over each vector element.
+    template<typename Func>
+    void each(Func f) {
+        if constexpr(std::disjunction_v<std::is_invocable<Func, scalar, int>, std::is_invocable<Func, scalar &, int>>) {
+            f(x, 0); f(y, 1); f(z, 2);
+        } else {
+            f(x); f(y); f(z);
+        }
+    }
+
+    template<typename Func>
+    void each(Func f) const {
+        if constexpr(std::disjunction_v<std::is_invocable<Func, scalar, int>, std::is_invocable<Func, const scalar &, int>>) {
+            f(x, 0); f(y, 1); f(z, 2);
+        } else {
+            f(x); f(y); f(z);
+        }
     }
 };
 
