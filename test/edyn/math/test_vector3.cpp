@@ -142,15 +142,15 @@ TEST_F(vector3_test, test_each) {
     const auto w = edyn::vector3{7, 5, 6};
 
     int i = 0;
-    v.each([&](auto &s) { ASSERT_EQ(s, v[i++]); });
+    v.each([&](auto s) { ASSERT_EQ(s, v[i++]); });
 
     v.each([&v](auto &s, int k) { ASSERT_EQ(s, v[k]); });
 
     v.each([](auto &s) { s += 1; });
 
-    v.each([&v](auto &s, int k) { ASSERT_EQ(s, v[k]); });
+    v.each([&v](auto s, int k) { ASSERT_EQ(s, v[k]); });
 
     i = 0;
-    w.each([&](auto &s) { ASSERT_EQ(s, w[i++]); });
-    w.each([&w](auto &s, int k) { ASSERT_EQ(s, w[k]); });
+    w.each([&](auto s) { ASSERT_EQ(s, w[i++]); });
+    w.each([&w](auto s, int k) { ASSERT_EQ(s, w[k]); });
 }

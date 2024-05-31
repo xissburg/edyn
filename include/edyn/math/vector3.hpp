@@ -25,7 +25,7 @@ struct vector3 {
     // Iterate over each vector element.
     template<typename Func>
     void each(Func f) {
-        if constexpr(std::disjunction_v<std::is_invocable<Func, scalar, int>, std::is_invocable<Func, scalar &, int>>) {
+        if constexpr(std::is_invocable_v<Func, scalar &, int>) {
             f(x, 0); f(y, 1); f(z, 2);
         } else {
             f(x); f(y); f(z);
@@ -34,7 +34,7 @@ struct vector3 {
 
     template<typename Func>
     void each(Func f) const {
-        if constexpr(std::disjunction_v<std::is_invocable<Func, scalar, int>, std::is_invocable<Func, const scalar &, int>>) {
+        if constexpr(std::is_invocable_v<Func, scalar, int>) {
             f(x, 0); f(y, 1); f(z, 2);
         } else {
             f(x); f(y); f(z);
