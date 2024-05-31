@@ -5,16 +5,15 @@
 namespace edyn {
 
 double get_simulation_timestamp(entt::registry &registry) {
-    if (registry.ctx().contains<stepper_async>()) {
-        auto &stepper = registry.ctx().at<stepper_async>();
-        auto worker_time = stepper.get_simulation_timestamp();
-        return worker_time;
-    } else if (registry.ctx().contains<stepper_sequential>()) {
-        auto &stepper = registry.ctx().at<stepper_sequential>();
-        return stepper.get_simulation_timestamp();
+    if (auto *stepper = registry.ctx().find<stepper_async>()) {
+        return stepper->get_simulation_timestamp();
     }
-    EDYN_ASSERT(false);
-    return {};
+
+    if (auto *stepper = registry.ctx().find<stepper_sequential>()) {
+        return stepper->get_simulation_timestamp();
+    }
+
+    return 0;
 }
 
 }

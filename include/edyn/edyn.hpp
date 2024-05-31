@@ -150,13 +150,6 @@ void set_time_source(entt::registry &registry, double(*time_func)(void));
  */
 double get_time(entt::registry &registry);
 
-/**
- * @brief Get timestamp of the last simulation step.
- * @param registry Data source.
- * @return Simulation timestamp.
- */
-double get_simulation_timestamp(entt::registry &registry);
-
 }
 
 #endif // EDYN_EDYN_HPP

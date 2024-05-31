@@ -50,7 +50,7 @@ TEST_F(vector3_test, fundamental) {
     ASSERT_SCALAR_EQ((s * b).x, s * b.x);
     ASSERT_SCALAR_EQ((s * b).y, s * b.y);
     ASSERT_SCALAR_EQ((s * b).z, s * b.z);
-    
+
     ASSERT_SCALAR_EQ((a / s).x, a.x / s);
     ASSERT_SCALAR_EQ((a / s).y, a.y / s);
     ASSERT_SCALAR_EQ((a / s).z, a.z / s);
@@ -64,7 +64,7 @@ TEST_F(vector3_test, fundamental) {
     ASSERT_SCALAR_EQ(a.x, c.x);
     ASSERT_SCALAR_EQ(a.y, c.y);
     ASSERT_SCALAR_EQ(a.z, c.z);
-    
+
     edyn::vector3 d {b.x - a.x, b.y - a.y, b.z - a.z};
     b -= a;
     ASSERT_SCALAR_EQ(b.x, d.x);
@@ -132,7 +132,25 @@ TEST_F(vector3_test, comparison) {
 
     auto r = edyn::vector3{1, 2, 3};
     ASSERT_GT(r, edyn::vector3_zero);
-    
+
     auto s = edyn::vector3{0, -1, 2.99};
     ASSERT_LT(s, r);
+}
+
+TEST_F(vector3_test, test_each) {
+    auto v = edyn::vector3{3, 2, 1};
+    const auto w = edyn::vector3{7, 5, 6};
+
+    int i = 0;
+    v.each([&](auto s) { ASSERT_EQ(s, v[i++]); });
+
+    v.each([&v](auto &s, int k) { ASSERT_EQ(s, v[k]); });
+
+    v.each([](auto &s) { s += 1; });
+
+    v.each([&v](auto s, int k) { ASSERT_EQ(s, v[k]); });
+
+    i = 0;
+    w.each([&](auto s) { ASSERT_EQ(s, w[i++]); });
+    w.each([&w](auto s, int k) { ASSERT_EQ(s, w[k]); });
 }

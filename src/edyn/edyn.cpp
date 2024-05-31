@@ -295,16 +295,4 @@ double get_time(entt::registry &registry) {
     return time;
 }
 
-double get_simulation_timestamp(entt::registry &registry) {
-    if (auto *stepper = registry.ctx().find<stepper_async>()) {
-        return stepper->get_simulation_timestamp();
-    }
-
-    if (auto *stepper = registry.ctx().find<stepper_sequential>()) {
-        return stepper->get_simulation_timestamp();
-    }
-
-    return 0;
-}
-
 }

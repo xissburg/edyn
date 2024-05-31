@@ -5,6 +5,11 @@
 
 namespace edyn {
 
+/**
+ * @brief Get timestamp of the last simulation step.
+ * @param registry Data source.
+ * @return Simulation timestamp.
+ */
 double get_simulation_timestamp(entt::registry &registry);
 
 }
