@@ -24,7 +24,7 @@ void map_child_entity_meta(const entity_map &emap, const entt::meta_type &meta_t
             auto remote_entity = data.get(entt::meta_handle(value)).cast<entt::entity>();
             auto local_entity = entt::entity{entt::null};
 
-            if (emap.contains(remote_entity)) {
+            if (remote_entity != entt::null && emap.contains(remote_entity)) {
                 local_entity = emap.at(remote_entity);
             }
 
@@ -38,9 +38,8 @@ void map_child_entity_meta(const entity_map &emap, const entt::meta_type &meta_t
             } else if (auto child_type = entt::resolve(seq.value_type().id()); child_type) {
                 // If it's a sequence of something else, call this function
                 // recursively to map the entities contained in it.
-                for (size_t i = 0; i < seq.size(); ++i) {
-                    auto val = seq[i];
-                    map_child_entity_meta(emap, seq[i].type(), val);
+                for (auto elem : seq) {
+                    map_child_entity_meta(emap, elem.type(), elem);
                 }
             }
         } else if (data.type().is_associative_container()) {
@@ -71,7 +70,7 @@ void set_invalid_child_entity_to_null_meta(const entt::registry &registry, const
         if (data.type() == entt::resolve<entt::entity>()) {
             auto entity = data.get(entt::meta_handle(value)).cast<entt::entity>();
 
-            if (!registry.valid(entity)) {
+            if (entity != entt::null && !registry.valid(entity)) {
                 data.set(entt::meta_handle(value), entt::entity{entt::null});
             }
         } else if (data.type().is_sequence_container()) {
@@ -82,9 +81,8 @@ void set_invalid_child_entity_to_null_meta(const entt::registry &registry, const
             } else if (auto child_type = entt::resolve(seq.value_type().id()); child_type) {
                 // If it's a sequence of something else, call this function
                 // recursively to set other invalid entities to null;
-                for (size_t i = 0; i < seq.size(); ++i) {
-                    auto val = seq[i];
-                    set_invalid_child_entity_to_null_meta(registry, seq[i].type(), val);
+                for (auto elem : seq) {
+                    set_invalid_child_entity_to_null_meta(registry, elem.type(), elem);
                 }
             }
         } else if (auto child_type = entt::resolve(data.id()); child_type) {

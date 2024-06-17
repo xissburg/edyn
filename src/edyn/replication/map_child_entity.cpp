@@ -28,7 +28,7 @@ void map_child_entity_sequence(const entity_map &emap, entt::meta_sequence_conta
         auto &entity_ref = seq[i].cast<entt::entity &>();
         auto local_entity = entt::entity{entt::null};
 
-        if (emap.contains(entity_ref)) {
+        if (entity_ref != entt::null && emap.contains(entity_ref)) {
             local_entity = emap.at(entity_ref);
         }
 
@@ -61,7 +61,7 @@ void map_child_entity_associative(const entity_map &emap, entt::meta_associative
     for (auto pair : map) {
         auto &entity_ref = pair.second.cast<entt::entity &>();
 
-        if (emap.contains(entity_ref)) {
+        if (entity_ref != entt::null && emap.contains(entity_ref)) {
             entity_ref = emap.at(entity_ref);
         } else {
             erase_keys.push_back(pair.first);

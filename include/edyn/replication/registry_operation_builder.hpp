@@ -20,6 +20,7 @@ class registry_operation_builder {
     template<typename T, typename... Args>
     T * make_op(Args &&... args) {
         constexpr unsigned long size = sizeof(T);
+        static_assert(size <= max_block_size, "Component size larger than maximum block size.");
 
         // Create new data block if current block size would be exceeded.
         if (m_data_index + size > operation.data_blocks.back().size()) {
