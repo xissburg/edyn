@@ -179,6 +179,10 @@ Following is a list containing the current major features:
 - Parallel simulation using islands.
 - Networked physics using a client-server model. _Edyn_ performs client state application in the server-side using a jitter buffer and does extrapolation on the client-side in a background thread. It generates packets containing physics state which just needs to be sent over the network and once received in the other side it must be fed into the engine. It handles serialization, deserialization and processing of all packets.
 
+# Games
+
+- [Exhibition of Speed](https://store.steampowered.com/app/2947450/Exhibition_of_Speed): Build your own car and go racing.
+
 # Documentation and Support
 
 Check out the [wiki](https://github.com/xissburg/edyn/wiki) where the user manual can be found.
