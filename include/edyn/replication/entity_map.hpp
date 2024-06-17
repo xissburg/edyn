@@ -2,7 +2,7 @@
 #define EDYN_REPLICATION_ENTITY_MAP_HPP
 
 #include "edyn/config/config.h"
-#include <map>
+#include <unordered_map>
 #include <entt/entity/fwd.hpp>
 
 namespace edyn {
@@ -123,8 +123,8 @@ public:
     }
 
 private:
-    std::map<entt::entity, entt::entity> map;
-    std::map<entt::entity, entt::entity> map_local;
+    std::unordered_map<entt::entity, entt::entity> map;
+    std::unordered_map<entt::entity, entt::entity> map_local;
 };
 
 }
