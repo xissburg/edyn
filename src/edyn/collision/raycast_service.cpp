@@ -1,6 +1,5 @@
 #include "edyn/collision/raycast_service.hpp"
-#include "edyn/parallel/job_dispatcher.hpp"
-#include "edyn/parallel/parallel_for.hpp"
+#include "edyn/context/task_util.hpp"
 #include "edyn/util/vector_util.hpp"
 
 namespace edyn {

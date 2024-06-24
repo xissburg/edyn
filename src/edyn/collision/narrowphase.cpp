@@ -2,7 +2,7 @@
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/config/constants.hpp"
-#include "edyn/parallel/parallel_for.hpp"
+#include "edyn/context/task_util.hpp"
 #include "edyn/comp/material.hpp"
 #include "edyn/util/entt_util.hpp"
 #include "edyn/util/island_util.hpp"
@@ -49,11 +49,9 @@ void narrowphase::detect_collision_parallel() {
     auto shapes_views_tuple = get_tuple_of_shape_views(*m_registry);
     auto dt = m_registry->ctx().at<settings>().fixed_dt;
 
-    // Resize result collection vectors to allocate one slot for each iteration
-    // of the parallel_for.
+    // Resize result collection vectors to allocate one slot for each iteration.
     m_cp_construction_infos.resize(manifold_view.size());
     m_cp_destruction_infos.resize(manifold_view.size());
-    auto &dispatcher = job_dispatcher::global();
 
     auto for_loop_body = [this, body_view, tr_view, vel_view, rolling_view, origin_view,
              manifold_view, events_view, orn_view, material_view, mesh_shape_view,
@@ -77,7 +75,7 @@ void narrowphase::detect_collision_parallel() {
         });
     };
 
-    parallel_for(dispatcher, size_t{}, manifold_view.size(), size_t{1}, for_loop_body);
+    enqueue_and_wait_task(*m_registry, for_loop_body, manifold_view.size());
 }
 
 void narrowphase::finish_detect_collision() {

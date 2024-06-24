@@ -425,9 +425,9 @@ bool apply_solution(entt::registry &registry, scalar dt, const entt::sparse_set 
         }
     };
 
-    constexpr auto max_sequential_size = 64;
+    constexpr auto max_sequential_size = 64u;
 
-    if (entities.size() <= max_sequential_size || mode == execution_mode::sequential) {
+    if (mode == execution_mode::sequential || entities.size() <= max_sequential_size) {
         for (auto &entity : entities) {
             for_loop_body(entity);
         }
@@ -487,10 +487,11 @@ static void island_solver_update(island_solver_context &ctx) {
     case island_solver_state::apply_solution: {
         auto &island = ctx.registry->get<edyn::island>(ctx.island_entity);
         ctx.state = island_solver_state::assign_applied_impulses;
+        auto j = make_solver_job(ctx);
 
         if (apply_solution(*ctx.registry, ctx.dt, island.nodes,
-                           execution_mode::asynchronous, make_solver_job(ctx))) {
-            dispatch_solver(ctx);
+                           execution_mode::asynchronous, j)) {
+            job_dispatcher::global().async(j);
         }
         break;
     }

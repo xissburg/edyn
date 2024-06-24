@@ -14,7 +14,6 @@
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/parallel/atomic_counter_sync.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
-#include "edyn/parallel/parallel_for.hpp"
 #include "edyn/serialization/s11n_util.hpp"
 #include "edyn/sys/apply_gravity.hpp"
 #include "edyn/sys/update_aabbs.hpp"
@@ -31,6 +30,7 @@
 #include "edyn/dynamics/restitution_solver.hpp"
 #include "edyn/dynamics/island_solver.hpp"
 #include "edyn/context/settings.hpp"
+#include "edyn/context/task_util.hpp"
 #include "edyn/util/entt_util.hpp"
 #include <entt/entity/registry.hpp>
 #include <optional>
@@ -164,12 +164,23 @@ static void prepare_constraints(entt::registry &registry, scalar dt, bool mt) {
         }, con_view_tuple);
     };
 
+    auto task_func = [&for_loop_body, cache_view](void *ctx, unsigned start, unsigned size, unsigned thread_idx) {
+        auto first = cache_view.begin();
+        std::advance(first, start);
+        auto last = first;
+        std::advance(last, size);
+
+        for (; first != last; ++first) {
+            auto entity = *first;
+            for_loop_body(entity);
+        }
+    };
+
     const size_t max_sequential_size = 4;
     auto num_constraints = calculate_view_size(cache_view);
 
     if (mt && num_constraints > max_sequential_size) {
-        auto &dispatcher = job_dispatcher::global();
-        parallel_for_each(dispatcher, cache_view.begin(), cache_view.end(), for_loop_body);
+        enqueue_and_wait_task(registry, task_func, calculate_view_size(cache_view));
     } else {
         for (auto entity : cache_view) {
             for_loop_body(entity);
