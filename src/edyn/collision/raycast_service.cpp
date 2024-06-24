@@ -12,17 +12,20 @@ void raycast_service::run_broadphase(bool mt) {
     auto &bphase = m_registry->ctx().at<broadphase>();
 
     if (mt && m_broad_ctx.size() > m_max_raycast_broadphase_sequential_size) {
-        auto &dispatcher = job_dispatcher::global();
         auto *raycasts = &m_broad_ctx;
 
-        parallel_for(dispatcher, size_t{}, raycasts->size(), size_t{1}, [raycasts, &bphase](size_t index) {
-            auto &ctx = (*raycasts)[index];
-            bphase.raycast(ctx.p0, ctx.p1, [&](entt::entity entity) {
-                if (!vector_contains(ctx.ignore_entities, entity)) {
-                    ctx.candidates.push_back(entity);
-                }
-            });
-        });
+        auto task_func = [raycasts, &bphase](void *ctx, unsigned start, unsigned size, unsigned thread_idx) {
+            for (auto index = start; index < size; ++index) {
+                auto &ctx = (*raycasts)[index];
+                bphase.raycast(ctx.p0, ctx.p1, [&](entt::entity entity) {
+                    if (!vector_contains(ctx.ignore_entities, entity)) {
+                        ctx.candidates.push_back(entity);
+                    }
+                });
+            }
+        };
+
+        enqueue_and_wait_task(*m_registry, task_func, raycasts->size());
     } else {
         for (auto &ctx : m_broad_ctx) {
             bphase.raycast(ctx.p0, ctx.p1, [&](entt::entity entity) {
@@ -55,11 +58,9 @@ void raycast_service::run_narrowphase(bool mt) {
     auto shape_views_tuple = get_tuple_of_shape_views(*m_registry);
 
     if (mt && m_narrow_ctx.size() > m_max_raycast_narrowphase_sequential_size) {
-        auto &dispatcher = job_dispatcher::global();
         auto *ctxes = &m_narrow_ctx;
 
-        parallel_for(dispatcher, size_t{}, ctxes->size(), size_t{1},
-            [ctxes, index_view, origin_view, tr_view, shape_views_tuple](size_t index) {
+        auto task_func = [ctxes, index_view, origin_view, tr_view, shape_views_tuple](size_t index) {
             auto &ctx = (*ctxes)[index];
 
             auto sh_idx = index_view.get<shape_index>(ctx.entity);
@@ -71,7 +72,9 @@ void raycast_service::run_narrowphase(bool mt) {
             visit_shape(sh_idx, ctx.entity, shape_views_tuple, [&](auto &&shape) {
                 ctx.result = shape_raycast(shape, ray_ctx);
             });
-        });
+        };
+
+        enqueue_and_wait_task(*m_registry, task_func, ctxes->size());
     } else {
         for (auto &ctx : m_narrow_ctx) {
             auto sh_idx = index_view.get<shape_index>(ctx.entity);

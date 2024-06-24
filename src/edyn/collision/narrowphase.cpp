@@ -55,7 +55,7 @@ void narrowphase::detect_collision_parallel() {
 
     auto for_loop_body = [this, body_view, tr_view, vel_view, rolling_view, origin_view,
              manifold_view, events_view, orn_view, material_view, mesh_shape_view,
-             paged_mesh_shape_view, shapes_views_tuple, dt](size_t index) {
+             paged_mesh_shape_view, shapes_views_tuple, dt](size_t index, unsigned thread_idx) {
         auto entity = manifold_view[index];
         auto [manifold] = manifold_view.get(entity);
         auto [events] = events_view.get(entity);

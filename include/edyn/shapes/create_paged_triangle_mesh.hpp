@@ -4,7 +4,7 @@
 #include <cstdint>
 #include <memory>
 #include "edyn/shapes/paged_triangle_mesh.hpp"
-#include "edyn/parallel/parallel_for.hpp"
+#include "edyn/context/settings.hpp"
 
 namespace edyn {
 

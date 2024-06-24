@@ -164,22 +164,22 @@ static void prepare_constraints(entt::registry &registry, scalar dt, bool mt) {
         }, con_view_tuple);
     };
 
-    auto task_func = [&for_loop_body, cache_view](void *ctx, unsigned start, unsigned size, unsigned thread_idx) {
-        auto first = cache_view.begin();
-        std::advance(first, start);
-        auto last = first;
-        std::advance(last, size);
-
-        for (; first != last; ++first) {
-            auto entity = *first;
-            for_loop_body(entity);
-        }
-    };
-
     const size_t max_sequential_size = 4;
     auto num_constraints = calculate_view_size(cache_view);
 
     if (mt && num_constraints > max_sequential_size) {
+        auto task_func = [&for_loop_body, cache_view](void *ctx, unsigned start, unsigned size, unsigned thread_idx) {
+            auto first = cache_view.begin();
+            std::advance(first, start);
+            auto last = first;
+            std::advance(last, size);
+
+            for (; first != last; ++first) {
+                auto entity = *first;
+                for_loop_body(entity);
+            }
+        };
+
         enqueue_and_wait_task(registry, task_func, calculate_view_size(cache_view));
     } else {
         for (auto entity : cache_view) {
