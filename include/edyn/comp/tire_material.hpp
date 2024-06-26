@@ -15,7 +15,8 @@ struct tire_material {
     scalar load_sensitivity {0.05};
     scalar tire_radius {0.36};
     scalar rim_radius {0.19};
-    scalar inflation_pressure {30};
+    scalar tread_width {0.21};
+    scalar nominal_inflation_pressure {30};
     scalar vertical_stiffness_inflation_pressure_rate {5000};
 };
 
@@ -25,7 +26,9 @@ void serialize(Archive &archive, tire_material &mat) {
     archive(mat.lon_tread_stiffness, mat.lat_tread_stiffness);
     archive(mat.max_tread_deflection);
     archive(mat.speed_sensitivity, mat.load_sensitivity);
-    archive(mat.tire_radius, mat.rim_radius);
+    archive(mat.tire_radius, mat.rim_radius, mat.tread_width);
+    archive(mat.nominal_inflation_pressure);
+    archive(mat.vertical_stiffness_inflation_pressure_rate);
 }
 
 }

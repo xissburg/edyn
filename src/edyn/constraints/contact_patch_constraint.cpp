@@ -106,7 +106,7 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
     const auto sidewall_height = material.tire_radius - material.rim_radius;
     const auto min_deflection = scalar(0.0001);
     const auto vertical_stiffness = material.vertical_stiffness +
-                                    (state.inflation_pressure - material.inflation_pressure) *
+                                    (state.inflation_pressure - material.nominal_inflation_pressure) *
                                     material.vertical_stiffness_inflation_pressure_rate;
 
     const auto init_patch_with_cp = [&](contact_patch &patch, unsigned pt_idx) {
@@ -210,12 +210,13 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
         auto normalized_contact_width = scalar(1);
             /*std::max(scalar(0.08), scalar(1) - scalar(1) /
             (normal_force * scalar(0.001) * (half_pi - std::abs(camber_angle)) / (std::abs(camber_angle) + scalar(0.001)) + 1));*/
-        patch.width = cyl.half_length * 2 * normalized_contact_width;
+        patch.width = material.tread_width * normalized_contact_width;
 
         // Calculate starting point of contact patch on the contact plane.
         auto point_on_yz_plane = project_plane(patch.pivot, bodyA.origin, axis);
         auto radial_dir = normalize(point_on_yz_plane - bodyA.origin);
-        auto axial_offset = axis * cyl.half_length * (sin_camber > 0 ? -1 : 1);
+        const auto half_tread_width = material.tread_width / 2;
+        auto axial_offset = axis * half_tread_width * (sin_camber > 0 ? -1 : 1);
         auto circle_center = bodyA.origin + axial_offset;
         auto point_on_edge = circle_center + radial_dir * cyl.radius;
 
@@ -259,7 +260,7 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
         auto geometric_center = lerp(patch_lat_pos[0], patch_lat_pos[1], scalar(0.5));
 
         // Where the tread row starts in the x-axis in object space.
-        const auto row_start = sin_camber > 0 ? -cyl.half_length : cyl.half_length - patch.width;
+        const auto row_start = sin_camber > 0 ? -half_tread_width : half_tread_width - patch.width;
 
         // Calculate deflection on each side of the contact patch which will be
         // interpolated to find the deflection at each tread row.
