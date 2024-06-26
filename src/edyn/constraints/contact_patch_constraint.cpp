@@ -30,6 +30,12 @@ std::pair<vector3, vector3> get_tire_directions(vector3 axis, vector3 normal, qu
     return {lon_dir, lat_dir};
 }
 
+scalar calculate_contact_patch_length(scalar unloaded_radius_inv, scalar radius, scalar deflection, scalar max_length) {
+    return std::min(scalar(0.8) * radius *
+                   (deflection * unloaded_radius_inv + scalar(2.25) * std::sqrt(deflection * unloaded_radius_inv)),
+                   max_length);
+}
+
 void contact_patch_constraint::prepare(const entt::registry &registry, entt::entity entity, const contact_manifold &manifold,
                                        constraint_row_prep_cache &cache, scalar dt,
                                        const constraint_body &bodyA, const constraint_body &bodyB) {
@@ -98,6 +104,7 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
 
     auto &cyl = registry.get<cylinder_shape>(body[0]);
     const auto max_row_half_length = cyl.radius * scalar(0.9);
+    const auto max_row_length = max_row_half_length * scalar(2);
     const auto r0_inv = scalar(1) / cyl.radius;
     auto replaced_patches = std::array<int, max_contacts>{};
 
@@ -133,10 +140,7 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
         patch.pivot = project_plane(pivotA_world, pivotB_world, cp.normal);
 
         patch.friction = cp.friction;
-        patch.length = scalar(2) * std::min(scalar(0.4) * cyl.radius *
-                        (patch.deflection * r0_inv + scalar(2.25) *
-                        std::sqrt(patch.deflection * r0_inv)),
-                        max_row_half_length);
+        patch.length = calculate_contact_patch_length(r0_inv, cyl.radius, patch.deflection, max_row_length);
     };
 
     // Match contact points with contact patches. Either merge them with
@@ -230,9 +234,8 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
             patch_lat_pos[patch_lat_deeper_index] = circle_center + radial_dir * (cyl.radius - sidewall_height);
         } else {
             // The starting point is at the intersection between the line
-            // connecting the center of the cylinder cap face closest to the
-            // contact plane and the support point along -normal with the
-            // contact plane up to the height of the sidewall.
+            // starting at `circle_center` with direction `radial_dir` with
+            // the contact plane up to the height of the sidewall.
             auto min_fraction = scalar(1) - sidewall_height / cyl.radius ;
             auto fraction = dot(patch.pivot - circle_center, normal) / dot(radial_dir * cyl.radius, normal);
             fraction = std::clamp(fraction, min_fraction, scalar(1));
@@ -289,7 +292,10 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
         auto lat_force = scalar(0);
         auto aligning_torque = vector3_zero;
         auto tread_width = patch.width / num_tread_rows;
-        auto normal_pressure = normal_force / (patch.width * patch.length);
+        auto patch_length0 = calculate_contact_patch_length(r0_inv, cyl.radius, deflection0, max_row_length);
+        auto patch_length1 = calculate_contact_patch_length(r0_inv, cyl.radius, deflection1, max_row_length);
+        auto patch_area = (patch_length0 + patch_length1) / 2 * patch.width;
+        auto normal_pressure = normal_force / patch_area;
 
         // Number of full turns since last update.
         auto spin_count_delta = bodyA.spin_count - patch.spin_count;
@@ -336,7 +342,7 @@ void contact_patch_constraint::prepare(const entt::registry &registry, entt::ent
                 continue;
             }
 
-            auto row_length = patch.length;
+            auto row_length = calculate_contact_patch_length(r0_inv, cyl.radius, defl, max_row_length);
             auto row_half_length = row_length / scalar(2);
             auto row_half_angle = std::asin(row_half_length / cyl.radius);
             auto row_angle = scalar(2) * row_half_angle;
