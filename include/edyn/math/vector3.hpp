@@ -230,7 +230,7 @@ constexpr scalar distance_sqr(const vector3 &p0, const vector3 &p1) noexcept {
 // Normalized vector (unit length). Asserts if the vector's length is zero.
 inline vector3 normalize(const vector3 &v) noexcept {
     auto l = length(v);
-    EDYN_ASSERT(l > EDYN_EPSILON);
+    EDYN_ASSERT(l > 1e-18);
     return v / l;
 }
 
@@ -239,7 +239,7 @@ inline vector3 normalize(const vector3 &v) noexcept {
 inline bool try_normalize(vector3 &v) noexcept {
     auto lsqr = length_sqr(v);
 
-    if (lsqr > EDYN_EPSILON) {
+    if (lsqr > 1e-18) {
         v /= std::sqrt(lsqr);
         return true;
     }

@@ -25,8 +25,6 @@ namespace detail {
  * accelerate closest point queries.
  */
 class triangle_mesh {
-public:
-    void initialize();
     void calculate_face_normals();
     void init_edge_indices();
     void calculate_adjacent_normals();
@@ -62,6 +60,8 @@ public:
         m_restitution.clear();
         m_restitution.insert(m_restitution.end(), first, last);
     }
+
+    void initialize();
 
     size_t num_vertices() const {
         return m_vertices.size();
