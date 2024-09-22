@@ -364,6 +364,17 @@ vector3 get_rigidbody_origin(const entt::registry &registry, entt::entity entity
     return origin;
 }
 
+void set_rigidbody_origin(entt::registry &registry, entt::entity entity, const vector3 &origin) {
+    if (!registry.any_of<center_of_mass>(entity)) {
+        registry.replace<position>(entity, origin);
+        return;
+    }
+
+    auto [com, pos, orn] = registry.get<center_of_mass, position, orientation>(entity);
+    registry.replace<position>(entity, to_world_space(com, origin, orn));
+    registry.replace<edyn::origin>(entity, origin);
+}
+
 vector3 get_rigidbody_present_origin(const entt::registry &registry, entt::entity entity) {
     if (!registry.any_of<center_of_mass>(entity)) {
         return registry.get<present_position>(entity);
