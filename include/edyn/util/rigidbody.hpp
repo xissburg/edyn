@@ -187,6 +187,16 @@ void set_center_of_mass(entt::registry &, entt::entity, const vector3 &com);
 vector3 get_rigidbody_origin(const entt::registry &, entt::entity);
 
 /**
+ * @brief Set location of rigid body's origin in world space.
+ * @remark Use this function to change the position of a rigid body that has a
+ * non-zero center of mass offset.
+ * @param registry Data source.
+ * @param entity Rigid body entity.
+ * @param origin location in the world.
+ */
+void set_rigidbody_origin(entt::registry &, entt::entity, const vector3 &origin);
+
+/**
  * @brief Get interpolated location of rigid body's origin in world space for
  * presentation.
  * @param registry Data source.

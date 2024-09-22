@@ -34,7 +34,7 @@ class registry_operation_builder {
         m_data_index += size;
 
         // Use placement new to allocate object in the current buffer.
-        auto *op = new(buff) T(std::forward(args)...);
+        auto *op = new(buff) T(std::forward<Args>(args)...);
         operation.operations.push_back(op);
 
         return op;

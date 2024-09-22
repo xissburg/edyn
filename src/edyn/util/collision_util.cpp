@@ -105,8 +105,9 @@ static bool try_assign_per_vertex_friction(
     if (mesh_shape_view.contains(body[0])) {
         auto [shapeA] = mesh_shape_view.get(body[0]);
         if (shapeA.trimesh->has_per_vertex_friction()) {
+            auto [materialA] = material_view.get(body[0]);
             auto [materialB] = material_view.get(body[1]);
-            auto frictionA = get_trimesh_friction(*shapeA.trimesh, cp.pivotA, *cp.featureA);
+            auto frictionA = get_trimesh_friction(*shapeA.trimesh, cp.pivotA, *cp.featureA) * materialA.friction;
             cp.friction = material_mix_friction(frictionA, materialB.friction);
             return true;
         }
@@ -114,15 +115,17 @@ static bool try_assign_per_vertex_friction(
         auto [shapeB] = mesh_shape_view.get(body[1]);
         if (shapeB.trimesh->has_per_vertex_friction()) {
             auto [materialA] = material_view.get(body[0]);
-            auto frictionB = get_trimesh_friction(*shapeB.trimesh, cp.pivotB, *cp.featureB);
+            auto [materialB] = material_view.get(body[1]);
+            auto frictionB = get_trimesh_friction(*shapeB.trimesh, cp.pivotB, *cp.featureB) * materialB.friction;
             cp.friction = material_mix_friction(materialA.friction, frictionB);
             return true;
         }
     } else if (paged_mesh_shape_view.contains(body[0])) {
         auto [shapeA] = paged_mesh_shape_view.get(body[0]);
         if (shapeA.trimesh->has_per_vertex_friction()) {
+            auto [materialA] = material_view.get(body[0]);
             auto [materialB] = material_view.get(body[1]);
-            auto frictionA = get_paged_mesh_friction(shapeA, cp.pivotA, *cp.featureA);
+            auto frictionA = get_paged_mesh_friction(shapeA, cp.pivotA, *cp.featureA) * materialA.friction;
             cp.friction = material_mix_friction(frictionA, materialB.friction);
             return true;
         }
@@ -130,7 +133,8 @@ static bool try_assign_per_vertex_friction(
         auto [shapeB] = paged_mesh_shape_view.get(body[1]);
         if (shapeB.trimesh->has_per_vertex_friction()) {
             auto [materialA] = material_view.get(body[0]);
-            auto frictionB = get_paged_mesh_friction(shapeB, cp.pivotB, *cp.featureB);
+            auto [materialB] = material_view.get(body[1]);
+            auto frictionB = get_paged_mesh_friction(shapeB, cp.pivotB, *cp.featureB) * materialB.friction;
             cp.friction = material_mix_friction(materialA.friction, frictionB);
             return true;
         }
@@ -148,8 +152,9 @@ static bool try_assign_per_vertex_restitution(
     if (mesh_shape_view.contains(body[0])) {
         auto [shapeA] = mesh_shape_view.get(body[0]);
         if (shapeA.trimesh->has_per_vertex_restitution()) {
+            auto [materialA] = material_view.get(body[0]);
             auto [materialB] = material_view.get(body[1]);
-            auto restitutionA = get_trimesh_restitution(*shapeA.trimesh, cp.pivotA, *cp.featureA);
+            auto restitutionA = get_trimesh_restitution(*shapeA.trimesh, cp.pivotA, *cp.featureA) * materialA.restitution;
             cp.restitution = material_mix_restitution(restitutionA, materialB.restitution);
             return true;
         }
@@ -157,15 +162,17 @@ static bool try_assign_per_vertex_restitution(
         auto [shapeB] = mesh_shape_view.get(body[1]);
         if (shapeB.trimesh->has_per_vertex_restitution()) {
             auto [materialA] = material_view.get(body[0]);
-            auto restitutionB = get_trimesh_restitution(*shapeB.trimesh, cp.pivotB, *cp.featureB);
+            auto [materialB] = material_view.get(body[1]);
+            auto restitutionB = get_trimesh_restitution(*shapeB.trimesh, cp.pivotB, *cp.featureB) * materialB.restitution;
             cp.restitution = material_mix_restitution(materialA.restitution, restitutionB);
             return true;
         }
     } else if (paged_mesh_shape_view.contains(body[0])) {
         auto [shapeA] = paged_mesh_shape_view.get(body[0]);
         if (shapeA.trimesh->has_per_vertex_restitution()) {
+            auto [materialA] = material_view.get(body[0]);
             auto [materialB] = material_view.get(body[1]);
-            auto restitutionA = get_paged_mesh_restitution(shapeA, cp.pivotA, *cp.featureA);
+            auto restitutionA = get_paged_mesh_restitution(shapeA, cp.pivotA, *cp.featureA) * materialA.restitution;
             cp.restitution = material_mix_restitution(restitutionA, materialB.restitution);
             return true;
         }
@@ -173,7 +180,8 @@ static bool try_assign_per_vertex_restitution(
         auto [shapeB] = paged_mesh_shape_view.get(body[1]);
         if (shapeB.trimesh->has_per_vertex_restitution()) {
             auto [materialA] = material_view.get(body[0]);
-            auto restitutionB = get_paged_mesh_restitution(shapeB, cp.pivotB, *cp.featureB);
+            auto [materialB] = material_view.get(body[1]);
+            auto restitutionB = get_paged_mesh_restitution(shapeB, cp.pivotB, *cp.featureB) * materialB.restitution;
             cp.restitution = material_mix_restitution(materialA.restitution, restitutionB);
             return true;
         }
