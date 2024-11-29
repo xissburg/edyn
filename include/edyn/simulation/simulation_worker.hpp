@@ -1,10 +1,10 @@
 #ifndef EDYN_SIMULATION_SIMULATION_WORKER_HPP
 #define EDYN_SIMULATION_SIMULATION_WORKER_HPP
 
-#include <entt/signal/sigh.hpp>
+#include <condition_variable>
 #include <memory>
 #include <atomic>
-#include <thread>
+#include <entt/signal/sigh.hpp>
 #include <entt/entity/fwd.hpp>
 #include "edyn/collision/raycast.hpp"
 #include "edyn/collision/raycast_service.hpp"
@@ -93,8 +93,10 @@ private:
     std::unique_ptr<registry_operation_observer> m_op_observer;
     bool m_importing;
 
-    std::unique_ptr<std::thread> m_thread;
-    std::atomic<bool> m_running {false};
+    std::atomic<bool> m_running {true};
+    std::atomic<bool> m_finished {false};
+    std::mutex m_finish_mutex;
+    std::condition_variable m_finish_cv;
     double m_accumulated_time {};
     double m_current_time {};
     double m_last_time {};

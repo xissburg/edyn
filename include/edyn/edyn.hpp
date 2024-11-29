@@ -20,6 +20,7 @@
 #include "util/insert_material_mixing.hpp"
 #include "collision/contact_signal.hpp"
 #include "context/step_callback.hpp"
+#include "context/start_thread.hpp"
 #include "collision/raycast.hpp"
 #include "shapes/shapes.hpp"
 #include "comp/shared_comp.hpp"
@@ -44,6 +45,10 @@ struct init_config {
     // If using a custom time source, assign the current time here for the
     // engine initialization.
     std::optional<double> timestamp;
+    // When running in async mode, Edyn needs to start a simulation thread,
+    // an extrapolation thread, and possibly others. `std::thread` is used
+    // by default. Replace to use custom threads.
+    start_thread_func_t *start_thread_func {&start_thread_func_default};
 };
 
 /**
@@ -59,6 +64,8 @@ void attach(entt::registry &registry, const init_config &config = {});
  * @param registry The registry to be freed from Edyn's context.
  */
 void detach(entt::registry &registry);
+
+entt::delegate<void()> get_worker_func(entt::registry &registry);
 
 /**
  * @brief Get the fixed simulation delta time for each step.
