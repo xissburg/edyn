@@ -65,8 +65,6 @@ void attach(entt::registry &registry, const init_config &config = {});
  */
 void detach(entt::registry &registry);
 
-entt::delegate<void()> get_worker_func(entt::registry &registry);
-
 /**
  * @brief Get the fixed simulation delta time for each step.
  * @param registry Data source.
