@@ -3,7 +3,6 @@
 
 #include <memory>
 #include <atomic>
-#include <thread>
 #include <mutex>
 #include <condition_variable>
 #include <entt/entity/fwd.hpp>
@@ -82,7 +81,6 @@ private:
         msg::set_material_table,
         msg::set_extrapolator_context_settings> m_message_queue;
 
-    std::unique_ptr<std::thread> m_thread;
     std::atomic<bool> m_running {false};
     std::atomic<bool> m_has_messages {false};
 

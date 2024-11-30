@@ -92,6 +92,7 @@ void attach(entt::registry &registry, const init_config &config) {
     auto &settings = registry.ctx().emplace<edyn::settings>();
     settings.execution_mode = config.execution_mode;
     settings.fixed_dt = config.fixed_dt;
+    settings.start_thread_func = config.start_thread_func;
 
     registry.ctx().emplace<entity_graph>();
     registry.ctx().emplace<material_mix_table>();

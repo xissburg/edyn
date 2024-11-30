@@ -97,17 +97,17 @@ void extrapolation_worker::deinit() {
 }
 
 void extrapolation_worker::start() {
-    EDYN_ASSERT(!m_thread);
     m_running.store(true, std::memory_order_release);
-    m_thread = std::make_unique<std::thread>(&extrapolation_worker::run, this);
+
+    auto &settings = m_registry.ctx().at<edyn::settings>();
+    (*settings.start_thread_func)([](void *args) {
+        std::invoke(&extrapolation_worker::run, reinterpret_cast<extrapolation_worker *>(args));
+    }, this);
 }
 
 void extrapolation_worker::stop() {
-    EDYN_ASSERT(m_thread);
     m_running.store(false, std::memory_order_release);
     m_cv.notify_one();
-    m_thread->join();
-    m_thread.reset();
 }
 
 void extrapolation_worker::set_settings(const edyn::settings &settings) {

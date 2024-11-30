@@ -6,6 +6,7 @@
 #include "edyn/config/execution_mode.hpp"
 #include "edyn/context/task.hpp"
 #include "edyn/context/step_callback.hpp"
+#include "edyn/context/start_thread.hpp"
 #include "edyn/collision/should_collide.hpp"
 #include "edyn/math/scalar.hpp"
 #include "edyn/math/constants.hpp"
@@ -28,6 +29,7 @@ struct settings {
 
     edyn::execution_mode execution_mode;
 
+    start_thread_func_t *start_thread_func {&start_thread_func_default};
     enqueue_task_t enqueue_task {nullptr};
     wait_task_t wait_task {nullptr};
     void *user_task_context {nullptr};

@@ -20,6 +20,7 @@
 #include "util/insert_material_mixing.hpp"
 #include "collision/contact_signal.hpp"
 #include "context/step_callback.hpp"
+#include "context/start_thread.hpp"
 #include "collision/raycast.hpp"
 #include "shapes/shapes.hpp"
 #include "comp/shared_comp.hpp"
@@ -44,6 +45,13 @@ struct init_config {
     // If using a custom time source, assign the current time here for the
     // engine initialization.
     std::optional<double> timestamp;
+    // Function to create threads which uses `std::thread` by default. Replace
+    // to use alternative threads.
+    // When running in async mode, Edyn needs to start a simulation thread.
+    // When running as a network client (i.e. `init_network_client` is called),
+    // Edyn needs to start an extrapolation thread to run latency compensation
+    // in parallel without freezing the simulation.
+    start_thread_func_t *start_thread_func {&start_thread_func_default};
 };
 
 /**

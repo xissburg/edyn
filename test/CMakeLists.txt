@@ -34,3 +34,4 @@ setup_and_add_test(input_state_history edyn/networking/test_input_state_history.
 setup_and_add_test(rigidbody_kind edyn/util/test_change_rigidbody_kind.cpp)
 setup_and_add_test(clear_rigidbody edyn/util/test_clear_rigidbody.cpp)
 setup_and_add_test(issue128 edyn/issues/issue128.cpp)
+setup_and_add_test(issue134 edyn/issues/issue134.cpp)
