@@ -45,9 +45,12 @@ struct init_config {
     // If using a custom time source, assign the current time here for the
     // engine initialization.
     std::optional<double> timestamp;
-    // When running in async mode, Edyn needs to start a simulation thread,
-    // an extrapolation thread, and possibly others. `std::thread` is used
-    // by default. Replace to use custom threads.
+    // Function to create threads which uses `std::thread` by default. Replace
+    // to use alternative threads.
+    // When running in async mode, Edyn needs to start a simulation thread.
+    // When running as a network client (i.e. `init_network_client` is called),
+    // Edyn needs to start an extrapolation thread to run latency compensation
+    // in parallel without freezing the simulation.
     start_thread_func_t *start_thread_func {&start_thread_func_default};
 };
 
