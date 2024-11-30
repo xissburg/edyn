@@ -397,7 +397,7 @@ void simulation_worker::run() {
     auto integral_term = 0.06;
     auto i_term = 0.0;
 
-    m_finished = false;
+    m_finished.store(false, std::memory_order_relaxed);
     m_current_time = (*m_registry.ctx().at<settings>().time_func)();
     init();
 
