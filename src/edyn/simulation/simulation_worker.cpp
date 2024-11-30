@@ -49,6 +49,7 @@
 #include <entt/entity/registry.hpp>
 #include <algorithm>
 #include <atomic>
+#include <mutex>
 
 namespace edyn {
 
@@ -304,16 +305,21 @@ void simulation_worker::sync() {
 }
 
 void simulation_worker::start() {
-    EDYN_ASSERT(!m_thread);
     m_running.store(true, std::memory_order_release);
-    m_thread = std::make_unique<std::thread>(&simulation_worker::run, this);
+
+    auto &settings = m_registry.ctx().at<edyn::settings>();
+    (*settings.start_thread_func)([](void *args) {
+        std::invoke(&simulation_worker::run, reinterpret_cast<simulation_worker *>(args));
+    }, this);
 }
 
 void simulation_worker::stop() {
-    EDYN_ASSERT(m_thread);
     m_running.store(false, std::memory_order_release);
-    m_thread->join();
-    m_thread.reset();
+
+    std::unique_lock<std::mutex> lock(m_finish_mutex);
+    m_finish_cv.wait(lock, [&]() {
+        return m_finished.load(std::memory_order_relaxed);
+    });
 }
 
 void simulation_worker::update() {
@@ -391,6 +397,7 @@ void simulation_worker::run() {
     auto integral_term = 0.06;
     auto i_term = 0.0;
 
+    m_finished.store(false, std::memory_order_relaxed);
     m_current_time = (*m_registry.ctx().at<settings>().time_func)();
     init();
 
@@ -410,6 +417,10 @@ void simulation_worker::run() {
     }
 
     deinit();
+
+    auto lock = std::lock_guard<std::mutex>(m_finish_mutex);
+    m_finished.store(true, std::memory_order_relaxed);
+    m_finish_cv.notify_one();
 }
 
 void simulation_worker::consume_raycast_results() {
@@ -479,6 +490,9 @@ void simulation_worker::on_set_settings(message<msg::set_settings> &msg) {
 
     if (settings.time_func != current.time_func) {
         m_current_time = (*settings.time_func)();
+        m_last_time = m_current_time;
+        m_sim_time = m_current_time;
+        m_island_manager.set_last_time(m_last_time);
     }
 
     current = settings;

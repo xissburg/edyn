@@ -7,6 +7,7 @@
 #include "edyn/math/scalar.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/context/step_callback.hpp"
+#include "edyn/context/start_thread.hpp"
 #include "edyn/collision/should_collide.hpp"
 #include "edyn/networking/settings/client_network_settings.hpp"
 #include "edyn/networking/settings/server_network_settings.hpp"
@@ -27,7 +28,7 @@ struct settings {
 
     edyn::execution_mode execution_mode;
 
-    
+    start_thread_func_t *start_thread_func {&start_thread_func_default};
 
     init_callback_t init_callback {nullptr};
     init_callback_t deinit_callback {nullptr};

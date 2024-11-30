@@ -142,6 +142,7 @@ add_library(Edyn
     src/edyn/networking/util/snap_to_pool_snapshot.cpp
     src/edyn/context/registry_operation_context.cpp
     src/edyn/context/step_callback.cpp
+    src/edyn/context/start_thread.cpp
     src/edyn/edyn.cpp
     src/edyn/time/common/time.cpp
     src/edyn/time/simulation_time.cpp
