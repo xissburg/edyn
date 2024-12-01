@@ -16,7 +16,6 @@
 #include "edyn/context/registry_operation_context.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/networking/comp/entity_owner.hpp"
-#include "edyn/networking/context/client_network_context.hpp"
 #include "edyn/parallel/message_dispatcher.hpp"
 #include "edyn/shapes/shapes.hpp"
 #include "edyn/simulation/stepper_async.hpp"
@@ -25,6 +24,7 @@
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/util/paged_mesh_load_reporting.hpp"
 #include "edyn/util/rigidbody.hpp"
+#include "edyn/util/settings_util.hpp"
 #include <entt/meta/factory.hpp>
 #include <entt/core/hashed_string.hpp>
 
@@ -179,27 +179,13 @@ scalar get_fixed_dt(const entt::registry &registry) {
 void set_fixed_dt(entt::registry &registry, scalar dt) {
     auto &settings = registry.ctx().at<edyn::settings>();
     settings.fixed_dt = dt;
-
-    if (auto *stepper = registry.ctx().find<stepper_async>()) {
-        stepper->settings_changed();
-    }
-
-    if (auto *ctx = registry.ctx().find<client_network_context>()) {
-        ctx->extrapolator->set_settings(settings);
-    }
+    refresh_settings(registry);
 }
 
 void set_max_steps_per_update(entt::registry &registry, unsigned max_steps) {
     auto &settings = registry.ctx().at<edyn::settings>();
     settings.max_steps_per_update = max_steps;
-
-    if (auto *stepper = registry.ctx().find<stepper_async>()) {
-        stepper->settings_changed();
-    }
-
-    if (auto *ctx = registry.ctx().find<client_network_context>()) {
-        ctx->extrapolator->set_settings(settings);
-    }
+    refresh_settings(registry);
 }
 
 bool is_paused(const entt::registry &registry) {
@@ -269,13 +255,7 @@ void set_time_source(entt::registry &registry, double(*time_func)(void)) {
     auto &settings = registry.ctx().at<edyn::settings>();
     settings.time_func = time_func;
 
-    if (auto *stepper = registry.ctx().find<stepper_async>()) {
-        stepper->settings_changed();
-    }
-
-    if (auto *ctx = registry.ctx().find<client_network_context>()) {
-        ctx->extrapolator->set_settings(settings);
-    }
+    refresh_settings(registry);
 }
 
 double get_time(entt::registry &registry) {

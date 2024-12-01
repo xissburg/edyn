@@ -15,13 +15,13 @@
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/constraints/constraint_row_friction.hpp"
 #include "edyn/constraints/contact_constraint.hpp"
+#include "edyn/context/task.hpp"
 #include "edyn/context/task_util.hpp"
 #include "edyn/dynamics/island_constraint_entities.hpp"
 #include "edyn/dynamics/position_solver.hpp"
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/parallel/atomic_counter.hpp"
 #include "edyn/parallel/atomic_counter_sync.hpp"
-#include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/util/entt_util.hpp"
 #include "edyn/util/island_util.hpp"
 #include "edyn/util/constraint_util.hpp"
@@ -31,14 +31,13 @@
 #include <entt/entity/fwd.hpp>
 #include <entt/entity/registry.hpp>
 #include <cstdint>
+#include <entt/signal/delegate.hpp>
 #include <iterator>
 #include <tuple>
 #include <type_traits>
 #include <utility>
 
 namespace edyn {
-
-static void island_solver_job_func(job::data_type &data);
 
 enum class island_solver_state : uint8_t {
     pack_rows,
@@ -402,8 +401,10 @@ static bool solve_position_constraints(entt::registry &registry, const island_co
     return error < scalar(0.005);
 }
 
+static void island_solver_update(island_solver_context &ctx);
+
 bool apply_solution(entt::registry &registry, scalar dt, const entt::sparse_set &entities,
-                    execution_mode mode, std::optional<job> completion_job = {}) {
+                    execution_mode mode, island_solver_context *isle_ctx) {
     auto view = registry.view<position, orientation,
                               linvel, angvel, delta_linvel, delta_angvel,
                               dynamic_tag>();
@@ -424,6 +425,48 @@ bool apply_solution(entt::registry &registry, scalar dt, const entt::sparse_set 
         }
     };
 
+    struct apply_solution_context {
+        entt::registry *registry;
+        scalar dt;
+        std::vector<entt::entity> entities;
+        island_solver_context *isle_ctx;
+
+        void task_func(unsigned start, unsigned end) {
+            auto first = entities.begin();
+            std::advance(first, start);
+            auto last = first;
+            std::advance(last, end - start);
+
+            auto view = registry->view<position, orientation,
+                                            linvel, angvel,
+                                            delta_linvel, delta_angvel,
+                                            dynamic_tag>();
+
+            for (; first != last; ++first) {
+                auto entity = *first;
+                if (view.contains(entity)) {
+                    auto [pos, orn, v, w, dv, dw] = view.get(entity);
+
+                    // Apply deltas.
+                    v += dv;
+                    w += dw;
+                    // Integrate velocities and obtain new transforms.
+                    pos += v * dt;
+                    orn = integrate(orn, w, dt);
+                    // Reset deltas back to zero for next update.
+                    dv = vector3_zero;
+                    dw = vector3_zero;
+                }
+            }
+        }
+
+        void completion_func() {
+            auto task = task_delegate_t(entt::connect_arg_t<&island_solver_update>{}, *isle_ctx);
+            enqueue_task(*registry, task, 1, {});
+            delete this;
+        };
+    };
+
     constexpr auto max_sequential_size = 64u;
 
     if (mode == execution_mode::sequential || entities.size() <= max_sequential_size) {
@@ -432,32 +475,34 @@ bool apply_solution(entt::registry &registry, scalar dt, const entt::sparse_set 
         }
         return true;
     } else if (mode == execution_mode::sequential_multithreaded) {
-        auto &dispatcher = job_dispatcher::global();
-        parallel_for_each(dispatcher, entities.begin(), entities.end(), for_loop_body);
+        auto ctx = apply_solution_context{};
+        ctx.registry = &registry;
+        ctx.dt = dt;
+        ctx.entities.insert(ctx.entities.end(), entities.begin(), entities.end());
+        ctx.isle_ctx = isle_ctx;
+
+        auto task = task_delegate_t(entt::connect_arg_t<&apply_solution_context::task_func>{}, ctx);
+        enqueue_task_wait(registry, task, entities.size());
         return true;
     } else {
         EDYN_ASSERT(mode == execution_mode::asynchronous);
-        auto &dispatcher = job_dispatcher::global();
-        parallel_for_each_async(dispatcher, entities.begin(), entities.end(), *completion_job, for_loop_body);
+
+        auto *ctx = new apply_solution_context;
+        ctx->registry = &registry;
+        ctx->dt = dt;
+        ctx->entities.insert(ctx->entities.end(), entities.begin(), entities.end());
+        ctx->isle_ctx = isle_ctx;
+
+        auto task = task_delegate_t(entt::connect_arg_t<&apply_solution_context::task_func>{}, *ctx);
+        auto completion = task_completion_delegate_t(entt::connect_arg_t<&apply_solution_context::completion_func>{}, *ctx);;
+        enqueue_task(registry, task, entities.size(), completion);
         return false;
     }
 }
 
-static job make_solver_job(island_solver_context &ctx) {
-    auto j = job();
-    j.func = &island_solver_job_func;
-    auto archive = fixed_memory_output_archive(j.data.data(), j.data.size());
-    archive(ctx);
-    EDYN_ASSERT(!archive.failed());
-    return j;
-}
-
-static void dispatch_solver(island_solver_context &ctx) {
-    auto j = make_solver_job(ctx);
-    job_dispatcher::global().async(j);
-}
-
 static void island_solver_update(island_solver_context &ctx) {
+    auto task = task_delegate_t(entt::connect_arg_t<&island_solver_update>{}, ctx);
+
     switch (ctx.state) {
     case island_solver_state::pack_rows: {
         auto &island = ctx.registry->get<edyn::island>(ctx.island_entity);
@@ -467,7 +512,8 @@ static void island_solver_update(island_solver_context &ctx) {
 
         ctx.state = island_solver_state::solve_constraints;
         ctx.iteration = 0;
-        dispatch_solver(ctx);
+
+        enqueue_task(*ctx.registry, task, 1, {});
         break;
     }
     case island_solver_state::solve_constraints: {
@@ -480,17 +526,15 @@ static void island_solver_update(island_solver_context &ctx) {
             ctx.state = island_solver_state::apply_solution;
         }
 
-        dispatch_solver(ctx);
+        enqueue_task(*ctx.registry, task, 1, {});
         break;
     }
     case island_solver_state::apply_solution: {
         auto &island = ctx.registry->get<edyn::island>(ctx.island_entity);
         ctx.state = island_solver_state::assign_applied_impulses;
-        auto j = make_solver_job(ctx);
 
-        if (apply_solution(*ctx.registry, ctx.dt, island.nodes,
-                           execution_mode::asynchronous, j)) {
-            job_dispatcher::global().async(j);
+        if (apply_solution(*ctx.registry, ctx.dt, island.nodes, execution_mode::asynchronous, &ctx)) {
+            enqueue_task(*ctx.registry, task, 1, {});
         }
         break;
     }
@@ -502,10 +546,11 @@ static void island_solver_update(island_solver_context &ctx) {
         if (ctx.num_position_iterations > 0) {
             ctx.iteration = 0;
             ctx.state = island_solver_state::solve_position_constraints;
-            dispatch_solver(ctx);
+            enqueue_task(*ctx.registry, task, 1, {});
         } else {
             // Done.
             ctx.decrement_counter();
+            delete &ctx;
         }
         break;
     }
@@ -516,8 +561,9 @@ static void island_solver_update(island_solver_context &ctx) {
             ++ctx.iteration >= ctx.num_position_iterations) {
             // Done. Decrement atomic counter.
             ctx.decrement_counter();
+            delete &ctx;
         } else {
-            dispatch_solver(ctx);
+            enqueue_task(*ctx.registry, task, 1, {});
         }
         break;
     }
@@ -527,8 +573,9 @@ static void island_solver_update(island_solver_context &ctx) {
 void run_island_solver_seq_mt(entt::registry &registry, entt::entity island_entity,
                              unsigned num_iterations, unsigned num_position_iterations,
                              scalar dt, atomic_counter_sync *counter) {
-    auto ctx = island_solver_context(registry, island_entity, num_iterations, num_position_iterations, dt, counter);
-    dispatch_solver(ctx);
+    auto *ctx = new island_solver_context(registry, island_entity, num_iterations, num_position_iterations, dt, counter);
+    auto task = task_delegate_t(entt::connect_arg_t<&island_solver_update>{}, *ctx);
+    enqueue_task(registry, task, 1, {});
 }
 
 void run_island_solver_seq(entt::registry &registry, entt::entity island_entity,
@@ -544,7 +591,7 @@ void run_island_solver_seq(entt::registry &registry, entt::entity island_entity,
     }
 
     const auto exec_mode = execution_mode::sequential;
-    apply_solution(registry, dt, island.nodes, exec_mode);
+    apply_solution(registry, dt, island.nodes, exec_mode, nullptr);
 
     assign_applied_impulses(registry, cache, constraint_entities);
 
@@ -553,13 +600,6 @@ void run_island_solver_seq(entt::registry &registry, entt::entity island_entity,
             break;
         }
     }
-}
-
-static void island_solver_job_func(job::data_type &data) {
-    auto archive = memory_input_archive(data.data(), data.size());
-    island_solver_context ctx;
-    archive(ctx);
-    island_solver_update(ctx);
 }
 
 }

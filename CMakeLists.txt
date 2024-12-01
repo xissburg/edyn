@@ -108,6 +108,7 @@ add_library(Edyn
     src/edyn/util/contact_manifold_util.cpp
     src/edyn/util/insert_material_mixing.cpp
     src/edyn/util/island_util.cpp
+    src/edyn/util/settings_util.cpp
     src/edyn/util/paged_mesh_load_reporting.cpp
     src/edyn/shapes/box_shape.cpp
     src/edyn/shapes/cylinder_shape.cpp
@@ -143,6 +144,7 @@ add_library(Edyn
     src/edyn/context/registry_operation_context.cpp
     src/edyn/context/step_callback.cpp
     src/edyn/context/start_thread.cpp
+    src/edyn/context/task.cpp
     src/edyn/edyn.cpp
     src/edyn/time/common/time.cpp
     src/edyn/time/simulation_time.cpp

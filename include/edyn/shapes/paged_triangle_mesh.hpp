@@ -5,6 +5,7 @@
 #include <vector>
 #include <atomic>
 #include <memory>
+#include "edyn/context/task.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/shapes/triangle_mesh.hpp"
 #include "edyn/shapes/triangle_mesh_page_loader.hpp"
@@ -301,7 +302,8 @@ public:
             IndexIterator index_begin, IndexIterator index_end,
             size_t max_tri_per_submesh,
             const std::vector<vector3> &vertex_colors,
-            vector3 color_scale);
+            vector3 color_scale,
+            enqueue_task_wait_t enqueue_task_wait);
 
     friend struct detail::submesh_builder;
 

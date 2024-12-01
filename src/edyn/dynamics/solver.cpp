@@ -10,10 +10,10 @@
 #include "edyn/comp/orientation.hpp"
 #include "edyn/dynamics/island_solver.hpp"
 #include "edyn/constraints/constraint_body.hpp"
+#include "edyn/context/task.hpp"
 #include "edyn/dynamics/island_constraint_entities.hpp"
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/parallel/atomic_counter_sync.hpp"
-#include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/serialization/s11n_util.hpp"
 #include "edyn/sys/apply_gravity.hpp"
 #include "edyn/sys/update_aabbs.hpp"
@@ -33,6 +33,7 @@
 #include "edyn/context/task_util.hpp"
 #include "edyn/util/entt_util.hpp"
 #include <entt/entity/registry.hpp>
+#include <entt/signal/delegate.hpp>
 #include <optional>
 #include <type_traits>
 
@@ -168,11 +169,11 @@ static void prepare_constraints(entt::registry &registry, scalar dt, bool mt) {
     auto num_constraints = calculate_view_size(cache_view);
 
     if (mt && num_constraints > max_sequential_size) {
-        auto task_func = [&for_loop_body, cache_view](void *ctx, unsigned start, unsigned size, unsigned thread_idx) {
+        auto task_func = [&for_loop_body, cache_view](unsigned start, unsigned end) {
             auto first = cache_view.begin();
             std::advance(first, start);
             auto last = first;
-            std::advance(last, size);
+            std::advance(last, end - start);
 
             for (; first != last; ++first) {
                 auto entity = *first;
@@ -180,7 +181,8 @@ static void prepare_constraints(entt::registry &registry, scalar dt, bool mt) {
             }
         };
 
-        enqueue_and_wait_task(registry, task_func, calculate_view_size(cache_view));
+        auto task = task_delegate_t(entt::connect_arg_t<&decltype(task_func)::operator()>{}, task_func);
+        enqueue_task_wait(registry, task, calculate_view_size(cache_view));
     } else {
         for (auto entity : cache_view) {
             for_loop_body(entity);

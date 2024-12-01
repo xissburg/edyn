@@ -15,6 +15,7 @@
 #include "edyn/util/entt_util.hpp"
 #include "edyn/util/island_util.hpp"
 #include <entt/entity/registry.hpp>
+#include <entt/signal/delegate.hpp>
 
 namespace edyn {
 
@@ -191,15 +192,13 @@ void broadphase::update(bool mt) {
     }
 }
 
-void broadphase::collide_parallel_task(unsigned start, unsigned size, unsigned thread_idx) {
+void broadphase::collide_parallel_task(unsigned start, unsigned end) {
     auto aabb_proc_view = m_registry->view<AABB, procedural_tag>(exclude_sleeping_disabled);
     auto first = aabb_proc_view.begin();
     std::advance(first, start);
-    auto last = first;
-    std::advance(last, size);
     auto index = start;
 
-    for (; first != last; ++first, ++index) {
+    for (; index != end; ++first, ++index) {
         auto entity = *first;
         auto &aabb = aabb_proc_view.get<AABB>(entity);
         auto offset_aabb = aabb.inset(m_aabb_offset);
@@ -213,7 +212,8 @@ void broadphase::collide_parallel() {
     auto aabb_proc_size = calculate_view_size(aabb_proc_view);
     m_pair_results.resize(aabb_proc_size);
 
-    enqueue_task(*m_registry, *this, &broadphase::collide_parallel_task, aabb_proc_size);
+    auto task = task_delegate_t(entt::connect_arg_t<&broadphase::collide_parallel_task>{}, *this);
+    enqueue_task_wait(*m_registry, task, aabb_proc_size);
 }
 
 void broadphase::finish_collide() {
