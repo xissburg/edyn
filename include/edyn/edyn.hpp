@@ -21,6 +21,7 @@
 #include "collision/contact_signal.hpp"
 #include "context/step_callback.hpp"
 #include "context/start_thread.hpp"
+#include "context/task.hpp"
 #include "collision/raycast.hpp"
 #include "shapes/shapes.hpp"
 #include "comp/shared_comp.hpp"
@@ -52,6 +53,8 @@ struct init_config {
     // Edyn needs to start an extrapolation thread to run latency compensation
     // in parallel without freezing the simulation.
     start_thread_func_t *start_thread_func {&start_thread_func_default};
+    enqueue_task_t *enqueue_task {&enqueue_task_default};
+    enqueue_task_wait_t *enqueue_task_wait {&enqueue_task_wait_default};
 };
 
 /**

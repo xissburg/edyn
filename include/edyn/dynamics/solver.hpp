@@ -6,7 +6,6 @@
 #include <entt/entity/fwd.hpp>
 #include <entt/signal/sigh.hpp>
 #include "edyn/math/scalar.hpp"
-#include "edyn/parallel/atomic_counter.hpp"
 
 namespace edyn {
 
@@ -26,7 +25,6 @@ public:
 private:
     entt::registry *m_registry;
     std::vector<entt::scoped_connection> m_connections;
-    std::unique_ptr<atomic_counter> m_counter;
 };
 
 }

@@ -25,6 +25,7 @@
 #include "edyn/util/paged_mesh_load_reporting.hpp"
 #include "edyn/util/rigidbody.hpp"
 #include "edyn/util/settings_util.hpp"
+#include "edyn/parallel/job_dispatcher.hpp"
 #include <entt/meta/factory.hpp>
 #include <entt/core/hashed_string.hpp>
 
@@ -61,10 +62,10 @@ static void init_meta() {
 
 void attach(entt::registry &registry, const init_config &config) {
     init_meta();
+    auto use_job_dispatcher = config.enqueue_task == enqueue_task_default ||
+                              config.enqueue_task_wait == enqueue_task_wait_default;
 
-    auto &dispatcher = job_dispatcher::global();
-
-    if (!dispatcher.running()) {
+    if (use_job_dispatcher && !job_dispatcher::global().running()) {
         auto num_workers = size_t{};
 
         switch (config.execution_mode) {
@@ -86,7 +87,7 @@ void attach(entt::registry &registry, const init_config &config) {
             break;
         }
 
-        dispatcher.start(num_workers);
+        job_dispatcher::global().start(num_workers);
     }
 
     auto &settings = registry.ctx().emplace<edyn::settings>();

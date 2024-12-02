@@ -15,9 +15,6 @@ using enqueue_task_wait_t = void (task_delegate_t task, unsigned size);
 void enqueue_task_default(task_delegate_t task, unsigned size, task_completion_delegate_t completion);
 void enqueue_task_wait_default(task_delegate_t task, unsigned size);
 
-void set_task_system(entt::registry &registry, enqueue_task_t *enqueue, enqueue_task_wait_t *enqueue_wait);
-void reset_task_system(entt::registry &registry);
-
 }
 
 #endif // EDYN_CONTEXT_TASK_HPP

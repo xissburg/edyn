@@ -6,7 +6,6 @@
 
 namespace edyn {
 
-class atomic_counter;
 class atomic_counter_sync;
 
 void run_island_solver_seq_mt(entt::registry &, entt::entity island_entity,

@@ -20,7 +20,6 @@
 #include "edyn/dynamics/island_constraint_entities.hpp"
 #include "edyn/dynamics/position_solver.hpp"
 #include "edyn/dynamics/row_cache.hpp"
-#include "edyn/parallel/atomic_counter.hpp"
 #include "edyn/parallel/atomic_counter_sync.hpp"
 #include "edyn/util/entt_util.hpp"
 #include "edyn/util/island_util.hpp"
@@ -50,7 +49,6 @@ enum class island_solver_state : uint8_t {
 struct island_solver_context {
     entt::registry *registry;
     entt::entity island_entity;
-    atomic_counter *counter {nullptr};
     atomic_counter_sync *counter_sync {nullptr};
     scalar dt;
     uint8_t num_iterations;
@@ -59,17 +57,6 @@ struct island_solver_context {
     island_solver_state state {island_solver_state::pack_rows};
 
     island_solver_context() = default;
-
-    island_solver_context(entt::registry &registry, entt::entity island_entity,
-                          uint8_t num_iterations, uint8_t num_position_iterations,
-                          scalar dt, atomic_counter *counter)
-        : registry(&registry)
-        , island_entity(island_entity)
-        , num_iterations(num_iterations)
-        , num_position_iterations(num_position_iterations)
-        , dt(dt)
-        , counter(counter)
-    {}
 
     island_solver_context(entt::registry &registry, entt::entity island_entity,
                           uint8_t num_iterations, uint8_t num_position_iterations,
@@ -83,28 +70,10 @@ struct island_solver_context {
     {}
 
     void decrement_counter() {
-        EDYN_ASSERT((counter != nullptr && counter_sync == nullptr) ||
-                    (counter == nullptr && counter_sync != nullptr));
-        if (counter) {
-            counter->decrement();
-        } else {
-            counter_sync->decrement();
-        }
+        EDYN_ASSERT(counter_sync != nullptr);
+        counter_sync->decrement();
     }
 };
-
-template<typename Archive>
-void serialize(Archive &archive, island_solver_context &ctx) {
-    serialize_pointer(archive, &ctx.registry);
-    archive(ctx.island_entity);
-    serialize_pointer(archive, &ctx.counter);
-    serialize_pointer(archive, &ctx.counter_sync);
-    archive(ctx.dt);
-    archive(ctx.num_iterations);
-    archive(ctx.num_position_iterations);
-    archive(ctx.iteration);
-    serialize_enum(archive, ctx.state);
-}
 
 static void warm_start(row_cache &cache) {
     for (auto &row : cache.rows) {
@@ -494,7 +463,7 @@ bool apply_solution(entt::registry &registry, scalar dt, const entt::sparse_set 
         ctx->isle_ctx = isle_ctx;
 
         auto task = task_delegate_t(entt::connect_arg_t<&apply_solution_context::task_func>{}, *ctx);
-        auto completion = task_completion_delegate_t(entt::connect_arg_t<&apply_solution_context::completion_func>{}, *ctx);;
+        auto completion = task_completion_delegate_t(entt::connect_arg_t<&apply_solution_context::completion_func>{}, *ctx);
         enqueue_task(registry, task, entities.size(), completion);
         return false;
     }

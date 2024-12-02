@@ -117,8 +117,8 @@ public:
 
     friend void serialize(paged_triangle_mesh_file_input_archive &archive,
                           paged_triangle_mesh &paged_tri_mesh);
-    friend void load_mesh_job_func(job::data_type &);
     friend void finish_load_mesh_job_func(job::data_type &);
+    friend struct load_mesh_context;
 
 private:
     std::string m_path;
@@ -138,9 +138,10 @@ struct load_mesh_context {
     intptr_t m_trimesh;
     // Index of submesh to be loaded.
     size_t m_index;
-};
 
-void load_mesh_job_func(job::data_type &);
+    void load(unsigned start, unsigned end);
+    void completion();
+};
 
 }
 
