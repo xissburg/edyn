@@ -303,7 +303,7 @@ public:
             size_t max_tri_per_submesh,
             const std::vector<vector3> &vertex_colors,
             vector3 color_scale,
-            enqueue_task_wait_t enqueue_task_wait);
+            enqueue_task_wait_t *enqueue_task_wait);
 
     friend struct detail::submesh_builder;
 

@@ -209,7 +209,7 @@ void enqueue_task_wait_default(task_delegate_t task, unsigned size) {
     context.wait();
 }
 
-void set_task_system(entt::registry &registry, enqueue_task_t enqueue, enqueue_task_wait_t enqueue_wait) {
+void set_task_system(entt::registry &registry, enqueue_task_t *enqueue, enqueue_task_wait_t *enqueue_wait) {
     auto &settings = registry.ctx().at<edyn::settings>();
     settings.enqueue_task = enqueue;
     settings.enqueue_task_wait = enqueue_wait;

@@ -41,7 +41,7 @@ struct submesh_builder {
                VertexIterator vertex_begin, IndexIterator index_begin,
                const std::vector<vector3> &vertex_colors,
                const vector3 &color_scale,
-                enqueue_task_wait_t enqueue_task_wait) {
+                enqueue_task_wait_t *enqueue_task_wait) {
         // Allocate space in cache for all submeshes.
         paged_tri_mesh.m_cache.resize(infos.size());
 
@@ -212,7 +212,7 @@ void create_paged_triangle_mesh(
         size_t max_tri_per_submesh,
         const std::vector<vector3> &vertex_colors,
         vector3 color_scale,
-        enqueue_task_wait_t enqueue_task_wait) {
+        enqueue_task_wait_t *enqueue_task_wait) {
 
     // Only allowed to create a mesh if this instance is empty.
     EDYN_ASSERT(paged_tri_mesh.m_tree.empty() && paged_tri_mesh.m_cache.empty());

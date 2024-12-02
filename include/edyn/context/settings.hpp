@@ -30,9 +30,8 @@ struct settings {
     edyn::execution_mode execution_mode;
 
     start_thread_func_t *start_thread_func {&start_thread_func_default};
-    enqueue_task_t enqueue_task {&enqueue_task_default};
-    enqueue_task_wait_t enqueue_task_wait {&enqueue_task_wait_default};
-    void *user_task_context {nullptr};
+    enqueue_task_t *enqueue_task {&enqueue_task_default};
+    enqueue_task_wait_t *enqueue_task_wait {&enqueue_task_wait_default};
 
     init_callback_t init_callback {nullptr};
     init_callback_t deinit_callback {nullptr};
