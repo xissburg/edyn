@@ -287,8 +287,6 @@ public:
 
     void set_thickness(scalar thickness);
 
-    void set_enqueue_task(enqueue_task_t *enqueue) { m_enqueue_task = enqueue; }
-
     /**
      * @brief Maximum number of vertices in the cache. Before a new triangle mesh
      * is loaded, if the number of vertices would exceed this number, the
@@ -330,7 +328,6 @@ private:
     std::unique_ptr<std::atomic<bool>[]> m_is_loading_submesh;
     std::shared_ptr<triangle_mesh_page_loader_base> m_page_loader;
     scalar m_thickness {1};
-    enqueue_task_t *m_enqueue_task {nullptr};
 };
 
 }

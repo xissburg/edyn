@@ -115,11 +115,11 @@ void paged_triangle_mesh_file_input_archive::load(paged_triangle_mesh *trimesh, 
     load_page.m_trimesh = reinterpret_cast<intptr_t>(trimesh);
     load_page.m_index = index;
 
-    if (trimesh->m_enqueue_task) {
+    if (m_enqueue_task) {
         auto *load_page_ptr = new load_mesh_context(std::move(load_page));
         auto task = task_delegate_t(entt::connect_arg_t<&load_mesh_context::load>{}, *load_page_ptr);
         auto completion = task_completion_delegate_t(entt::connect_arg_t<&load_mesh_context::completion>{}, *load_page_ptr);
-        (*trimesh->m_enqueue_task)(task, 1, completion);
+        (*m_enqueue_task)(task, 1, completion);
     } else {
         load_page.load(0, 0);
     }

@@ -103,9 +103,10 @@ public:
 
     paged_triangle_mesh_file_input_archive() {}
 
-    paged_triangle_mesh_file_input_archive(const std::string &path)
+    paged_triangle_mesh_file_input_archive(const std::string &path, enqueue_task_t *enqueue_task)
         : super(path)
         , m_path(path)
+        , m_enqueue_task(enqueue_task)
     {}
 
     void open(const std::string &path) {
@@ -125,6 +126,7 @@ private:
     size_t m_base_offset;
     std::vector<size_t> m_offsets;
     paged_triangle_mesh_serialization_mode m_mode;
+    enqueue_task_t *m_enqueue_task {nullptr};
 };
 
 /**

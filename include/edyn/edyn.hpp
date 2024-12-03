@@ -161,6 +161,21 @@ void set_time_source(entt::registry &registry, double(*time_func)(void));
  */
 double get_time(entt::registry &registry);
 
+/**
+ * @brief Pointer to function that runs tasks in worker threads.
+ * @param registry Data source.
+ * @return Function pointer.
+ */
+enqueue_task_t * get_enqueue_task(entt::registry &registry);
+
+/**
+ * @brief Pointer to function that runs tasks in worker threads and waits for
+ * their execution to finish.
+ * @param registry Data source.
+ * @return Function pointer.
+ */
+enqueue_task_wait_t * get_enqueue_task_wait(entt::registry &registry);
+
 }
 
 #endif // EDYN_EDYN_HPP

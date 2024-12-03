@@ -94,6 +94,8 @@ void attach(entt::registry &registry, const init_config &config) {
     settings.execution_mode = config.execution_mode;
     settings.fixed_dt = config.fixed_dt;
     settings.start_thread_func = config.start_thread_func;
+    settings.enqueue_task = config.enqueue_task;
+    settings.enqueue_task_wait = config.enqueue_task_wait;
 
     registry.ctx().emplace<entity_graph>();
     registry.ctx().emplace<material_mix_table>();
@@ -263,6 +265,14 @@ double get_time(entt::registry &registry) {
     auto &settings = registry.ctx().at<edyn::settings>();
     auto time = (*settings.time_func)();
     return time;
+}
+
+enqueue_task_t * get_enqueue_task(entt::registry &registry) {
+    return registry.ctx().at<settings>().enqueue_task;
+}
+
+enqueue_task_wait_t * get_enqueue_task_wait(entt::registry &registry) {
+    return registry.ctx().at<settings>().enqueue_task_wait;
 }
 
 }
