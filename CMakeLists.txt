@@ -5,7 +5,7 @@ if(DEFINED PROJECT_SOURCE_DIR)
     set(Edyn_MAIN_PROJECT OFF)
 endif()
 
-project(Edyn VERSION 1.2.1 LANGUAGES CXX)
+project(Edyn VERSION 1.3.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 
 include(CMakeDependentOption)
