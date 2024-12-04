@@ -9,12 +9,13 @@
 #include "edyn/collision/contact_manifold_map.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/config/config.h"
-#include "edyn/parallel/parallel_for.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/context/settings.hpp"
+#include "edyn/context/task_util.hpp"
 #include "edyn/util/entt_util.hpp"
 #include "edyn/util/island_util.hpp"
 #include <entt/entity/registry.hpp>
+#include <entt/signal/delegate.hpp>
 
 namespace edyn {
 
@@ -191,19 +192,28 @@ void broadphase::update(bool mt) {
     }
 }
 
-void broadphase::collide_parallel() {
+void broadphase::collide_parallel_task(unsigned start, unsigned end) {
     auto aabb_proc_view = m_registry->view<AABB, procedural_tag>(exclude_sleeping_disabled);
-    m_pair_results.resize(calculate_view_size(aabb_proc_view));
-    auto &dispatcher = job_dispatcher::global();
+    auto first = aabb_proc_view.begin();
+    std::advance(first, start);
+    auto index = start;
 
-    auto for_loop_body = [this, aabb_proc_view](entt::entity entity, size_t index) {
+    for (; index != end; ++first, ++index) {
+        auto entity = *first;
         auto &aabb = aabb_proc_view.get<AABB>(entity);
         auto offset_aabb = aabb.inset(m_aabb_offset);
         collide_tree_async(m_tree, entity, offset_aabb, index);
         collide_tree_async(m_np_tree, entity, offset_aabb, index);
-    };
+    }
+}
 
-    parallel_for_each(dispatcher, aabb_proc_view.begin(), aabb_proc_view.end(), for_loop_body);
+void broadphase::collide_parallel() {
+    auto aabb_proc_view = m_registry->view<AABB, procedural_tag>(exclude_sleeping_disabled);
+    auto aabb_proc_size = calculate_view_size(aabb_proc_view);
+    m_pair_results.resize(aabb_proc_size);
+
+    auto task = task_delegate_t(entt::connect_arg_t<&broadphase::collide_parallel_task>{}, *this);
+    enqueue_task_wait(*m_registry, task, aabb_proc_size);
 }
 
 void broadphase::finish_collide() {

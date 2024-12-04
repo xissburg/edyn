@@ -16,7 +16,6 @@
 #include "edyn/context/registry_operation_context.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/networking/comp/entity_owner.hpp"
-#include "edyn/networking/context/client_network_context.hpp"
 #include "edyn/parallel/message_dispatcher.hpp"
 #include "edyn/shapes/shapes.hpp"
 #include "edyn/simulation/stepper_async.hpp"
@@ -25,6 +24,8 @@
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/util/paged_mesh_load_reporting.hpp"
 #include "edyn/util/rigidbody.hpp"
+#include "edyn/util/settings_util.hpp"
+#include "edyn/parallel/job_dispatcher.hpp"
 #include <entt/meta/factory.hpp>
 #include <entt/core/hashed_string.hpp>
 
@@ -61,10 +62,10 @@ static void init_meta() {
 
 void attach(entt::registry &registry, const init_config &config) {
     init_meta();
+    auto use_job_dispatcher = config.enqueue_task == enqueue_task_default ||
+                              config.enqueue_task_wait == enqueue_task_wait_default;
 
-    auto &dispatcher = job_dispatcher::global();
-
-    if (!dispatcher.running()) {
+    if (use_job_dispatcher && !job_dispatcher::global().running()) {
         auto num_workers = size_t{};
 
         switch (config.execution_mode) {
@@ -86,13 +87,15 @@ void attach(entt::registry &registry, const init_config &config) {
             break;
         }
 
-        dispatcher.start(num_workers);
+        job_dispatcher::global().start(num_workers);
     }
 
     auto &settings = registry.ctx().emplace<edyn::settings>();
     settings.execution_mode = config.execution_mode;
     settings.fixed_dt = config.fixed_dt;
     settings.start_thread_func = config.start_thread_func;
+    settings.enqueue_task = config.enqueue_task;
+    settings.enqueue_task_wait = config.enqueue_task_wait;
 
     registry.ctx().emplace<entity_graph>();
     registry.ctx().emplace<material_mix_table>();
@@ -179,27 +182,13 @@ scalar get_fixed_dt(const entt::registry &registry) {
 void set_fixed_dt(entt::registry &registry, scalar dt) {
     auto &settings = registry.ctx().at<edyn::settings>();
     settings.fixed_dt = dt;
-
-    if (auto *stepper = registry.ctx().find<stepper_async>()) {
-        stepper->settings_changed();
-    }
-
-    if (auto *ctx = registry.ctx().find<client_network_context>()) {
-        ctx->extrapolator->set_settings(settings);
-    }
+    refresh_settings(registry);
 }
 
 void set_max_steps_per_update(entt::registry &registry, unsigned max_steps) {
     auto &settings = registry.ctx().at<edyn::settings>();
     settings.max_steps_per_update = max_steps;
-
-    if (auto *stepper = registry.ctx().find<stepper_async>()) {
-        stepper->settings_changed();
-    }
-
-    if (auto *ctx = registry.ctx().find<client_network_context>()) {
-        ctx->extrapolator->set_settings(settings);
-    }
+    refresh_settings(registry);
 }
 
 bool is_paused(const entt::registry &registry) {
@@ -269,19 +258,21 @@ void set_time_source(entt::registry &registry, double(*time_func)(void)) {
     auto &settings = registry.ctx().at<edyn::settings>();
     settings.time_func = time_func;
 
-    if (auto *stepper = registry.ctx().find<stepper_async>()) {
-        stepper->settings_changed();
-    }
-
-    if (auto *ctx = registry.ctx().find<client_network_context>()) {
-        ctx->extrapolator->set_settings(settings);
-    }
+    refresh_settings(registry);
 }
 
 double get_time(entt::registry &registry) {
     auto &settings = registry.ctx().at<edyn::settings>();
     auto time = (*settings.time_func)();
     return time;
+}
+
+enqueue_task_t * get_enqueue_task(entt::registry &registry) {
+    return registry.ctx().at<settings>().enqueue_task;
+}
+
+enqueue_task_wait_t * get_enqueue_task_wait(entt::registry &registry) {
+    return registry.ctx().at<settings>().enqueue_task_wait;
 }
 
 }

@@ -31,6 +31,8 @@ class broadphase final {
     void on_construct_island_aabb(entt::registry &, entt::entity);
     void on_destroy_island_tree_resident(entt::registry &, entt::entity);
 
+    void collide_parallel_task(unsigned start, unsigned end);
+
 public:
     broadphase(entt::registry &);
     broadphase(const broadphase &) = delete;

@@ -1,20 +1,25 @@
-from conans import ConanFile, tools, CMake
-from conans.errors import ConanException
+from conan import ConanFile
+from conan.tools.files import save, load
+from conan.errors import ConanInvalidConfiguration
+from conan.tools.build import check_min_cppstd
+from conan.tools.cmake import CMake, CMakeDeps, CMakeToolchain, cmake_layout
+from conan.tools.files import copy, get, rm, rmdir
+from conan.tools.scm import Version
 import os
 import re
-import shutil
-import textwrap
+
+required_conan_version = ">=1.53.0"
 
 
 class EdynConan(ConanFile):
     name = "edyn"
-    def set_version(self):
-        cmakelists_txt = tools.load(os.path.join(self.recipe_folder, "CMakeLists.txt"))
-        try:
-            self.version = next(re.finditer(r"^project\(Edyn VERSION ([0-9.-]+) LANGUAGES", cmakelists_txt, flags=re.M)).group(1)
-        except StopIteration:
-            raise ConanException("Could not extract version string from CMakeLists.txt")
-
+    description = "Edyn is a real-time physics engine organized as an ECS"
+    license = "MIT"
+    url = "https://github.com/conan-io/conan-center-index"
+    homepage = "https://github.com/xissburg/edyn"
+    topics = ("physics", "game-development", "ecs")
+    package_type = "library"
+    settings = "os", "arch", "compiler", "build_type"
     options = {
         "shared": [True, False],
         "fPIC": [True, False],
@@ -30,12 +35,29 @@ class EdynConan(ConanFile):
         "enable_sanitizer": False,
         "floating_type": "float",
         "build_tests": False,
-        "gtest:no_main": False,
+        "gtest/*:no_main": False,
     }
-    settings = "os", "arch", "compiler", "build_type"
 
-    generators = "cmake", "cmake_find_package"
-    no_copy_source = True
+    def set_version(self):
+        cmakelists_txt = load(self, os.path.join(self.recipe_folder, "CMakeLists.txt"))
+        try:
+            self.version = next(re.finditer(r"^project\(Edyn VERSION ([0-9.-]+) LANGUAGES", cmakelists_txt, flags=re.M)).group(1)
+        except StopIteration:
+            raise ConanException("Could not extract version string from CMakeLists.txt")
+
+    @property
+    def _min_cppstd(self):
+        return "17"
+
+    @property
+    def _compilers_minimum_version(self):
+        return {
+            "gcc": "9.3", # GCC 9.3 started supporting attributes in constructor arguments
+            "clang": "8",
+            "apple-clang": "10",
+            "Visual Studio": "16",
+            "msvc": "192",
+        }
 
     def config_options(self):
         if self.settings.os == "Windows":
@@ -43,60 +65,67 @@ class EdynConan(ConanFile):
 
     def configure(self):
         if self.options.shared:
-            del self.options.fPIC
+            self.options.rm_safe("fPIC")
+
+    def layout(self):
+        cmake_layout(self, src_folder="src")
 
     def requirements(self):
-        self.requires("entt/3.10.1")
+        self.requires("entt/3.10.3", transitive_headers=True)
         if self.options.build_tests:
             self.requires("gtest/1.11.0", private=True)
 
-    def export_sources(self):
-        self.copy("AUTHORS")
-        self.copy("LICENSE")
-        self.copy("CMakeLists.txt")
-        for folder in ("cmake", "docs", "examples", "include", "src", "test"):
-            shutil.copytree(folder, os.path.join(self.export_sources_folder , folder))
+    def validate(self):
+        if self.settings.compiler.get_safe("cppstd"):
+            check_min_cppstd(self, self._min_cppstd)
+        minimum_version = self._compilers_minimum_version.get(str(self.settings.compiler), False)
+        if minimum_version and Version(self.settings.compiler.version) < minimum_version:
+            raise ConanInvalidConfiguration(
+                f"{self.ref} requires C++{self._min_cppstd}, which your compiler does not support."
+            )
 
-    def package_id(self):
-        del self.info.options.build_tests
+    def source(self):
+        get(self, **self.conan_data["sources"][self.version], strip_root=True)
+
+    def generate(self):
+        tc = CMakeToolchain(self)
+        tc.variables["EDYN_CONFIG_DOUBLE"] = self.options.floating_type == "double"
+        tc.variables["EDYN_INSTALL"] = True
+        tc.variables["EDYN_BUILD_EXAMPLES"] = False
+        tc.variables["EDYN_BUILD_TESTS"] = False
+        tc.variables["CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS"] = True
+        tc.variables["EDYN_DISABLE_ASSERT"] = not self.options.enable_assert
+        tc.variables["EDYN_ENABLE_SANITIZER"] = self.options.enable_sanitizer
+        tc.generate()
+
+        deps = CMakeDeps(self)
+        deps.generate()
 
     def build(self):
-        def no_backslashes(path: str) -> str:
-            return path.replace("\\", "/")
-        # Create CMake wrapper to configure the toolchain (Conan 2.0 won't need this anymore)
-        tools.save("CMakeLists.txt", textwrap.dedent(f"""\
-            cmake_minimum_required(VERSION 3.0)
-            project(cmake_wrapper)
-            include("{no_backslashes(self.build_folder)}/conanbuildinfo.cmake")
-            conan_basic_setup(TARGETS)
-
-            add_subdirectory("{no_backslashes(self.source_folder)}" edyn)
-        """))
         cmake = CMake(self)
-        cmake.verbose = True
-        cmake.definitions["EDYN_BUILD_EXAMPLES"] = self.options.build_tests
-        cmake.definitions["EDYN_BUILD_TESTS"] = self.options.build_tests
-        cmake.definitions["EDYN_INSTALL"] = True
-        cmake.definitions["EDYN_CONFIG_DOUBLE"] = self.options.floating_type == "double"
-        cmake.definitions["EDYN_DISABLE_ASSERT"] = not self.options.enable_assert
-        cmake.definitions["EDYN_ENABLE_SANITIZER"] = self.options.enable_sanitizer
-        cmake.configure(source_folder=self.build_folder)
+        cmake.configure()
         cmake.build()
         if self.options.build_tests:
             cmake.test()
 
     def package(self):
+        copy(self, pattern="LICENSE", src=self.source_folder, dst=os.path.join(self.package_folder, "licenses"))
         cmake = CMake(self)
         cmake.install()
+        rmdir(self, os.path.join(self.package_folder, "lib", "cmake"))
+        rmdir(self, os.path.join(self.package_folder, "share"))
+        rm(self, pattern="*.pdb", folder=self.package_folder, recursive=True)
 
     def package_info(self):
-        libsuffix = "_d" if self.settings.build_type == "Debug" else ""
-        self.cpp_info.libs = ["Edyn" + libsuffix]
-
-        if self.settings.os == "Linux":
-            self.cpp_info.system_libs = ["pthread"]
+        self.cpp_info.set_property("cmake_file_name", "Edyn")
+        self.cpp_info.set_property("cmake_target_name", "Edyn::Edyn")
+        suffix = "_d" if self.settings.build_type == "Debug" else ""
+        self.cpp_info.libs = [f"Edyn{suffix}"]
+        if self.settings.os in ["Linux", "FreeBSD"]:
+            self.cpp_info.system_libs += ["m", "pthread"]
         elif self.settings.os == "Windows":
             self.cpp_info.system_libs = ["winmm"]
 
+        #  TODO: to remove in conan v2 once cmake_find_package_* generators removed
         self.cpp_info.names["cmake_find_package"] = "Edyn"
         self.cpp_info.names["cmake_find_package_multi"] = "Edyn"

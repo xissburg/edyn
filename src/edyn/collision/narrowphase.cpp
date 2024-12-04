@@ -2,10 +2,12 @@
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/config/constants.hpp"
-#include "edyn/parallel/parallel_for.hpp"
+#include "edyn/context/task.hpp"
+#include "edyn/context/task_util.hpp"
 #include "edyn/comp/material.hpp"
 #include "edyn/util/entt_util.hpp"
 #include "edyn/util/island_util.hpp"
+#include <entt/signal/delegate.hpp>
 
 namespace edyn {
 
@@ -34,30 +36,23 @@ void narrowphase::update(bool mt) {
     }
 }
 
-void narrowphase::detect_collision_parallel() {
-    auto manifold_view = m_registry->view<contact_manifold>();
-    auto events_view = m_registry->view<contact_manifold_events>();
-    auto body_view = m_registry->view<AABB, shape_index, position, orientation>();
-    auto tr_view = m_registry->view<position, orientation>();
-    auto vel_view = m_registry->view<angvel>();
-    auto rolling_view = m_registry->view<rolling_tag>();
-    auto origin_view = m_registry->view<origin>();
-    auto material_view = m_registry->view<material>();
-    auto orn_view = m_registry->view<orientation>();
-    auto mesh_shape_view = m_registry->view<mesh_shape>();
-    auto paged_mesh_shape_view = m_registry->view<paged_mesh_shape>();
-    auto shapes_views_tuple = get_tuple_of_shape_views(*m_registry);
-    auto dt = m_registry->ctx().at<settings>().fixed_dt;
+void narrowphase::detect_collision_parallel_range(unsigned start, unsigned end) {
+    auto &registry = *m_registry;
+    auto manifold_view = registry.view<contact_manifold>();
+    auto events_view = registry.view<contact_manifold_events>();
+    auto body_view = registry.view<AABB, shape_index, position, orientation>();
+    auto tr_view = registry.view<position, orientation>();
+    auto vel_view = registry.view<angvel>();
+    auto rolling_view = registry.view<rolling_tag>();
+    auto origin_view = registry.view<origin>();
+    auto material_view = registry.view<material>();
+    auto orn_view = registry.view<orientation>();
+    auto mesh_shape_view = registry.view<mesh_shape>();
+    auto paged_mesh_shape_view = registry.view<paged_mesh_shape>();
+    auto shapes_views_tuple = get_tuple_of_shape_views(registry);
+    auto dt = registry.ctx().at<settings>().fixed_dt;
 
-    // Resize result collection vectors to allocate one slot for each iteration
-    // of the parallel_for.
-    m_cp_construction_infos.resize(manifold_view.size());
-    m_cp_destruction_infos.resize(manifold_view.size());
-    auto &dispatcher = job_dispatcher::global();
-
-    auto for_loop_body = [this, body_view, tr_view, vel_view, rolling_view, origin_view,
-             manifold_view, events_view, orn_view, material_view, mesh_shape_view,
-             paged_mesh_shape_view, shapes_views_tuple, dt](size_t index) {
+    for (auto index = start; index < end; ++index) {
         auto entity = manifold_view[index];
         auto [manifold] = manifold_view.get(entity);
         auto [events] = events_view.get(entity);
@@ -67,17 +62,25 @@ void narrowphase::detect_collision_parallel() {
 
         detect_collision(manifold.body, result, body_view, origin_view, shapes_views_tuple);
         process_collision(entity, manifold, events, result, tr_view, vel_view,
-                          rolling_view, origin_view, orn_view, material_view,
-                          mesh_shape_view, paged_mesh_shape_view, dt,
-                          [&construction_info](const collision_result::collision_point &rp) {
+                        rolling_view, origin_view, orn_view, material_view,
+                        mesh_shape_view, paged_mesh_shape_view, dt,
+                        [&construction_info](const collision_result::collision_point &rp) {
             construction_info.point[construction_info.count++] = rp;
         }, [&destruction_info](auto pt_id) {
             EDYN_ASSERT(pt_id < max_contacts);
             destruction_info.point_id[destruction_info.count++] = pt_id;
         });
-    };
+    }
+}
 
-    parallel_for(dispatcher, size_t{}, manifold_view.size(), size_t{1}, for_loop_body);
+void narrowphase::detect_collision_parallel() {
+    // Resize result collection vectors to allocate one slot for each iteration.
+    auto manifold_view = m_registry->view<contact_manifold>();
+    m_cp_construction_infos.resize(manifold_view.size());
+    m_cp_destruction_infos.resize(manifold_view.size());
+
+    auto task = task_delegate_t(entt::connect_arg_t<&narrowphase::detect_collision_parallel_range>{}, *this);
+    enqueue_task_wait(*m_registry, task, manifold_view.size());
 }
 
 void narrowphase::finish_detect_collision() {

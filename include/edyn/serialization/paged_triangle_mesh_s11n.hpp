@@ -103,9 +103,10 @@ public:
 
     paged_triangle_mesh_file_input_archive() {}
 
-    paged_triangle_mesh_file_input_archive(const std::string &path)
+    paged_triangle_mesh_file_input_archive(const std::string &path, enqueue_task_t *enqueue_task)
         : super(path)
         , m_path(path)
+        , m_enqueue_task(enqueue_task)
     {}
 
     void open(const std::string &path) {
@@ -117,14 +118,15 @@ public:
 
     friend void serialize(paged_triangle_mesh_file_input_archive &archive,
                           paged_triangle_mesh &paged_tri_mesh);
-    friend void load_mesh_job_func(job::data_type &);
     friend void finish_load_mesh_job_func(job::data_type &);
+    friend struct load_mesh_context;
 
 private:
     std::string m_path;
     size_t m_base_offset;
     std::vector<size_t> m_offsets;
     paged_triangle_mesh_serialization_mode m_mode;
+    enqueue_task_t *m_enqueue_task {nullptr};
 };
 
 /**
@@ -138,9 +140,10 @@ struct load_mesh_context {
     intptr_t m_trimesh;
     // Index of submesh to be loaded.
     size_t m_index;
-};
 
-void load_mesh_job_func(job::data_type &);
+    void load(unsigned start, unsigned end);
+    void completion();
+};
 
 }
 

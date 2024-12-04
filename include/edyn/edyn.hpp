@@ -21,6 +21,7 @@
 #include "collision/contact_signal.hpp"
 #include "context/step_callback.hpp"
 #include "context/start_thread.hpp"
+#include "context/task.hpp"
 #include "collision/raycast.hpp"
 #include "shapes/shapes.hpp"
 #include "comp/shared_comp.hpp"
@@ -52,6 +53,11 @@ struct init_config {
     // Edyn needs to start an extrapolation thread to run latency compensation
     // in parallel without freezing the simulation.
     start_thread_func_t *start_thread_func {&start_thread_func_default};
+    // Function to run a task on worker threads. Must return immediately after
+    // scheduling tasks.
+    enqueue_task_t *enqueue_task {&enqueue_task_default};
+    // Function to run a task on worker threads and return after the work is done.
+    enqueue_task_wait_t *enqueue_task_wait {&enqueue_task_wait_default};
 };
 
 /**
@@ -157,6 +163,21 @@ void set_time_source(entt::registry &registry, double(*time_func)(void));
  * @return Current time.
  */
 double get_time(entt::registry &registry);
+
+/**
+ * @brief Pointer to function that runs tasks in worker threads.
+ * @param registry Data source.
+ * @return Function pointer.
+ */
+enqueue_task_t * get_enqueue_task(entt::registry &registry);
+
+/**
+ * @brief Pointer to function that runs tasks in worker threads and waits for
+ * their execution to finish.
+ * @param registry Data source.
+ * @return Function pointer.
+ */
+enqueue_task_wait_t * get_enqueue_task_wait(entt::registry &registry);
 
 }
 

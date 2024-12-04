@@ -29,6 +29,7 @@ class narrowphase {
     };
 
     void detect_collision_parallel();
+    void detect_collision_parallel_range(unsigned start, unsigned end);
     void finish_detect_collision();
     void clear_contact_manifold_events();
 
