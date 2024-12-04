@@ -53,7 +53,10 @@ struct init_config {
     // Edyn needs to start an extrapolation thread to run latency compensation
     // in parallel without freezing the simulation.
     start_thread_func_t *start_thread_func {&start_thread_func_default};
+    // Function to run a task on worker threads. Must return immediately after
+    // scheduling tasks.
     enqueue_task_t *enqueue_task {&enqueue_task_default};
+    // Function to run a task on worker threads and return after the work is done.
     enqueue_task_wait_t *enqueue_task_wait {&enqueue_task_wait_default};
 };
 
