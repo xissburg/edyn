@@ -9,12 +9,12 @@
 namespace edyn {
 
 inline void enqueue_task(entt::registry &registry, task_delegate_t task, unsigned size, task_completion_delegate_t completion) {
-    auto &settings = registry.ctx().at<edyn::settings>();
+    auto &settings = registry.ctx().get<edyn::settings>();
     (*settings.enqueue_task)(task, size, completion);
 }
 
 inline void enqueue_task_wait(entt::registry &registry, task_delegate_t task, unsigned size) {
-    auto &settings = registry.ctx().at<edyn::settings>();
+    auto &settings = registry.ctx().get<edyn::settings>();
     (*settings.enqueue_task_wait)(task, size);
 }
 

@@ -7,10 +7,10 @@
 namespace edyn {
 
 void remove_external_components(entt::registry &registry) {
-    auto &settings = registry.ctx().at<edyn::settings>();
+    auto &settings = registry.ctx().get<edyn::settings>();
     settings.clear_actions_func = nullptr;
 
-    auto &reg_op_ctx = registry.ctx().at<registry_operation_context>();
+    auto &reg_op_ctx = registry.ctx().get<registry_operation_context>();
     reg_op_ctx.make_reg_op_builder = &make_reg_op_builder_default;
     reg_op_ctx.make_reg_op_observer = &make_reg_op_observer_default;
 
@@ -31,7 +31,7 @@ void tag_external_entity(entt::registry &registry, entt::entity entity, bool pro
     }
 
     registry.emplace<external_tag>(entity);
-    auto &graph = registry.ctx().at<entity_graph>();
+    auto &graph = registry.ctx().get<entity_graph>();
     auto non_connecting = !procedural;
     auto node_index = graph.insert_node(entity, non_connecting);
     registry.emplace<graph_node>(entity, node_index);

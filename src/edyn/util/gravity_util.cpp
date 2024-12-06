@@ -6,11 +6,11 @@
 namespace edyn {
 
 vector3 get_gravity(const entt::registry &registry) {
-    return registry.ctx().at<settings>().gravity;
+    return registry.ctx().get<settings>().gravity;
 }
 
 void set_gravity(entt::registry &registry, vector3 gravity) {
-    registry.ctx().at<settings>().gravity = gravity;
+    registry.ctx().get<settings>().gravity = gravity;
 
     auto view = registry.view<edyn::gravity>();
 

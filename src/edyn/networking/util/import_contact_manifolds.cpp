@@ -41,7 +41,7 @@ void replace_manifold(entt::registry &registry, contact_manifold &manifold,
 
 void import_contact_manifolds(entt::registry &registry, const entity_map &emap,
                               const std::vector<contact_manifold> &manifolds) {
-    const auto &manifold_map = registry.ctx().at<contact_manifold_map>();
+    const auto &manifold_map = registry.ctx().get<contact_manifold_map>();
 
     for (auto manifold : manifolds) {
         if (!emap.contains(manifold.body[0]) || !emap.contains(manifold.body[1])) {
@@ -61,7 +61,7 @@ void import_contact_manifolds(entt::registry &registry, const entity_map &emap,
 
 void import_contact_manifolds(entt::registry &registry,
                               const std::vector<contact_manifold> &manifolds) {
-    const auto &manifold_map = registry.ctx().at<contact_manifold_map>();
+    const auto &manifold_map = registry.ctx().get<contact_manifold_map>();
 
     for (auto manifold : manifolds) {
         if (!registry.valid(manifold.body[0]) || !registry.valid(manifold.body[1])) {

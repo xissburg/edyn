@@ -26,7 +26,7 @@ namespace edyn {
  */
 template<typename... Components, typename... Actions>
 void register_external_components(entt::registry &registry, std::tuple<Actions...> actions = {}) {
-    auto &reg_op_ctx = registry.ctx().at<registry_operation_context>();
+    auto &reg_op_ctx = registry.ctx().get<registry_operation_context>();
     reg_op_ctx.make_reg_op_builder = [](entt::registry &registry) {
         auto external = std::tuple<Components...>{};
         auto action_lists = std::tuple<action_list<Actions>...>{};
@@ -43,7 +43,7 @@ void register_external_components(entt::registry &registry, std::tuple<Actions..
     };
 
     if constexpr(sizeof...(Actions) > 0) {
-        auto &settings = registry.ctx().at<edyn::settings>();
+        auto &settings = registry.ctx().get<edyn::settings>();
         settings.clear_actions_func = [](entt::registry &registry) {
             (registry.view<action_list<Actions>>().each([](auto &&list) { list.actions.clear(); }), ...);
         };
@@ -55,7 +55,7 @@ void register_external_components(entt::registry &registry, std::tuple<Actions..
     }
 
     if (auto *ctx = registry.ctx().find<client_network_context>()) {
-        auto &settings = registry.ctx().at<edyn::settings>();
+        auto &settings = registry.ctx().get<edyn::settings>();
         ctx->extrapolator->set_settings(settings);
         ctx->extrapolator->set_registry_operation_context(reg_op_ctx);
     }

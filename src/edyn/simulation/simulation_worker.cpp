@@ -120,7 +120,7 @@ void simulation_worker::init() {
     m_message_queue.sink<msg::wake_up_residents>().connect<&simulation_worker::on_wake_up_residents>(*this);
     m_message_queue.sink<msg::change_rigidbody_kind>().connect<&simulation_worker::on_change_rigidbody_kind>(*this);
 
-    auto &settings = m_registry.ctx().at<edyn::settings>();
+    auto &settings = m_registry.ctx().get<edyn::settings>();
 
     // If this is a networked client, expect extrapolation results.
     if (std::holds_alternative<client_network_settings>(settings.network_settings)) {
@@ -137,7 +137,7 @@ void simulation_worker::init() {
 }
 
 void simulation_worker::deinit() {
-    auto &settings = m_registry.ctx().at<edyn::settings>();
+    auto &settings = m_registry.ctx().get<edyn::settings>();
 
     if (settings.deinit_callback) {
         (*settings.deinit_callback)(m_registry);
@@ -161,10 +161,10 @@ void simulation_worker::on_update_entities(message<msg::update_entities> &msg) {
     auto &registry = m_registry;
     auto &emap = m_entity_map;
 
-    const auto &settings = registry.ctx().at<edyn::settings>();
+    const auto &settings = registry.ctx().get<edyn::settings>();
     const bool is_client = std::holds_alternative<client_network_settings>(settings.network_settings);
 
-    auto &graph = registry.ctx().at<entity_graph>();
+    auto &graph = registry.ctx().get<entity_graph>();
     auto procedural_view = registry.view<procedural_tag>();
 
     // Import components from main registry.
@@ -286,7 +286,7 @@ void simulation_worker::wake_up_affected_islands(const registry_operation &ops) 
             auto local_entity = m_entity_map.at(remote_entity);
 
             if (m_registry.valid(local_entity) && !entities.contains(local_entity)) {
-                entities.emplace(local_entity);
+                entities.push(local_entity);
             }
         }
     }
@@ -307,7 +307,7 @@ void simulation_worker::sync() {
 void simulation_worker::start() {
     m_running.store(true, std::memory_order_release);
 
-    auto &settings = m_registry.ctx().at<edyn::settings>();
+    auto &settings = m_registry.ctx().get<edyn::settings>();
     (*settings.start_thread_func)([](void *args) {
         std::invoke(&simulation_worker::run, reinterpret_cast<simulation_worker *>(args));
     }, this);
@@ -340,7 +340,7 @@ void simulation_worker::update() {
     const auto elapsed = m_current_time - m_last_time;
     m_accumulated_time += elapsed;
 
-    auto &settings = m_registry.ctx().at<edyn::settings>();
+    auto &settings = m_registry.ctx().get<edyn::settings>();
     const auto fixed_dt = settings.fixed_dt;
     const auto num_steps = static_cast<int64_t>(std::floor(m_accumulated_time / fixed_dt));
     auto advance_dt = static_cast<double>(num_steps) * fixed_dt;
@@ -359,8 +359,8 @@ void simulation_worker::update() {
 
     m_poly_initializer.init_new_shapes();
 
-    auto &nphase = m_registry.ctx().at<narrowphase>();
-    auto &bphase = m_registry.ctx().at<broadphase>();
+    auto &nphase = m_registry.ctx().get<narrowphase>();
+    auto &bphase = m_registry.ctx().get<broadphase>();
     bphase.init_new_aabb_entities();
 
     for (unsigned i = 0; i < effective_steps; ++i) {
@@ -398,18 +398,18 @@ void simulation_worker::run() {
     auto i_term = 0.0;
 
     m_finished.store(false, std::memory_order_relaxed);
-    m_current_time = (*m_registry.ctx().at<settings>().time_func)();
+    m_current_time = (*m_registry.ctx().get<settings>().time_func)();
     init();
 
     while (m_running.load(std::memory_order_relaxed)) {
-        auto t1 = (*m_registry.ctx().at<settings>().time_func)();
+        auto t1 = (*m_registry.ctx().get<settings>().time_func)();
         auto dt = t1 - m_current_time;
         m_current_time = t1;
         update();
         sync();
 
         // Apply delay to maintain a fixed update rate.
-        auto desired_dt = m_registry.ctx().at<settings>().fixed_dt;
+        auto desired_dt = m_registry.ctx().get<settings>().fixed_dt;
         auto error = desired_dt - dt;
         i_term = std::max(-1.0, std::min(i_term + integral_term * error, 1.0));
         auto delay = std::max(0.0, proportional_term * error + i_term);
@@ -441,7 +441,7 @@ void simulation_worker::mark_transforms_replaced() {
 
 void simulation_worker::on_set_paused(message<msg::set_paused> &msg) {
     m_paused = msg.content.paused;
-    m_registry.ctx().at<edyn::settings>().paused = m_paused;
+    m_registry.ctx().get<edyn::settings>().paused = m_paused;
     m_accumulated_time = 0;
 
     if (!m_paused) {
@@ -454,9 +454,9 @@ void simulation_worker::on_step_simulation(message<msg::step_simulation> &) {
     m_last_time = m_current_time;
     m_sim_time = m_last_time;
 
-    auto &bphase = m_registry.ctx().at<broadphase>();
-    auto &nphase = m_registry.ctx().at<narrowphase>();
-    auto &settings = m_registry.ctx().at<edyn::settings>();
+    auto &bphase = m_registry.ctx().get<broadphase>();
+    auto &nphase = m_registry.ctx().get<narrowphase>();
+    auto &settings = m_registry.ctx().get<edyn::settings>();
 
     if (settings.pre_step_callback) {
         (*settings.pre_step_callback)(m_registry);
@@ -482,7 +482,7 @@ void simulation_worker::on_step_simulation(message<msg::step_simulation> &) {
 
 void simulation_worker::on_set_settings(message<msg::set_settings> &msg) {
     const auto &settings = msg.content.settings;
-    auto &current = m_registry.ctx().at<edyn::settings>();
+    auto &current = m_registry.ctx().get<edyn::settings>();
 
     if (settings.init_callback && settings.init_callback != current.init_callback) {
         (*settings.init_callback)(m_registry);
@@ -505,13 +505,13 @@ void simulation_worker::on_set_settings(message<msg::set_settings> &msg) {
 }
 
 void simulation_worker::on_set_reg_op_ctx(message<msg::set_registry_operation_context> &msg) {
-    m_registry.ctx().at<registry_operation_context>() = msg.content.ctx;
+    m_registry.ctx().get<registry_operation_context>() = msg.content.ctx;
     m_op_builder = (*msg.content.ctx.make_reg_op_builder)(m_registry);
     m_op_observer = (*msg.content.ctx.make_reg_op_observer)(*m_op_builder);
 }
 
 void simulation_worker::on_set_material_table(message<msg::set_material_table> &msg) {
-    m_registry.ctx().at<material_mix_table>() = msg.content.table;
+    m_registry.ctx().get<material_mix_table>() = msg.content.table;
 }
 
 void simulation_worker::on_set_com(message<msg::set_com> &msg) {
@@ -537,7 +537,7 @@ void simulation_worker::on_raycast_request(message<msg::raycast_request> &msg) {
 }
 
 void simulation_worker::on_query_aabb_request(message<msg::query_aabb_request> &msg) {
-    auto &bphase = m_registry.ctx().at<broadphase>();
+    auto &bphase = m_registry.ctx().get<broadphase>();
     auto &request = msg.content;
     auto response = msg::query_aabb_response{};
     response.id = msg.content.id;
@@ -566,7 +566,7 @@ void simulation_worker::on_query_aabb_request(message<msg::query_aabb_request> &
 }
 
 void simulation_worker::on_query_aabb_of_interest_request(message<msg::query_aabb_of_interest_request> &msg) {
-    auto &bphase = m_registry.ctx().at<broadphase>();
+    auto &bphase = m_registry.ctx().get<broadphase>();
     auto &request = msg.content;
     auto island_view = m_registry.view<island>();
     auto manifold_view = m_registry.view<contact_manifold>();
@@ -581,7 +581,7 @@ void simulation_worker::on_query_aabb_of_interest_request(message<msg::query_aab
 
         for (auto entity : island.nodes) {
             if (!procedural_entities.contains(entity) && procedural_view.contains(entity)) {
-                procedural_entities.emplace(entity);
+                procedural_entities.push(entity);
             }
         }
 
@@ -592,18 +592,18 @@ void simulation_worker::on_query_aabb_of_interest_request(message<msg::query_aab
             }
 
             if (!procedural_entities.contains(entity)) {
-                procedural_entities.emplace(entity);
+                procedural_entities.push(entity);
             }
         }
 
         if (!island_entities.contains(island_entity)) {
-            island_entities.emplace(island_entity);
+            island_entities.push(island_entity);
         }
     });
 
     bphase.query_non_procedural(request.aabb, [&](entt::entity np_entity) {
         if (!np_entities.contains(np_entity)) {
-            np_entities.emplace(np_entity);
+            np_entities.push(np_entity);
         }
     });
 

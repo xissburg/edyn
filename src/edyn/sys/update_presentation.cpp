@@ -29,7 +29,7 @@ static void update_discontinuities(entt::registry &registry, double dt) {
     });
 
     // Decay discontinuities.
-    auto &settings = registry.ctx().at<edyn::settings>();
+    auto &settings = registry.ctx().get<edyn::settings>();
     auto &network_settings = std::get<client_network_settings>(settings.network_settings);
     const auto rate = network_settings.discontinuity_decay_rate;
     dis_view.each([rate, dt](discontinuity &dis) {
@@ -55,7 +55,7 @@ static void update_discontinuities(entt::registry &registry, double dt) {
 
 void update_presentation(entt::registry &registry, double sim_time, double current_time,
                          double delta_time, double presentation_delay) {
-    auto &settings = registry.ctx().at<edyn::settings>();
+    auto &settings = registry.ctx().get<edyn::settings>();
 
     if (std::holds_alternative<client_network_settings>(settings.network_settings)) {
         update_discontinuities(registry, delta_time);

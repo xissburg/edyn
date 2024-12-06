@@ -34,7 +34,6 @@
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/util/island_util.hpp"
 #include <entt/entity/registry.hpp>
-#include <entt/entity/utility.hpp>
 
 namespace edyn {
 
@@ -79,7 +78,7 @@ extrapolation_worker::~extrapolation_worker() {
 }
 
 void extrapolation_worker::init() {
-    auto &settings = m_registry.ctx().at<edyn::settings>();
+    auto &settings = m_registry.ctx().get<edyn::settings>();
     auto &client_settings = std::get<client_network_settings>(settings.network_settings);
 
     if (client_settings.extrapolation_init_callback) {
@@ -88,7 +87,7 @@ void extrapolation_worker::init() {
 }
 
 void extrapolation_worker::deinit() {
-    auto &settings = m_registry.ctx().at<edyn::settings>();
+    auto &settings = m_registry.ctx().get<edyn::settings>();
     auto &client_settings = std::get<client_network_settings>(settings.network_settings);
 
     if (client_settings.extrapolation_deinit_callback) {
@@ -99,7 +98,7 @@ void extrapolation_worker::deinit() {
 void extrapolation_worker::start() {
     m_running.store(true, std::memory_order_release);
 
-    auto &settings = m_registry.ctx().at<edyn::settings>();
+    auto &settings = m_registry.ctx().get<edyn::settings>();
     (*settings.start_thread_func)([](void *args) {
         std::invoke(&extrapolation_worker::run, reinterpret_cast<extrapolation_worker *>(args));
     }, this);
@@ -169,7 +168,7 @@ void extrapolation_worker::on_extrapolation_operation_create(message<extrapolati
     auto &ops = msg.content.ops;
     auto &emap = m_entity_map;
 
-    auto &graph = m_registry.ctx().at<entity_graph>();
+    auto &graph = m_registry.ctx().get<entity_graph>();
     auto procedural_view = m_registry.view<procedural_tag>();
     entt::sparse_set local_create_entities;
 
@@ -208,7 +207,7 @@ void extrapolation_worker::on_extrapolation_operation_create(message<extrapolati
 
         if (op_type == registry_operation_type::create) {
             auto local_entity = emap.at(remote_entity);
-            local_create_entities.emplace(local_entity);
+            local_create_entities.push(local_entity);
 
             // Observe component changes for this entity.
             m_modified_comp->add_entity(local_entity);
@@ -233,14 +232,14 @@ void extrapolation_worker::on_extrapolation_operation_create(message<extrapolati
     // Collect owned entities.
     for (auto remote_entity : msg.content.owned_entities) {
         auto local_entity = emap.at(remote_entity);
-        m_owned_entities.emplace(local_entity);
+        m_owned_entities.push(local_entity);
     }
 }
 
 void extrapolation_worker::on_set_settings(message<msg::set_settings> &msg) {
     const auto &settings = msg.content.settings;
     auto &client_settings = std::get<client_network_settings>(settings.network_settings);
-    auto &current = m_registry.ctx().at<edyn::settings>();
+    auto &current = m_registry.ctx().get<edyn::settings>();
     auto &client_current = std::get<client_network_settings>(current.network_settings);
 
     if (client_settings.extrapolation_init_callback &&
@@ -252,11 +251,11 @@ void extrapolation_worker::on_set_settings(message<msg::set_settings> &msg) {
 }
 
 void extrapolation_worker::on_set_reg_op_ctx(message<msg::set_registry_operation_context> &msg) {
-    m_registry.ctx().at<registry_operation_context>() = msg.content.ctx;
+    m_registry.ctx().get<registry_operation_context>() = msg.content.ctx;
 }
 
 void extrapolation_worker::on_set_material_table(message<msg::set_material_table> &msg) {
-    m_registry.ctx().at<material_mix_table>() = msg.content.table;
+    m_registry.ctx().get<material_mix_table>() = msg.content.table;
 }
 
 void extrapolation_worker::on_set_extrapolator_context_settings(message<msg::set_extrapolator_context_settings> &msg) {
@@ -270,7 +269,7 @@ void extrapolation_worker::on_push_message() {
 }
 
 void extrapolation_worker::apply_history() {
-    auto &settings = m_registry.ctx().at<edyn::settings>();
+    auto &settings = m_registry.ctx().get<edyn::settings>();
     auto since_time = m_current_time - settings.fixed_dt;
 
     if (m_input_history) {
@@ -279,7 +278,7 @@ void extrapolation_worker::apply_history() {
 }
 
 bool extrapolation_worker::begin_extrapolation(const extrapolation_request &request) {
-    auto &settings = m_registry.ctx().at<edyn::settings>();
+    auto &settings = m_registry.ctx().get<edyn::settings>();
     m_init_time = (*settings.time_func)();
     m_current_time = request.start_time;
     m_step_count = 0;
@@ -290,7 +289,7 @@ bool extrapolation_worker::begin_extrapolation(const extrapolation_request &requ
     m_island_manager.update(m_current_time);
 
     // Collect indices of nodes present in the snapshot.
-    auto &graph = m_registry.ctx().at<entity_graph>();
+    auto &graph = m_registry.ctx().get<entity_graph>();
     std::set<entity_graph::index_type> node_indices;
     auto node_view = m_registry.view<graph_node>();
     auto snapshot_entities = entt::sparse_set{};
@@ -306,7 +305,7 @@ bool extrapolation_worker::begin_extrapolation(const extrapolation_request &requ
         }
 
         auto local_entity = m_entity_map.at(remote_entity);
-        snapshot_entities.emplace(local_entity);
+        snapshot_entities.push(local_entity);
 
         if (node_view.contains(local_entity)) {
             auto node_index = node_view.get<graph_node>(local_entity).node_index;
@@ -324,11 +323,11 @@ bool extrapolation_worker::begin_extrapolation(const extrapolation_request &requ
         node_indices.begin(), node_indices.end(),
         [&](entt::entity entity) {
             if (!entities.contains(entity)) {
-                entities.emplace(entity);
+                entities.push(entity);
             }
         }, [&](entt::entity entity) {
             if (!entities.contains(entity)) {
-                entities.emplace(entity);
+                entities.push(entity);
             }
         }, [](auto) { return true; }, []() {});
 
@@ -400,7 +399,7 @@ bool extrapolation_worker::begin_extrapolation(const extrapolation_request &requ
 
 void extrapolation_worker::finish_extrapolation(const extrapolation_request &request) {
     // Invoke post-extrapolation callback before wrapping up.
-    auto &settings = m_registry.ctx().at<edyn::settings>();
+    auto &settings = m_registry.ctx().get<edyn::settings>();
     auto &client_settings = std::get<client_network_settings>(settings.network_settings);
 
     if (client_settings.extrapolation_finish_callback) {
@@ -409,7 +408,7 @@ void extrapolation_worker::finish_extrapolation(const extrapolation_request &req
 
     // Insert modified components into a registry operation to be sent back to
     // the main thread which will assign the extrapolated state to its entities.
-    auto &reg_op_ctx = m_registry.ctx().at<registry_operation_context>();
+    auto &reg_op_ctx = m_registry.ctx().get<registry_operation_context>();
     auto builder = (*reg_op_ctx.make_reg_op_builder)(m_registry);
 
     // Local entity mapping must not be included if the result is going to be
@@ -459,7 +458,7 @@ void extrapolation_worker::finish_extrapolation(const extrapolation_request &req
 }
 
 bool extrapolation_worker::should_step(const extrapolation_request &request) {
-    auto &settings = m_registry.ctx().at<edyn::settings>();
+    auto &settings = m_registry.ctx().get<edyn::settings>();
     auto time = (*settings.time_func)();
 
     if (time - m_init_time > request.execution_time_limit) {
@@ -477,7 +476,7 @@ bool extrapolation_worker::should_step(const extrapolation_request &request) {
 }
 
 void extrapolation_worker::begin_step() {
-    auto &settings = m_registry.ctx().at<edyn::settings>();
+    auto &settings = m_registry.ctx().get<edyn::settings>();
     auto &client_settings = std::get<client_network_settings>(settings.network_settings);
 
     // Clear all action lists before inserting new actions.
@@ -496,7 +495,7 @@ void extrapolation_worker::begin_step() {
 }
 
 void extrapolation_worker::finish_step() {
-    auto &settings = m_registry.ctx().at<edyn::settings>();
+    auto &settings = m_registry.ctx().get<edyn::settings>();
     auto &client_settings = std::get<client_network_settings>(settings.network_settings);
 
     m_current_time += settings.fixed_dt;
@@ -513,8 +512,8 @@ void extrapolation_worker::extrapolate(const extrapolation_request &request) {
         return;
     }
 
-    auto &bphase = m_registry.ctx().at<broadphase>();
-    auto &nphase = m_registry.ctx().at<narrowphase>();
+    auto &bphase = m_registry.ctx().get<broadphase>();
+    auto &nphase = m_registry.ctx().get<narrowphase>();
 
     while (should_step(request)) {
         begin_step();

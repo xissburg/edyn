@@ -18,7 +18,7 @@ namespace detail {
     */
     template<typename VisitorType, typename ViewsTupleType, typename T>
     constexpr auto make_visit_function() {
-        using ViewType = entt::basic_view<entt::entity, entt::get_t<T>, entt::exclude_t<>>;
+        using ViewType = entt::basic_view<entt::get_t<entt::registry::storage_for_type<T>>, entt::exclude_t<>>;
         return [](entt::entity entity, const ViewsTupleType &views_tuple, VisitorType visitor) {
             auto &view = std::get<ViewType>(views_tuple);
             if (view.contains(entity)) {
@@ -32,7 +32,7 @@ namespace detail {
     */
     template<typename VisitorType, typename... Ts>
     struct visit_function_array {
-        using ViewsTupleType = std::tuple<entt::basic_view<entt::entity, entt::get_t<Ts>, entt::exclude_t<>>...>;
+        using ViewsTupleType = std::tuple<entt::basic_view<entt::get_t<entt::registry::storage_for_type<Ts>>, entt::exclude_t<>>...>;
         using VisitFuncType = void(*)(entt::entity, const ViewsTupleType &, VisitorType);
         std::array<VisitFuncType, sizeof...(Ts)> functions;
 
@@ -66,7 +66,7 @@ namespace detail {
  */
 template<typename IndexType, typename VisitorType, typename... Ts>
 void visit_component([[maybe_unused]] std::tuple<Ts...>, IndexType index, entt::entity entity,
-                     const std::tuple<entt::basic_view<entt::entity, entt::get_t<Ts>, entt::exclude_t<>>...> &views_tuple,
+                     const std::tuple<entt::basic_view<entt::get_t<entt::registry::storage_for_type<Ts>>, entt::exclude_t<>>...> &views_tuple,
                      VisitorType visitor) {
     constexpr auto table = detail::visitor_table<VisitorType, Ts...>{};
     if (index < table.array.functions.size()) {

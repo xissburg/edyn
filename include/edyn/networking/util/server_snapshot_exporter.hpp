@@ -159,7 +159,7 @@ public:
                          const entt::sparse_set &entities_of_interest,
                          entt::entity dest_client_entity) const override {
         auto &registry = *m_registry;
-        auto &graph = registry.ctx().at<entity_graph>();
+        auto &graph = registry.ctx().get<entity_graph>();
         auto node_view = registry.view<graph_node>();
         auto edge_view = registry.view<graph_edge>();
         auto owner_view = registry.view<const entity_owner>();

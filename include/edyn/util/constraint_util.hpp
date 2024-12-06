@@ -68,7 +68,7 @@ void clear_constraint(entt::registry &registry, entt::entity entity);
 template<typename Func>
 void visit_edges(entt::registry &registry, entt::entity entity, Func func) {
     auto &node = registry.get<graph_node>(entity);
-    auto &graph = registry.ctx().at<entity_graph>();
+    auto &graph = registry.ctx().get<entity_graph>();
     graph.visit_edges(node.node_index, [&](auto edge_index) {
         if constexpr(std::is_invocable_r_v<bool, Func, entt::entity>) {
             return func(graph.edge_entity(edge_index));
@@ -91,7 +91,7 @@ void visit_edges(entt::registry &registry, entt::entity entity, Func func) {
 template<typename Func>
 void visit_neighbors(entt::registry &registry, entt::entity entity, Func func) {
     auto &node = registry.get<graph_node>(entity);
-    auto &graph = registry.ctx().at<entity_graph>();
+    auto &graph = registry.ctx().get<entity_graph>();
     graph.visit_neighbors(node.node_index, func);
 }
 

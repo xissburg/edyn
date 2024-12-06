@@ -57,7 +57,7 @@ bool should_collide_default(const entt::registry &registry, entt::entity first, 
 }
 
 void set_should_collide(entt::registry &registry, should_collide_func_t func) {
-    auto &settings = registry.ctx().at<edyn::settings>();
+    auto &settings = registry.ctx().get<edyn::settings>();
     settings.should_collide_func = func;
 
     if (auto *stepper = registry.ctx().find<stepper_async>()) {

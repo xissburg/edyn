@@ -12,7 +12,7 @@ entt::sparse_set get_entities_from_extrapolation_result(const extrapolation_resu
 
     for (auto *op : result.ops.operations) {
         if (!entities.contains(op->entity)) {
-            entities.emplace(op->entity);
+            entities.push(op->entity);
         }
     }
 

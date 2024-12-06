@@ -25,7 +25,7 @@ namespace internal {
         if (registry.any_of<graph_edge>(entity)) {
         #if defined(EDYN_DEBUG) && !defined(EDYN_DISABLE_ASSERT)
             auto &edge = registry.get<graph_edge>(entity);
-            auto [ent0, ent1] = registry.ctx().at<entity_graph>().edge_node_entities(edge.edge_index);
+            auto [ent0, ent1] = registry.ctx().get<entity_graph>().edge_node_entities(edge.edge_index);
             EDYN_ASSERT(ent0 == body0 && ent1 == body1);
         #endif
             return false;
@@ -34,7 +34,7 @@ namespace internal {
         // Assign graph edge.
         auto node_index0 = registry.get<graph_node>(body0).node_index;
         auto node_index1 = registry.get<graph_node>(body1).node_index;
-        auto edge_index = registry.ctx().at<entity_graph>().insert_edge(entity, node_index0, node_index1);
+        auto edge_index = registry.ctx().get<entity_graph>().insert_edge(entity, node_index0, node_index1);
         registry.emplace<graph_edge>(entity, edge_index);
         registry.emplace<island_resident>(entity);
         registry.emplace<constraint_tag>(entity);
@@ -83,7 +83,7 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
     auto &material0 = material_view.get<material>(body0);
     auto &material1 = material_view.get<material>(body1);
 
-    auto &material_table = registry.ctx().at<material_mix_table>();
+    auto &material_table = registry.ctx().get<material_mix_table>();
     auto restitution = scalar(0);
 
     if (auto *material = material_table.try_get({material0.id, material1.id})) {

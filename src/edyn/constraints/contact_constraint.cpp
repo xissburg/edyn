@@ -16,7 +16,7 @@ void contact_constraint::prepare(
     constraint_row_prep_cache &cache, scalar dt,
     const constraint_body &bodyA, const constraint_body &bodyB) {
 
-    auto &settings = registry.ctx().at<edyn::settings>();
+    auto &settings = registry.ctx().get<edyn::settings>();
 
     // Create constraint rows for each contact point.
     for (unsigned pt_idx = 0; pt_idx < manifold.num_points; ++pt_idx) {

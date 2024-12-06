@@ -26,7 +26,6 @@
 #include "edyn/context/settings.hpp"
 #include "edyn/util/island_util.hpp"
 #include <entt/entity/registry.hpp>
-#include <entt/entity/utility.hpp>
 
 namespace edyn {
 
@@ -297,7 +296,7 @@ bool solve_restitution_iteration(entt::registry &registry, entt::entity island_e
     // select the one that has the highest velocity.
     // Traversal is done over connecting nodes, thus ignore non-connecting nodes
     // (i.e. static and kinematic rigid bodies).
-    auto &graph = registry.ctx().at<entity_graph>();
+    auto &graph = registry.ctx().get<entity_graph>();
     entity_graph::index_type start_node_index;
 
     if (length_sqr(body_view.get<linvel>(fastest_manifold.body[0])) >
@@ -355,7 +354,7 @@ bool solve_restitution_iteration(entt::registry &registry, entt::entity island_e
 }
 
 void solve_restitution(entt::registry &registry, scalar dt) {
-    auto &settings = registry.ctx().at<edyn::settings>();
+    auto &settings = registry.ctx().get<edyn::settings>();
     auto island_view = registry.view<island_tag>(exclude_sleeping_disabled);
 
     for (unsigned i = 0; i < settings.num_restitution_iterations; ++i) {

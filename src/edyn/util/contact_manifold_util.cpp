@@ -9,7 +9,7 @@ bool manifold_exists(entt::registry &registry, entt::entity first, entt::entity 
 }
 
 bool manifold_exists(entt::registry &registry, entity_pair entities) {
-    auto &manifold_map = registry.ctx().at<contact_manifold_map>();
+    auto &manifold_map = registry.ctx().get<contact_manifold_map>();
     return manifold_map.contains(entities);
 }
 
@@ -18,7 +18,7 @@ entt::entity get_manifold_entity(const entt::registry &registry, entt::entity fi
 }
 
 entt::entity get_manifold_entity(const entt::registry &registry, entity_pair entities) {
-    auto &manifold_map = registry.ctx().at<contact_manifold_map>();
+    auto &manifold_map = registry.ctx().get<contact_manifold_map>();
     return manifold_map.get(entities);
 }
 

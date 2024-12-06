@@ -50,10 +50,12 @@ void narrowphase::detect_collision_parallel_range(unsigned start, unsigned end) 
     auto mesh_shape_view = registry.view<mesh_shape>();
     auto paged_mesh_shape_view = registry.view<paged_mesh_shape>();
     auto shapes_views_tuple = get_tuple_of_shape_views(registry);
-    auto dt = registry.ctx().at<settings>().fixed_dt;
+    auto dt = registry.ctx().get<settings>().fixed_dt;
+    auto first = manifold_view.begin();
+    std::advance(first, start);
 
-    for (auto index = start; index < end; ++index) {
-        auto entity = manifold_view[index];
+    for (auto index = start; index < end; ++index, ++first) {
+        auto entity = *first;
         auto [manifold] = manifold_view.get(entity);
         auto [events] = events_view.get(entity);
         collision_result result;
@@ -85,10 +87,11 @@ void narrowphase::detect_collision_parallel() {
 
 void narrowphase::finish_detect_collision() {
     auto manifold_view = m_registry->view<contact_manifold>();
+    auto it = manifold_view.begin();
 
     // Destroy contact points.
-    for (size_t i = 0; i < manifold_view.size(); ++i) {
-        auto entity = manifold_view[i];
+    for (size_t i = 0; i < manifold_view.size(); ++i, ++it) {
+        auto entity = *it;
         auto &info_result = m_cp_destruction_infos[i];
 
         for (size_t j = 0; j < info_result.count; ++j) {
@@ -97,8 +100,10 @@ void narrowphase::finish_detect_collision() {
     }
 
     // Create contact points.
-    for (size_t i = 0; i < manifold_view.size(); ++i) {
-        auto entity = manifold_view[i];
+    it = manifold_view.begin();
+
+    for (size_t i = 0; i < manifold_view.size(); ++i, ++it) {
+        auto entity = *it;
         auto &manifold = manifold_view.get<contact_manifold>(entity);
         auto &info_result = m_cp_construction_infos[i];
 

@@ -68,10 +68,10 @@ class EdynConan(ConanFile):
             self.options.rm_safe("fPIC")
 
     def layout(self):
-        cmake_layout(self, src_folder="src")
+        cmake_layout(self)
 
     def requirements(self):
-        self.requires("entt/3.10.3", transitive_headers=True)
+        self.requires("entt/3.14.0", transitive_headers=True)
         if self.options.build_tests:
             self.requires("gtest/1.11.0", private=True)
 

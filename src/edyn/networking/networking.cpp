@@ -12,7 +12,7 @@
 namespace edyn {
 
 static auto & get_client_settings(entt::registry &registry) {
-    auto &settings = registry.ctx().at<edyn::settings>();
+    auto &settings = registry.ctx().get<edyn::settings>();
     EDYN_ASSERT(std::holds_alternative<client_network_settings>(settings.network_settings));
     auto &client_settings = std::get<client_network_settings>(settings.network_settings);
     return client_settings;
@@ -28,7 +28,7 @@ void edit_client_settings(entt::registry &registry, Func func) {
         }
 
         if (auto *ctx = registry.ctx().find<client_network_context>()) {
-            auto &settings = registry.ctx().at<edyn::settings>();
+            auto &settings = registry.ctx().get<edyn::settings>();
             ctx->extrapolator->set_settings(settings);
         }
     }
@@ -100,37 +100,37 @@ scalar get_network_client_discontinuity_decay_rate(entt::registry &registry) {
 
 entt::sink<entt::sigh<void(const packet::edyn_packet &)>>
 network_client_packet_sink(entt::registry &registry) {
-    auto &ctx = registry.ctx().at<client_network_context>();
+    auto &ctx = registry.ctx().get<client_network_context>();
     return ctx.packet_sink();
 }
 
 entt::sink<entt::sigh<void(entt::entity)>>
 network_client_assigned_sink(entt::registry &registry) {
-    auto &ctx = registry.ctx().at<client_network_context>();
+    auto &ctx = registry.ctx().get<client_network_context>();
     return ctx.client_assigned_sink();
 }
 
 entt::sink<entt::sigh<void(void)>>
 network_client_extrapolation_timeout_sink(entt::registry &registry) {
-    auto &ctx = registry.ctx().at<client_network_context>();
+    auto &ctx = registry.ctx().get<client_network_context>();
     return ctx.extrapolation_timeout_sink();
 }
 
 entt::sink<entt::sigh<void(entt::entity)>>
 network_client_entity_entered_sink(entt::registry &registry) {
-    auto &ctx = registry.ctx().at<client_network_context>();
+    auto &ctx = registry.ctx().get<client_network_context>();
     return ctx.entity_entered_sink();
 }
 
 entt::sink<entt::sigh<void(entt::entity)>>
 network_client_instantiate_asset_sink(entt::registry &registry) {
-    auto &ctx = registry.ctx().at<client_network_context>();
+    auto &ctx = registry.ctx().get<client_network_context>();
     return ctx.instantiate_asset_sink();
 }
 
 entt::sink<entt::sigh<void(entt::entity, const packet::edyn_packet &)>>
 network_server_packet_sink(entt::registry &registry) {
-    auto &ctx = registry.ctx().at<server_network_context>();
+    auto &ctx = registry.ctx().get<server_network_context>();
     return ctx.packet_sink();
 }
 

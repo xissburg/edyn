@@ -167,7 +167,7 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
 
     // Insert rigid body as a node in the entity graph.
     auto non_connecting = def.kind != rigidbody_kind::rb_dynamic;
-    auto node_index = registry.ctx().at<entity_graph>().insert_node(entity, non_connecting);
+    auto node_index = registry.ctx().get<entity_graph>().insert_node(entity, non_connecting);
     registry.emplace<graph_node>(entity, node_index);
 
     if (def.kind == rigidbody_kind::rb_dynamic) {
@@ -303,9 +303,9 @@ void set_rigidbody_friction(entt::registry &registry, entt::entity entity, scala
     });
 
     // Update friction in contact manifolds.
-    auto &graph = registry.ctx().at<entity_graph>();
+    auto &graph = registry.ctx().get<entity_graph>();
     auto &node = registry.get<graph_node>(entity);
-    auto &material_table = registry.ctx().at<material_mix_table>();
+    auto &material_table = registry.ctx().get<material_mix_table>();
 
     graph.visit_edges(node.node_index, [&](auto edge_index) {
         auto edge_entity = graph.edge_entity(edge_index);
@@ -491,7 +491,7 @@ void rigidbody_set_kind(entt::registry &registry, entt::entity entity, rigidbody
         internal::rigidbody_assert_supports_kind(registry, entity, kind);
         stepper->set_rigidbody_kind(entity, kind);
     } else {
-        internal::rigidbody_apply_kind(registry, entity,kind, registry.ctx().at<stepper_sequential>().get_island_manager());
+        internal::rigidbody_apply_kind(registry, entity,kind, registry.ctx().get<stepper_sequential>().get_island_manager());
     }
 }
 
@@ -567,8 +567,8 @@ void rigidbody_apply_kind(entt::registry &registry, entt::entity entity, rigidbo
     const bool procedural = kind == rigidbody_kind::rb_dynamic;
 
     auto &node = registry.get<graph_node>(entity);
-    registry.ctx().at<entity_graph>().set_connecting_node(node.node_index, procedural);
-    registry.ctx().at<broadphase>().set_procedural(entity, procedural);
+    registry.ctx().get<entity_graph>().set_connecting_node(node.node_index, procedural);
+    registry.ctx().get<broadphase>().set_procedural(entity, procedural);
     isle_mgr.set_procedural(entity, procedural);
 
     // Remove all contacts between non-procedural entities. Constraints must have

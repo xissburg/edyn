@@ -11,7 +11,7 @@ struct paged_mesh_page_load_context {
 };
 
 void on_paged_triangle_mesh_load_page(entt::registry &registry, message<msg::paged_triangle_mesh_load_page> &msg) {
-    auto &ctx = registry.ctx().at<paged_mesh_page_load_context>();
+    auto &ctx = registry.ctx().get<paged_mesh_page_load_context>();
 
     for (auto [entity, shape] : registry.view<paged_mesh_shape>().each()) {
         if (shape.trimesh.get() == msg.content.trimesh) {
@@ -28,7 +28,7 @@ void init_paged_mesh_load_reporting(entt::registry &registry) {
 }
 
 void update_paged_mesh_load_reporting(entt::registry &registry) {
-    auto &ctx = registry.ctx().at<paged_mesh_page_load_context>();
+    auto &ctx = registry.ctx().get<paged_mesh_page_load_context>();
     ctx.queue.update();
 }
 
@@ -41,7 +41,7 @@ void deinit_paged_mesh_load_reporting(entt::registry &registry) {
 namespace edyn {
 
 entt::sink<entt::sigh<void(entt::entity, size_t)>> on_paged_mesh_page_loaded(entt::registry &registry) {
-    auto &ctx = registry.ctx().at<internal::paged_mesh_page_load_context>();
+    auto &ctx = registry.ctx().get<internal::paged_mesh_page_load_context>();
     return {ctx.load_signal};
 }
 

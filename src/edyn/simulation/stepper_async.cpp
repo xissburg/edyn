@@ -31,9 +31,9 @@ stepper_async::stepper_async(entt::registry &registry, double time)
             msg::raycast_response,
             msg::query_aabb_response
         >("main"))
-    , m_worker(registry.ctx().at<settings>(),
-               registry.ctx().at<registry_operation_context>(),
-               registry.ctx().at<material_mix_table>())
+    , m_worker(registry.ctx().get<settings>(),
+               registry.ctx().get<registry_operation_context>(),
+               registry.ctx().get<material_mix_table>())
     , m_last_time(time)
     , m_sim_time(time)
 {
@@ -47,7 +47,7 @@ stepper_async::stepper_async(entt::registry &registry, double time)
     m_message_queue_handle.sink<msg::raycast_response>().connect<&stepper_async::on_raycast_response>(*this);
     m_message_queue_handle.sink<msg::query_aabb_response>().connect<&stepper_async::on_query_aabb_response>(*this);
 
-    auto &reg_op_ctx = m_registry->ctx().at<registry_operation_context>();
+    auto &reg_op_ctx = m_registry->ctx().get<registry_operation_context>();
     m_op_builder = (*reg_op_ctx.make_reg_op_builder)(*m_registry);
     m_op_observer = (*reg_op_ctx.make_reg_op_observer)(*m_op_builder);
 
@@ -60,7 +60,7 @@ void stepper_async::on_construct_shared(entt::registry &registry, entt::entity e
 
 void stepper_async::on_destroy_graph_node(entt::registry &registry, entt::entity entity) {
     auto &node = registry.get<graph_node>(entity);
-    auto &graph = registry.ctx().at<entity_graph>();
+    auto &graph = registry.ctx().get<entity_graph>();
 
     // Prevent edges from being removed in `on_destroy_graph_edge`. The more
     // direct `entity_graph::remove_all_edges` will be used instead.
@@ -95,7 +95,7 @@ void stepper_async::on_destroy_graph_node(entt::registry &registry, entt::entity
 
 void stepper_async::on_destroy_graph_edge(entt::registry &registry, entt::entity entity) {
     auto &edge = registry.get<graph_edge>(entity);
-    auto &graph = registry.ctx().at<entity_graph>();
+    auto &graph = registry.ctx().get<entity_graph>();
     graph.remove_edge(edge.edge_index);
     m_op_observer->unobserve(entity);
 
@@ -108,7 +108,7 @@ void stepper_async::on_destroy_graph_edge(entt::registry &registry, entt::entity
 
 void stepper_async::on_step_update(message<msg::step_update> &msg) {
     auto &registry = *m_registry;
-    auto &graph = registry.ctx().at<entity_graph>();
+    auto &graph = registry.ctx().get<entity_graph>();
 
     m_importing = true;
     m_op_observer->set_active(false);
@@ -162,7 +162,7 @@ void stepper_async::on_step_update(message<msg::step_update> &msg) {
 
     // Must consume events after each snapshot to avoid losing any event that
     // could be overriden in the next snapshot.
-    auto &emitter = registry.ctx().at<contact_event_emitter>();
+    auto &emitter = registry.ctx().get<contact_event_emitter>();
     emitter.consume_events();
 }
 
@@ -260,7 +260,7 @@ void stepper_async::update(double current_time) {
     m_message_queue_handle.update();
     sync();
 
-    auto &settings = m_registry->ctx().at<edyn::settings>();
+    auto &settings = m_registry->ctx().get<edyn::settings>();
     if (settings.clear_actions_func) {
         (*settings.clear_actions_func)(*m_registry);
     }
@@ -294,19 +294,19 @@ void stepper_async::step_simulation() {
 }
 
 void stepper_async::settings_changed() {
-    auto &settings = m_registry->ctx().at<edyn::settings>();
+    auto &settings = m_registry->ctx().get<edyn::settings>();
     send_message_to_worker<msg::set_settings>(settings);
 }
 
 void stepper_async::reg_op_ctx_changed() {
-    auto &reg_op_ctx = m_registry->ctx().at<registry_operation_context>();
+    auto &reg_op_ctx = m_registry->ctx().get<registry_operation_context>();
     m_op_builder = (*reg_op_ctx.make_reg_op_builder)(*m_registry);
     m_op_observer = (*reg_op_ctx.make_reg_op_observer)(*m_op_builder);
     send_message_to_worker<msg::set_registry_operation_context>(reg_op_ctx);
 }
 
 void stepper_async::material_table_changed() {
-    auto &material_table = m_registry->ctx().at<material_mix_table>();
+    auto &material_table = m_registry->ctx().get<material_mix_table>();
     send_message_to_worker<msg::set_material_table>(material_table);
 }
 

@@ -33,7 +33,7 @@ void follow_aabb_of_interest(entt::registry &registry) {
 
 void update_aabbs_of_interest_seq(entt::registry &registry) {
     auto networked_view = registry.view<networked_tag>();
-    auto &bphase = registry.ctx().at<broadphase>();
+    auto &bphase = registry.ctx().get<broadphase>();
 
     registry.view<aabb_of_interest>().each([&](aabb_of_interest &aabboi) {
         entt::sparse_set contained_entities;
@@ -44,20 +44,20 @@ void update_aabbs_of_interest_seq(entt::registry &registry) {
 
             for (auto entity : island.nodes) {
                 if (networked_view.contains(entity) && !contained_entities.contains(entity)) {
-                    contained_entities.emplace(entity);
+                    contained_entities.push(entity);
                 }
             }
 
             for (auto entity : island.edges) {
                 if (networked_view.contains(entity) && !contained_entities.contains(entity)) {
-                    contained_entities.emplace(entity);
+                    contained_entities.push(entity);
                 }
             }
         });
 
         bphase.query_non_procedural(aabboi.aabb, [&](entt::entity np_entity) {
             if (networked_view.contains(np_entity) && !contained_entities.contains(np_entity)) {
-                contained_entities.emplace(np_entity);
+                contained_entities.push(np_entity);
             }
         });
 
@@ -86,7 +86,7 @@ struct aabb_of_interest_async_context {
 
 void process_aabb_of_interest_result(entt::registry &registry, query_aabb_id_type id,
                                      const query_aabb_result &result) {
-    auto &ctx = registry.ctx().at<aabb_of_interest_async_context>();
+    auto &ctx = registry.ctx().get<aabb_of_interest_async_context>();
     auto query_entity = ctx.id_entity_map.at(id);
     ctx.id_entity_map.erase(id);
 
@@ -94,7 +94,7 @@ void process_aabb_of_interest_result(entt::registry &registry, query_aabb_id_typ
         return;
     }
 
-    auto &graph = registry.ctx().at<entity_graph>();
+    auto &graph = registry.ctx().get<entity_graph>();
     auto node_view = registry.view<graph_node>();
     auto edge_view = registry.view<graph_edge>();
     auto manifold_view = registry.view<contact_manifold>();
@@ -108,11 +108,11 @@ void process_aabb_of_interest_result(entt::registry &registry, query_aabb_id_typ
             auto edge_node_entity = graph.edge_node_entities(edge.edge_index).first;
 
             if (!to_visit.contains(edge_node_entity)) {
-                to_visit.emplace(edge_node_entity);
+                to_visit.push(edge_node_entity);
             }
         } else if (!to_visit.contains(entity)) {
             EDYN_ASSERT(node_view.contains(entity));
-            to_visit.emplace(entity);
+            to_visit.push(entity);
         }
     }
 
@@ -125,20 +125,20 @@ void process_aabb_of_interest_result(entt::registry &registry, query_aabb_id_typ
             to_visit.remove(node_entity);
 
             if (!contained_entities.contains(node_entity) && networked_view.contains(node_entity)) {
-                contained_entities.emplace(node_entity);
+                contained_entities.push(node_entity);
             }
         }, [&](auto edge_index) {
             auto edge_entity = graph.edge_entity(edge_index);
 
             if (!contained_entities.contains(edge_entity) && networked_view.contains(edge_entity) && !manifold_view.contains(edge_entity)) {
-                contained_entities.emplace(edge_entity);
+                contained_entities.push(edge_entity);
             }
         });
     }
 
     for (auto entity : result.non_procedural_entities) {
         if (!contained_entities.contains(entity) && networked_view.contains(entity)) {
-            contained_entities.emplace(entity);
+            contained_entities.push(entity);
         }
     }
 
@@ -165,7 +165,7 @@ void process_aabb_of_interest_result(entt::registry &registry, query_aabb_id_typ
 void update_aabbs_of_interest(entt::registry &registry) {
     follow_aabb_of_interest(registry);
 
-    auto &settings = registry.ctx().at<edyn::settings>();
+    auto &settings = registry.ctx().get<edyn::settings>();
     auto exec_mode = settings.execution_mode;
 
     switch (exec_mode) {
@@ -179,7 +179,7 @@ void update_aabbs_of_interest(entt::registry &registry) {
             registry.ctx().emplace<aabb_of_interest_async_context>();
         }
 
-        auto &ctx = registry.ctx().at<aabb_of_interest_async_context>();
+        auto &ctx = registry.ctx().get<aabb_of_interest_async_context>();
         auto delegate = entt::delegate(entt::connect_arg_t<&process_aabb_of_interest_result>{}, registry);
 
         for (auto [entity, aabboi] : registry.view<aabb_of_interest>().each()) {

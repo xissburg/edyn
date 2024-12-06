@@ -35,15 +35,15 @@ void stepper_sequential::update(double time) {
     auto elapsed = std::max(time - m_last_time, 0.0);
     m_accumulated_time += elapsed;
 
-    auto &settings = m_registry->ctx().at<edyn::settings>();
+    auto &settings = m_registry->ctx().get<edyn::settings>();
     const auto fixed_dt = settings.fixed_dt;
     const auto num_steps = static_cast<uint64_t>(std::floor(m_accumulated_time / fixed_dt));
     auto advance_dt = static_cast<double>(num_steps) * fixed_dt;
     m_accumulated_time -= advance_dt;
 
-    auto &bphase = m_registry->ctx().at<broadphase>();
-    auto &nphase = m_registry->ctx().at<narrowphase>();
-    auto &emitter = m_registry->ctx().at<contact_event_emitter>();
+    auto &bphase = m_registry->ctx().get<broadphase>();
+    auto &nphase = m_registry->ctx().get<narrowphase>();
+    auto &emitter = m_registry->ctx().get<contact_event_emitter>();
 
     auto effective_steps = num_steps;
     auto step_dt = fixed_dt;
@@ -89,10 +89,10 @@ void stepper_sequential::step_simulation(double time) {
 
     m_last_time = time;
 
-    auto &bphase = m_registry->ctx().at<broadphase>();
-    auto &nphase = m_registry->ctx().at<narrowphase>();
-    auto &emitter = m_registry->ctx().at<contact_event_emitter>();
-    auto &settings = m_registry->ctx().at<edyn::settings>();
+    auto &bphase = m_registry->ctx().get<broadphase>();
+    auto &nphase = m_registry->ctx().get<narrowphase>();
+    auto &emitter = m_registry->ctx().get<contact_event_emitter>();
+    auto &settings = m_registry->ctx().get<edyn::settings>();
 
     if (settings.pre_step_callback) {
         (*settings.pre_step_callback)(*m_registry);

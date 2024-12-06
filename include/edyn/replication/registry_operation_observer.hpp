@@ -19,7 +19,7 @@ public:
     virtual ~registry_operation_observer() {}
 
     void observe(entt::entity entity) {
-        m_observed_entities.emplace(entity);
+        m_observed_entities.push(entity);
 
         if (m_active) {
             m_builder->create(entity);

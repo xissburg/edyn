@@ -34,28 +34,28 @@ namespace edyn {
 static void init_meta() {
     using namespace entt::literals;
 
-    entt::meta<contact_manifold>().type()
+    entt::meta<contact_manifold>()
         .data<&contact_manifold::body, entt::as_ref_t>("body"_hs);
 
-    entt::meta<collision_exclusion>().type()
+    entt::meta<collision_exclusion>()
         .data<&collision_exclusion::entity, entt::as_ref_t>("entity"_hs);
 
     std::apply([&](auto ... c) {
-        (entt::meta<decltype(c)>().type().template data<&decltype(c)::body, entt::as_ref_t>("body"_hs), ...);
+        (entt::meta<decltype(c)>().template data<&decltype(c)::body, entt::as_ref_t>("body"_hs), ...);
     }, constraints_tuple);
 
-    entt::meta<null_constraint>().type().data<&null_constraint::body, entt::as_ref_t>("body"_hs);
+    entt::meta<null_constraint>().data<&null_constraint::body, entt::as_ref_t>("body"_hs);
 
-    entt::meta<entity_owner>().type()
+    entt::meta<entity_owner>()
         .data<&entity_owner::client_entity, entt::as_ref_t>("client_entity"_hs);
 
-    entt::meta<island_resident>().type()
+    entt::meta<island_resident>()
         .data<&island_resident::island_entity, entt::as_ref_t>("island_entity"_hs);
 
-    entt::meta<parent_comp>().type()
+    entt::meta<parent_comp>()
         .data<&parent_comp::child, entt::as_ref_t>("child"_hs);
 
-    entt::meta<child_list>().type()
+    entt::meta<child_list>()
         .data<&child_list::parent, entt::as_ref_t>("parent"_hs)
         .data<&child_list::next, entt::as_ref_t>("next"_hs);
 }
@@ -176,46 +176,46 @@ void detach(entt::registry &registry) {
 }
 
 scalar get_fixed_dt(const entt::registry &registry) {
-    return registry.ctx().at<settings>().fixed_dt;
+    return registry.ctx().get<settings>().fixed_dt;
 }
 
 void set_fixed_dt(entt::registry &registry, scalar dt) {
-    auto &settings = registry.ctx().at<edyn::settings>();
+    auto &settings = registry.ctx().get<edyn::settings>();
     settings.fixed_dt = dt;
     refresh_settings(registry);
 }
 
 void set_max_steps_per_update(entt::registry &registry, unsigned max_steps) {
-    auto &settings = registry.ctx().at<edyn::settings>();
+    auto &settings = registry.ctx().get<edyn::settings>();
     settings.max_steps_per_update = max_steps;
     refresh_settings(registry);
 }
 
 bool is_paused(const entt::registry &registry) {
-    return registry.ctx().at<settings>().paused;
+    return registry.ctx().get<settings>().paused;
 }
 
 void set_paused(entt::registry &registry, bool paused) {
-    registry.ctx().at<settings>().paused = paused;
+    registry.ctx().get<settings>().paused = paused;
 
     if (auto *stepper = registry.ctx().find<stepper_async>()) {
         stepper->set_paused(paused);
     } else {
-        registry.ctx().at<stepper_sequential>().set_paused(paused);
+        registry.ctx().get<stepper_sequential>().set_paused(paused);
     }
 }
 
 void update(entt::registry &registry) {
-    auto &settings = registry.ctx().at<edyn::settings>();
+    auto &settings = registry.ctx().get<edyn::settings>();
     auto time = (*settings.time_func)();
     update(registry, time);
 }
 
 void update(entt::registry &registry, double time) {
     if (registry.ctx().contains<stepper_async>()) {
-        registry.ctx().at<stepper_async>().update(time);
+        registry.ctx().get<stepper_async>().update(time);
     } else if (registry.ctx().contains<stepper_sequential>()) {
-        registry.ctx().at<stepper_sequential>().update(time);
+        registry.ctx().get<stepper_sequential>().update(time);
     }
 
     internal::update_paged_mesh_load_reporting(registry);
@@ -227,9 +227,9 @@ void step_simulation(entt::registry &registry) {
     if (auto *stepper = registry.ctx().find<stepper_async>()) {
         stepper->step_simulation();
     } else {
-        auto &settings = registry.ctx().at<edyn::settings>();
+        auto &settings = registry.ctx().get<edyn::settings>();
         auto time = (*settings.time_func)();
-        registry.ctx().at<stepper_sequential>().step_simulation(time);
+        registry.ctx().get<stepper_sequential>().step_simulation(time);
     }
 
     internal::update_paged_mesh_load_reporting(registry);
@@ -241,38 +241,38 @@ void step_simulation(entt::registry &registry, double time) {
     if (auto *stepper = registry.ctx().find<stepper_async>()) {
         stepper->step_simulation();
     } else {
-        registry.ctx().at<stepper_sequential>().step_simulation(time);
+        registry.ctx().get<stepper_sequential>().step_simulation(time);
     }
 
     internal::update_paged_mesh_load_reporting(registry);
 }
 
 execution_mode get_execution_mode(const entt::registry &registry) {
-    auto &settings = registry.ctx().at<edyn::settings>();
+    auto &settings = registry.ctx().get<edyn::settings>();
     return settings.execution_mode;
 }
 
 void set_time_source(entt::registry &registry, double(*time_func)(void)) {
     EDYN_ASSERT(time_func != nullptr);
 
-    auto &settings = registry.ctx().at<edyn::settings>();
+    auto &settings = registry.ctx().get<edyn::settings>();
     settings.time_func = time_func;
 
     refresh_settings(registry);
 }
 
 double get_time(entt::registry &registry) {
-    auto &settings = registry.ctx().at<edyn::settings>();
+    auto &settings = registry.ctx().get<edyn::settings>();
     auto time = (*settings.time_func)();
     return time;
 }
 
 enqueue_task_t * get_enqueue_task(entt::registry &registry) {
-    return registry.ctx().at<settings>().enqueue_task;
+    return registry.ctx().get<settings>().enqueue_task;
 }
 
 enqueue_task_wait_t * get_enqueue_task_wait(entt::registry &registry) {
-    return registry.ctx().at<settings>().enqueue_task_wait;
+    return registry.ctx().get<settings>().enqueue_task_wait;
 }
 
 }

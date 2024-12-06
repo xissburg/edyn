@@ -8,7 +8,7 @@ namespace edyn {
 template<typename Member>
 void set_extrapolation_callback_member(entt::registry &registry, extrapolation_callback_t func,
                                        Member client_network_settings::*member) {
-    auto &settings = registry.ctx().at<edyn::settings>();
+    auto &settings = registry.ctx().get<edyn::settings>();
     auto &client_settings = std::get<client_network_settings>(settings.network_settings);
     client_settings.*member = func;
     internal::notify_settings(registry, settings);
@@ -45,7 +45,7 @@ void set_extrapolation_callbacks(entt::registry &registry,
                                  extrapolation_callback_t finish,
                                  extrapolation_callback_t pre_step,
                                  extrapolation_callback_t post_step) {
-    auto &settings = registry.ctx().at<edyn::settings>();
+    auto &settings = registry.ctx().get<edyn::settings>();
     auto &client_settings = std::get<client_network_settings>(settings.network_settings);
     client_settings.extrapolation_init_callback = init;
     client_settings.extrapolation_deinit_callback = deinit;

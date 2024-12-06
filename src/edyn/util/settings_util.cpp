@@ -12,7 +12,7 @@ void refresh_settings(entt::registry &registry)
     }
 
     if (auto *ctx = registry.ctx().find<client_network_context>()) {
-        auto &settings = registry.ctx().at<edyn::settings>();
+        auto &settings = registry.ctx().get<edyn::settings>();
         ctx->extrapolator->set_settings(settings);
     }
 }

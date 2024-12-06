@@ -67,7 +67,7 @@ class server_snapshot_importer_impl : public server_snapshot_importer {
     bool is_only_reachable_client(const entt::registry &registry, entt::entity client_entity, entt::entity entity) {
         // Traverse the graph starting at the given entity and check if
         // `client_entity` is the only client reachable from it.
-        auto &graph = registry.ctx().at<entity_graph>();
+        auto &graph = registry.ctx().get<entity_graph>();
         auto node_view = registry.view<graph_node>();
         auto edge_view = registry.view<graph_edge>();
         auto owner_view = registry.view<entity_owner>();

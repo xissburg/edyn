@@ -2,7 +2,6 @@
 #define EDYN_UTIL_ISLAND_UTIL_HPP
 
 #include <entt/entity/fwd.hpp>
-#include <entt/entity/utility.hpp>
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/replication/entity_map.hpp"

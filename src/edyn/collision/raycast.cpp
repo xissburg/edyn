@@ -13,7 +13,7 @@ namespace edyn {
 raycast_id_type raycast_async(entt::registry &registry, vector3 p0, vector3 p1,
                               const raycast_delegate_type &delegate,
                               const std::vector<entt::entity> &ignore_entities) {
-    auto &stepper = registry.ctx().at<stepper_async>();
+    auto &stepper = registry.ctx().get<stepper_async>();
     return stepper.raycast(p0, p1, delegate, ignore_entities);
 }
 
@@ -45,7 +45,7 @@ raycast_result raycast(entt::registry &registry, vector3 p0, vector3 p1,
         });
     };
 
-    auto &bphase = registry.ctx().at<broadphase>();
+    auto &bphase = registry.ctx().get<broadphase>();
     bphase.raycast(p0, p1, [&](entt::entity entity) {
         if (!vector_contains(ignore_entities, entity)) {
             raycast_shape(entity);

@@ -9,19 +9,19 @@ namespace edyn {
 
 template<typename Func>
 void query_procedural_aabb(entt::registry &registry, const AABB &aabb, Func func) {
-    auto &bphase = registry.ctx().at<broadphase>();
+    auto &bphase = registry.ctx().get<broadphase>();
     bphase.query_procedural(aabb, func);
 }
 
 template<typename Func>
 void query_non_procedural_aabb(entt::registry &registry, const AABB &aabb, Func func) {
-    auto &bphase = registry.ctx().at<broadphase>();
+    auto &bphase = registry.ctx().get<broadphase>();
     bphase.query_non_procedural(aabb, func);
 }
 
 template<typename Func>
 void query_island_aabb(entt::registry &registry, const AABB &aabb, Func func) {
-    auto &bphase = registry.ctx().at<broadphase>();
+    auto &bphase = registry.ctx().get<broadphase>();
     bphase.query_islands(aabb, func);
 }
 

@@ -7,11 +7,11 @@
 namespace edyn {
 
 unsigned get_solver_velocity_iterations(const entt::registry &registry) {
-    return registry.ctx().at<settings>().num_solver_velocity_iterations;
+    return registry.ctx().get<settings>().num_solver_velocity_iterations;
 }
 
 void set_solver_velocity_iterations(entt::registry &registry, unsigned iterations) {
-    auto &settings = registry.ctx().at<edyn::settings>();
+    auto &settings = registry.ctx().get<edyn::settings>();
     settings.num_solver_velocity_iterations = iterations;
 
     if (auto *stepper = registry.ctx().find<stepper_async>()) {
@@ -24,11 +24,11 @@ void set_solver_velocity_iterations(entt::registry &registry, unsigned iteration
 }
 
 unsigned get_solver_position_iterations(const entt::registry &registry) {
-    return registry.ctx().at<settings>().num_solver_position_iterations;
+    return registry.ctx().get<settings>().num_solver_position_iterations;
 }
 
 void set_solver_position_iterations(entt::registry &registry, unsigned iterations) {
-    auto &settings = registry.ctx().at<edyn::settings>();
+    auto &settings = registry.ctx().get<edyn::settings>();
     settings.num_solver_position_iterations = iterations;
 
     if (auto *stepper = registry.ctx().find<stepper_async>()) {
@@ -41,11 +41,11 @@ void set_solver_position_iterations(entt::registry &registry, unsigned iteration
 }
 
 unsigned get_solver_restitution_iterations(const entt::registry &registry) {
-    return registry.ctx().at<settings>().num_restitution_iterations;
+    return registry.ctx().get<settings>().num_restitution_iterations;
 }
 
 void set_solver_restitution_iterations(entt::registry &registry, unsigned iterations) {
-    auto &settings = registry.ctx().at<edyn::settings>();
+    auto &settings = registry.ctx().get<edyn::settings>();
     settings.num_restitution_iterations = iterations;
 
     if (auto *stepper = registry.ctx().find<stepper_async>()) {
@@ -58,11 +58,11 @@ void set_solver_restitution_iterations(entt::registry &registry, unsigned iterat
 }
 
 unsigned get_solver_individual_restitution_iterations(const entt::registry &registry) {
-    return registry.ctx().at<settings>().num_individual_restitution_iterations;
+    return registry.ctx().get<settings>().num_individual_restitution_iterations;
 }
 
 void set_solver_individual_restitution_iterations(entt::registry &registry, unsigned iterations) {
-    auto &settings = registry.ctx().at<edyn::settings>();
+    auto &settings = registry.ctx().get<edyn::settings>();
     settings.num_individual_restitution_iterations = iterations;
 
     if (auto *stepper = registry.ctx().find<stepper_async>()) {

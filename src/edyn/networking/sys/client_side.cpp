@@ -44,18 +44,18 @@
 namespace edyn {
 
 static void on_construct_shared(entt::registry &registry, entt::entity entity) {
-    auto &ctx = registry.ctx().at<client_network_context>();
+    auto &ctx = registry.ctx().get<client_network_context>();
     ctx.created_entities.push_back(entity);
 }
 
 static void on_destroy_shared(entt::registry &registry, entt::entity entity) {
-    auto &ctx = registry.ctx().at<client_network_context>();
+    auto &ctx = registry.ctx().get<client_network_context>();
     ctx.destroyed_entities.push_back(entity);
     ctx.input_history->remove_entity(entity);
 }
 
 void on_construct_networked_entity(entt::registry &registry, entt::entity entity) {
-    auto &ctx = registry.ctx().at<client_network_context>();
+    auto &ctx = registry.ctx().get<client_network_context>();
 
     if (!ctx.importing_entities) {
         ctx.client_created_entities.push_back(entity);
@@ -63,7 +63,7 @@ void on_construct_networked_entity(entt::registry &registry, entt::entity entity
 }
 
 void on_destroy_networked_entity(entt::registry &registry, entt::entity entity) {
-    auto &ctx = registry.ctx().at<client_network_context>();
+    auto &ctx = registry.ctx().get<client_network_context>();
 
     if (!ctx.importing_entities) {
         if (ctx.entity_map.contains(entity)) {
@@ -75,16 +75,16 @@ void on_destroy_networked_entity(entt::registry &registry, entt::entity entity) 
 }
 
 void on_construct_entity_owner(entt::registry &registry, entt::entity entity) {
-    auto &ctx = registry.ctx().at<client_network_context>();
+    auto &ctx = registry.ctx().get<client_network_context>();
     auto &owner = registry.get<entity_owner>(entity);
 
     if (owner.client_entity == ctx.client_entity) {
-        ctx.owned_entities.emplace(entity);
+        ctx.owned_entities.push(entity);
     }
 }
 
 void on_destroy_entity_owner(entt::registry &registry, entt::entity entity) {
-    auto &ctx = registry.ctx().at<client_network_context>();
+    auto &ctx = registry.ctx().get<client_network_context>();
     auto &owner = registry.get<entity_owner>(entity);
 
     if (owner.client_entity == ctx.client_entity) {
@@ -95,14 +95,14 @@ void on_destroy_entity_owner(entt::registry &registry, entt::entity entity) {
 static void update_input_history(entt::registry &registry, double timestamp) {
     // Insert input components into history only for entities owned by the
     // local client.
-    auto &ctx = registry.ctx().at<client_network_context>();
+    auto &ctx = registry.ctx().get<client_network_context>();
     ctx.input_history->emplace(registry, ctx.owned_entities, timestamp);
 
     // Erase all inputs until the current time minus the client-server time
     // difference plus some leeway because this is the amount of time the
     // registry snapshots will be extrapolated forward thus requiring the
     // inputs from that point in time onwards.
-    auto &settings = registry.ctx().at<edyn::settings>();
+    auto &settings = registry.ctx().get<edyn::settings>();
     auto &client_settings = std::get<client_network_settings>(settings.network_settings);
     const auto client_server_time_difference =
         ctx.server_playout_delay + client_settings.round_trip_time / 2;
@@ -113,17 +113,17 @@ static void on_extrapolation_result(entt::registry &registry, message<extrapolat
     auto &result = msg.content;
 
     if (result.terminated_early) {
-        auto &ctx = registry.ctx().at<client_network_context>();
+        auto &ctx = registry.ctx().get<client_network_context>();
         ctx.extrapolation_timeout_signal.publish();
     }
 
-    auto &settings = registry.ctx().at<edyn::settings>();
+    auto &settings = registry.ctx().get<edyn::settings>();
 
     if (settings.execution_mode == edyn::execution_mode::asynchronous) {
-        auto &stepper = registry.ctx().at<stepper_async>();
+        auto &stepper = registry.ctx().get<stepper_async>();
         stepper.send_message_to_worker<extrapolation_result>(std::move(result));
     } else {
-        auto &ctx = registry.ctx().at<client_network_context>();
+        auto &ctx = registry.ctx().get<client_network_context>();
         ctx.snapshot_exporter->set_observer_enabled(false);
         process_extrapolation_result(registry, result);
         ctx.snapshot_exporter->set_observer_enabled(true);
@@ -143,15 +143,15 @@ void init_network_client(entt::registry &registry) {
     registry.on_construct<graph_edge>().connect<&on_construct_shared>();
     registry.on_destroy<graph_edge>().connect<&on_destroy_shared>();
 
-    auto &settings = registry.ctx().at<edyn::settings>();
+    auto &settings = registry.ctx().get<edyn::settings>();
     settings.network_settings = client_network_settings{};
 
     if (auto *stepper = registry.ctx().find<stepper_async>()) {
         stepper->settings_changed();
     }
 
-    auto &reg_op_ctx = registry.ctx().at<registry_operation_context>();
-    auto &material_table = registry.ctx().at<material_mix_table>();
+    auto &reg_op_ctx = registry.ctx().get<registry_operation_context>();
+    auto &material_table = registry.ctx().get<material_mix_table>();
     ctx.extrapolator = std::make_unique<extrapolation_worker>(settings, reg_op_ctx, material_table,
                                                               ctx.make_extrapolation_modified_comp);
     ctx.extrapolator->start();
@@ -176,8 +176,8 @@ void deinit_network_client(entt::registry &registry) {
 void add_entities_to_extrapolator(entt::registry &registry,
                                   const std::vector<entt::entity> &entities,
                                   const std::vector<entt::entity> &owned_entities) {
-    auto &ctx = registry.ctx().at<client_network_context>();
-    auto &reg_op_ctx = registry.ctx().at<registry_operation_context>();
+    auto &ctx = registry.ctx().get<client_network_context>();
+    auto &reg_op_ctx = registry.ctx().get<registry_operation_context>();
     auto builder = (*reg_op_ctx.make_reg_op_builder)(registry);
 
     // Add all _create_ operations first so all entities are created in the extrapolator
@@ -201,14 +201,14 @@ void add_entities_to_extrapolator(entt::registry &registry,
 
 void remove_entities_from_extrapolator(entt::registry &registry,
                                        const std::vector<entt::entity> &entities) {
-    auto &ctx = registry.ctx().at<client_network_context>();
+    auto &ctx = registry.ctx().get<client_network_context>();
     auto &dispatcher = message_dispatcher::global();
     dispatcher.send<extrapolation_operation_destroy>(
         {"extrapolation_worker"}, ctx.message_queue.identifier, entities);
 }
 
 static void process_created_entities(entt::registry &registry) {
-    auto &ctx = registry.ctx().at<client_network_context>();
+    auto &ctx = registry.ctx().get<client_network_context>();
 
     // Ignore contact manifolds and watch out for destroyed entities.
     auto manifold_view = registry.view<contact_manifold>();
@@ -237,7 +237,7 @@ static void process_created_entities(entt::registry &registry) {
 }
 
 static void process_client_created_entities(entt::registry &registry, double time) {
-    auto &ctx = registry.ctx().at<client_network_context>();
+    auto &ctx = registry.ctx().get<client_network_context>();
 
     if (ctx.client_created_entities.empty()) {
         return;
@@ -261,7 +261,7 @@ static void process_client_created_entities(entt::registry &registry, double tim
 }
 
 static void process_destroyed_entities(entt::registry &registry) {
-    auto &ctx = registry.ctx().at<client_network_context>();
+    auto &ctx = registry.ctx().get<client_network_context>();
 
     if (!ctx.destroyed_entities.empty()) {
         remove_entities_from_extrapolator(registry, ctx.destroyed_entities);
@@ -270,7 +270,7 @@ static void process_destroyed_entities(entt::registry &registry) {
 }
 
 static void process_client_destroyed_entities(entt::registry &registry, double time) {
-    auto &ctx = registry.ctx().at<client_network_context>();
+    auto &ctx = registry.ctx().get<client_network_context>();
 
     if (ctx.client_destroyed_entities.empty()) {
         return;
@@ -283,7 +283,7 @@ static void process_client_destroyed_entities(entt::registry &registry, double t
 }
 
 static void dispatch_extrapolations(entt::registry &registry) {
-    auto &ctx = registry.ctx().at<client_network_context>();
+    auto &ctx = registry.ctx().get<client_network_context>();
 
     if (ctx.pending_extrapolations.empty()) {
         return;
@@ -301,8 +301,8 @@ static void dispatch_extrapolations(entt::registry &registry) {
 }
 
 static void maybe_publish_registry_snapshot(entt::registry &registry, double time) {
-    auto &ctx = registry.ctx().at<client_network_context>();
-    auto &settings = registry.ctx().at<edyn::settings>();
+    auto &ctx = registry.ctx().get<client_network_context>();
+    auto &settings = registry.ctx().get<edyn::settings>();
     auto &client_settings = std::get<client_network_settings>(settings.network_settings);
 
     if (time - ctx.last_snapshot_time < 1 / client_settings.snapshot_rate) {
@@ -321,16 +321,16 @@ static void maybe_publish_registry_snapshot(entt::registry &registry, double tim
 }
 
 static void client_update_clock_sync(entt::registry &registry, double time) {
-    auto &ctx = registry.ctx().at<client_network_context>();
-    auto &settings = registry.ctx().at<edyn::settings>();
+    auto &ctx = registry.ctx().get<client_network_context>();
+    auto &settings = registry.ctx().get<edyn::settings>();
     auto &client_settings = std::get<client_network_settings>(settings.network_settings);
 
     update_clock_sync(ctx.clock_sync, time, client_settings.round_trip_time);
 }
 
 static void trim_and_insert_actions(entt::registry &registry, double time) {
-    auto &ctx = registry.ctx().at<client_network_context>();
-    auto &settings = registry.ctx().at<edyn::settings>();
+    auto &ctx = registry.ctx().get<client_network_context>();
+    auto &settings = registry.ctx().get<edyn::settings>();
     auto &client_settings = std::get<client_network_settings>(settings.network_settings);
 
     // Erase old actions.
@@ -343,12 +343,12 @@ static void trim_and_insert_actions(entt::registry &registry, double time) {
 }
 
 void update_client_snapshot_exporter(entt::registry &registry, double time) {
-    auto &ctx = registry.ctx().at<client_network_context>();
+    auto &ctx = registry.ctx().get<client_network_context>();
     ctx.snapshot_exporter->update(time);
 }
 
 void update_network_client(entt::registry &registry) {
-    auto &settings = registry.ctx().at<edyn::settings>();
+    auto &settings = registry.ctx().get<edyn::settings>();
     auto time = (*settings.time_func)();
 
     client_update_clock_sync(registry, time);
@@ -359,14 +359,14 @@ void update_network_client(entt::registry &registry) {
     dispatch_extrapolations(registry);
     update_client_snapshot_exporter(registry, time);
     maybe_publish_registry_snapshot(registry, time);
-    registry.ctx().at<client_network_context>().message_queue.update();
+    registry.ctx().get<client_network_context>().message_queue.update();
     trim_and_insert_actions(registry, time);
     update_input_history(registry, time);
 }
 
 static void process_packet(entt::registry &registry, const packet::client_created &packet) {
-    auto &ctx = registry.ctx().at<client_network_context>();
-    auto &settings = registry.ctx().at<edyn::settings>();
+    auto &ctx = registry.ctx().get<client_network_context>();
+    auto &settings = registry.ctx().get<edyn::settings>();
 
     auto remote_entity = packet.client_entity;
     auto local_entity = registry.create();
@@ -383,7 +383,7 @@ static void process_packet(entt::registry &registry, const packet::client_create
 }
 
 static void process_packet(entt::registry &registry, const packet::update_entity_map &packet) {
-    auto &ctx = registry.ctx().at<client_network_context>();
+    auto &ctx = registry.ctx().get<client_network_context>();
     process_update_entity_map_packet(registry, packet, ctx.entity_map);
 }
 
@@ -394,7 +394,7 @@ void create_graph_edge(entt::registry &registry, entt::entity entity) {
     auto &comp = registry.get<T>(entity);
     auto node_index0 = registry.get<graph_node>(comp.body[0]).node_index;
     auto node_index1 = registry.get<graph_node>(comp.body[1]).node_index;
-    auto edge_index = registry.ctx().at<entity_graph>().insert_edge(entity, node_index0, node_index1);
+    auto edge_index = registry.ctx().get<entity_graph>().insert_edge(entity, node_index0, node_index1);
     registry.emplace<graph_edge>(entity, edge_index);
     registry.emplace<island_resident>(entity);
 }
@@ -416,14 +416,14 @@ static void assign_discontinuity_components(entt::registry &registry, entt::enti
     // Discontinuities will be accumulated in the main thread if running in
     // sequential mode, which requires the previous transforms to be present
     // in this registry.
-    if (registry.ctx().at<settings>().execution_mode != execution_mode::asynchronous) {
+    if (registry.ctx().get<settings>().execution_mode != execution_mode::asynchronous) {
         registry.emplace<previous_position>(entity);
         registry.emplace<previous_orientation>(entity);
     }
 }
 
 static void process_packet(entt::registry &registry, const packet::create_entity &packet) {
-    auto &ctx = registry.ctx().at<client_network_context>();
+    auto &ctx = registry.ctx().get<client_network_context>();
 
     // Collect new entity mappings to send back to server.
     auto emap_packet = packet::update_entity_map{};
@@ -440,7 +440,7 @@ static void process_packet(entt::registry &registry, const packet::create_entity
     }
 
     if (!emap_packet.pairs.empty()) {
-        auto &settings = registry.ctx().at<edyn::settings>();
+        auto &settings = registry.ctx().get<edyn::settings>();
         emap_packet.timestamp = (*settings.time_func)();
         ctx.packet_signal.publish(packet::edyn_packet{std::move(emap_packet)});
     }
@@ -503,7 +503,7 @@ static void process_packet(entt::registry &registry, const packet::create_entity
         if (registry.any_of<rigidbody_tag, external_tag>(entity) &&
             !registry.all_of<graph_node>(entity)) {
             auto is_procedural = registry.any_of<procedural_tag>(entity);
-            auto node_index = registry.ctx().at<entity_graph>().insert_node(entity, !is_procedural);
+            auto node_index = registry.ctx().get<entity_graph>().insert_node(entity, !is_procedural);
             registry.emplace<graph_node>(entity, node_index);
 
             if (is_procedural) {
@@ -526,7 +526,7 @@ static void process_packet(entt::registry &registry, const packet::create_entity
 }
 
 static void destroy_remote_entities(entt::registry &registry, const std::vector<entt::entity> &entities) {
-    auto &ctx = registry.ctx().at<client_network_context>();
+    auto &ctx = registry.ctx().get<client_network_context>();
     ctx.importing_entities = true;
 
     auto asset_view = registry.view<const asset_ref>();
@@ -568,7 +568,7 @@ static void process_packet(entt::registry &registry, const packet::entity_exited
 }
 
 static void process_packet(entt::registry &registry, packet::entity_entered &packet) {
-    auto &ctx = registry.ctx().at<client_network_context>();
+    auto &ctx = registry.ctx().get<client_network_context>();
     ctx.importing_entities = true;
 
     // Collect new entity mappings to send back to server.
@@ -626,7 +626,7 @@ static void process_packet(entt::registry &registry, packet::entity_entered &pac
     }
 
     if (!emap_packet.pairs.empty()) {
-        auto &settings = registry.ctx().at<edyn::settings>();
+        auto &settings = registry.ctx().get<edyn::settings>();
         emap_packet.timestamp = (*settings.time_func)();
         ctx.packet_signal.publish(packet::edyn_packet{std::move(emap_packet)});
     }
@@ -636,7 +636,7 @@ static void process_packet(entt::registry &registry, packet::entity_entered &pac
 
 static bool contains_unknown_entities(entt::registry &registry,
                                       const std::vector<entt::entity> &remote_entities) {
-    auto &ctx = registry.ctx().at<client_network_context>();
+    auto &ctx = registry.ctx().get<client_network_context>();
 
     // Find remote entities that have no local counterpart.
     for (auto remote_entity : remote_entities) {
@@ -660,12 +660,12 @@ static void insert_input_to_state_history(entt::registry &registry,
                                           const packet::registry_snapshot &snap,
                                           double time, double time_delta) {
     // Insert inputs of entities not owned by this client into the state history.
-    auto &ctx = registry.ctx().at<client_network_context>();
+    auto &ctx = registry.ctx().get<client_network_context>();
     entt::sparse_set unowned_entities;
 
     for (auto entity : snap.entities) {
         if (!ctx.owned_entities.contains(entity) && !unowned_entities.contains(entity)) {
-            unowned_entities.emplace(entity);
+            unowned_entities.push(entity);
         }
     }
 
@@ -679,16 +679,16 @@ static void snap_to_registry_snapshot(entt::registry &registry, packet::registry
         return;
     }
 
-    auto &settings = registry.ctx().at<edyn::settings>();
+    auto &settings = registry.ctx().get<edyn::settings>();
     bool should_accumulate_discontinuities = true;
 
     if (settings.execution_mode == edyn::execution_mode::asynchronous) {
-        auto &stepper = registry.ctx().at<stepper_async>();
+        auto &stepper = registry.ctx().get<stepper_async>();
         stepper.send_message_to_worker<msg::apply_network_pools>(std::move(snapshot.entities),
                                                                  std::move(snapshot.pools),
                                                                  should_accumulate_discontinuities);
     } else {
-        auto &ctx = registry.ctx().at<client_network_context>();
+        auto &ctx = registry.ctx().get<client_network_context>();
         ctx.snapshot_exporter->set_observer_enabled(false);
         snap_to_pool_snapshot(registry, snapshot.entities, snapshot.pools, should_accumulate_discontinuities);
         ctx.snapshot_exporter->set_observer_enabled(true);
@@ -705,8 +705,8 @@ static void process_packet(entt::registry &registry, packet::registry_snapshot &
         return;
     }
 
-    auto &ctx = registry.ctx().at<client_network_context>();
-    auto &settings = registry.ctx().at<edyn::settings>();
+    auto &ctx = registry.ctx().get<client_network_context>();
+    auto &settings = registry.ctx().get<edyn::settings>();
     auto &client_settings = std::get<client_network_settings>(settings.network_settings);
 
     // Translate transient snapshot into client's space so entities in the
@@ -767,26 +767,26 @@ static void process_packet(entt::registry &registry, packet::registry_snapshot &
 }
 
 static void process_packet(entt::registry &registry, packet::set_playout_delay &delay) {
-    auto &ctx = registry.ctx().at<client_network_context>();
+    auto &ctx = registry.ctx().get<client_network_context>();
     ctx.server_playout_delay = delay.value;
 }
 
 static void process_packet(entt::registry &registry, const packet::time_request &req) {
-    auto &settings = registry.ctx().at<edyn::settings>();
+    auto &settings = registry.ctx().get<edyn::settings>();
     auto res = packet::time_response{req.id, (*settings.time_func)()};
-    auto &ctx = registry.ctx().at<client_network_context>();
+    auto &ctx = registry.ctx().get<client_network_context>();
     ctx.packet_signal.publish(packet::edyn_packet{res});
 }
 
 static void process_packet(entt::registry &registry, const packet::time_response &res) {
-    auto &ctx = registry.ctx().at<client_network_context>();
-    auto &settings = registry.ctx().at<edyn::settings>();
+    auto &ctx = registry.ctx().get<client_network_context>();
+    auto &settings = registry.ctx().get<edyn::settings>();
     const auto time = (*settings.time_func)();
     clock_sync_process_time_response(ctx.clock_sync, res, time);
 }
 
 static void process_packet(entt::registry &registry, const packet::server_settings &server) {
-    auto &settings = registry.ctx().at<edyn::settings>();
+    auto &settings = registry.ctx().get<edyn::settings>();
     settings.fixed_dt = server.fixed_dt;
     settings.gravity = server.gravity;
     settings.num_solver_velocity_iterations = server.num_solver_velocity_iterations;
@@ -794,7 +794,7 @@ static void process_packet(entt::registry &registry, const packet::server_settin
     settings.num_restitution_iterations = server.num_restitution_iterations;
     settings.num_individual_restitution_iterations = server.num_individual_restitution_iterations;
 
-    auto &ctx = registry.ctx().at<client_network_context>();
+    auto &ctx = registry.ctx().get<client_network_context>();
     ctx.allow_full_ownership = server.allow_full_ownership;
     ctx.extrapolator->set_settings(settings);
 
@@ -804,7 +804,7 @@ static void process_packet(entt::registry &registry, const packet::server_settin
 }
 
 static void process_packet(entt::registry &registry, packet::entity_response &res) {
-    auto &ctx = registry.ctx().at<client_network_context>();
+    auto &ctx = registry.ctx().get<client_network_context>();
 
     // Override synchronized state.
     ctx.snapshot_exporter->set_observer_enabled(false);
@@ -813,7 +813,7 @@ static void process_packet(entt::registry &registry, packet::entity_response &re
 }
 
 static void process_packet(entt::registry &registry, packet::asset_sync_response &res) {
-    auto &ctx = registry.ctx().at<client_network_context>();
+    auto &ctx = registry.ctx().get<client_network_context>();
 
     // Instantiate entities in asset.
     auto local_entity = ctx.entity_map.at(res.entity);
@@ -836,12 +836,12 @@ void client_receive_packet(entt::registry &registry, packet::edyn_packet &packet
 }
 
 bool client_owns_entity(const entt::registry &registry, entt::entity entity) {
-    auto &ctx = registry.ctx().at<client_network_context>();
+    auto &ctx = registry.ctx().get<client_network_context>();
     return ctx.client_entity == registry.get<entity_owner>(entity).client_entity;
 }
 
 void client_asset_ready(entt::registry &registry, entt::entity asset_entity) {
-    auto &ctx = registry.ctx().at<client_network_context>();
+    auto &ctx = registry.ctx().get<client_network_context>();
     packet::asset_sync packet;
     packet.entity = ctx.entity_map.at_local(asset_entity);
     ctx.packet_signal.publish(packet::edyn_packet{std::move(packet)});
@@ -849,7 +849,7 @@ void client_asset_ready(entt::registry &registry, entt::entity asset_entity) {
 
 template<typename EntityMapFunc>
 void client_link_asset_impl(entt::registry &registry, entt::entity asset_entity, EntityMapFunc emap) {
-    auto &ctx = registry.ctx().at<client_network_context>();
+    auto &ctx = registry.ctx().get<client_network_context>();
     const auto &asset = registry.get<asset_ref>(asset_entity);
 
     entt::entity owner_entity = entt::null;
@@ -885,7 +885,7 @@ void client_link_asset_impl(entt::registry &registry, entt::entity asset_entity,
     registry.emplace<asset_linked_tag>(asset_entity);
     ctx.importing_entities = importing_entities_prev;
 
-    auto &settings = registry.ctx().at<edyn::settings>();
+    auto &settings = registry.ctx().get<edyn::settings>();
     emap_packet.timestamp = (*settings.time_func)();
     ctx.packet_signal.publish(packet::edyn_packet{std::move(emap_packet)});
 }

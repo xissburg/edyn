@@ -209,7 +209,7 @@ public:
             auto node_view = registry.view<graph_node>();
             auto edge_view = registry.view<graph_edge>();
             auto body_view = registry.view<position, orientation, linvel, angvel, dynamic_tag>(exclude_sleeping_disabled);
-            auto &graph = registry.ctx().at<entity_graph>();
+            auto &graph = registry.ctx().get<entity_graph>();
 
             // Collect nodes to visit in entity graph from owned nodes and edges.
             auto to_visit = entt::sparse_set{};
@@ -220,11 +220,11 @@ public:
                     auto edge_node_entity = graph.edge_node_entities(edge.edge_index).first;
 
                     if (!to_visit.contains(edge_node_entity)) {
-                        to_visit.emplace(edge_node_entity);
+                        to_visit.push(edge_node_entity);
                     }
                 } else if (node_view.contains(entity) && !to_visit.contains(entity)) {
                     EDYN_ASSERT(node_view.contains(entity));
-                    to_visit.emplace(entity);
+                    to_visit.push(entity);
                 }
             }
 

@@ -12,7 +12,7 @@ raycast_service::raycast_service(entt::registry &registry)
 {}
 
 void raycast_service::run_broadphase(bool mt) {
-    auto &bphase = m_registry->ctx().at<broadphase>();
+    auto &bphase = m_registry->ctx().get<broadphase>();
 
     if (mt && m_broad_ctx.size() > m_max_raycast_broadphase_sequential_size) {
         auto *raycasts = &m_broad_ctx;

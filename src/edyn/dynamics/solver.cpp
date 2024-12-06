@@ -192,7 +192,7 @@ static void prepare_constraints(entt::registry &registry, scalar dt, bool mt) {
 
 void solver::update(bool mt) {
     auto &registry = *m_registry;
-    auto &settings = registry.ctx().at<edyn::settings>();
+    auto &settings = registry.ctx().get<edyn::settings>();
     auto dt = settings.fixed_dt;
 
     solve_restitution(registry, dt);

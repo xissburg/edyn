@@ -17,7 +17,7 @@ template<typename Value>
 void map_child_entity_meta(const entity_map &emap, const entt::meta_type &meta_type, Value &value) {
     auto range = meta_type.data();
 
-    for (entt::meta_data data : range) {
+    for (auto [id,  data] : range) {
         if (data.type() == entt::resolve<entt::entity>()) {
             // If the member is an entity, assign the local value or null if
             // it's unavailable.
@@ -53,7 +53,7 @@ void map_child_entity_meta(const entity_map &emap, const entt::meta_type &meta_t
                     map_child_entity_meta(emap, pair.second.type(), val);
                 }
             }
-        } else if (auto child_type = entt::resolve(data.id()); child_type) {
+        } else if (auto child_type = entt::resolve(id); child_type) {
             // If the member is another type registered in entt::meta, call this
             // function recursively to map the entities contained in it.
             auto child_value = data.get(entt::meta_handle(value));
@@ -66,7 +66,7 @@ template<typename Value>
 void set_invalid_child_entity_to_null_meta(const entt::registry &registry, const entt::meta_type &meta_type, Value &value) {
     auto range = meta_type.data();
 
-    for (entt::meta_data data : range) {
+    for (auto [id, data] : range) {
         if (data.type() == entt::resolve<entt::entity>()) {
             auto entity = data.get(entt::meta_handle(value)).cast<entt::entity>();
 
@@ -85,7 +85,7 @@ void set_invalid_child_entity_to_null_meta(const entt::registry &registry, const
                     set_invalid_child_entity_to_null_meta(registry, elem.type(), elem);
                 }
             }
-        } else if (auto child_type = entt::resolve(data.id()); child_type) {
+        } else if (auto child_type = entt::resolve(id); child_type) {
             // If the member is another type registered in entt::meta, call this
             // function recursively to set the invalid entities contained in it
             // to null.

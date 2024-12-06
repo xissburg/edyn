@@ -34,14 +34,14 @@ entt::sparse_set collect_islands_from_residents(entt::registry &registry, It fir
             auto [resident] = resident_view.get(entity);
 
             if (resident.island_entity != entt::null && !island_entities.contains(resident.island_entity)) {
-                island_entities.emplace(resident.island_entity);
+                island_entities.push(resident.island_entity);
             }
         } else if (multi_resident_view.contains(entity)) {
             auto [resident] = multi_resident_view.get(entity);
 
             for (auto island_entity : resident.island_entities) {
                 if (!island_entities.contains(island_entity)) {
-                    island_entities.emplace(island_entity);
+                    island_entities.push(island_entity);
                 }
             }
         }
