@@ -49,7 +49,7 @@ $ make
 
 ## Windows and Visual Studio 2019
 
-After cloning the repo using [Git Bash](https://git-scm.com/downloads/win), enter the following commands:
+After cloning the repo using [Git Bash](https://git-scm.com/downloads/win) and assuming [Conan 2.x](https://conan.io/) is installed, enter the following commands:
 ```
 $ conan install .
 $ cmake -S . -B build/generators -G "Visual Studio 16 2019" -DCMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake
