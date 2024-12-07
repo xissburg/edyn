@@ -10,41 +10,24 @@ _Edyn_ is a compiled library.
 
 ## Requirements
 
-A compiler with C++17 support is required, along with `CMake` version 3.23.0 or above.
+A compiler with C++17 support, `CMake` version 3.23.0 or above and [Conan 2.0](https://conan.io/).
 
 Dependencies:
-- [EnTT](https://github.com/skypjack/entt) (installed via [Conan 2.0](https://conan.io/))
+- [EnTT](https://github.com/skypjack/entt) (installed via [Conan](https://conan.io/))
 
 ## Steps
 
-In the terminal, in the _Edyn_ directory, run:
+In the terminal, `cd` into the _Edyn_ directory and run:
 
 ```
-$ mkdir build
-$ cd build
-$ conan install ..
-$ cmake ..
-$ make
+$ conan install .
+$ conan build .
 ```
 
-Then you should find the library under `edyn/build/lib/`. Optionally, you can use `make install` to neatly package the library, in which case the files will be placed under `edyn/build/package`.
-
-It's also possible to use Conan to build the library:
-
+Then you should find the library under `build/Release/lib/`. Conan builds the optimized release version of the library by default. To build the debug version with assertions enabled, specify the build type and options:
 ```
-$ mkdir build
-$ cd build
-$ conan install ..
-$ conan build ..
-$ make
-```
-
-This will build the library in Release mode by default. Other build modes can be specified in the `conan build` command, e.g. to build it in Debug mode with assertions enabled:
-
-```
-$ conan install .. -s build_type=Debug -o enable_assert=True
-$ conan build ..
-$ make
+$ conan install . -s build_type=Debug
+$ conan build . -s build_type=Debug -o '&:enable_assert=True'
 ```
 
 ## Windows and Visual Studio 2019
