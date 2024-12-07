@@ -161,7 +161,7 @@ void enqueue_task_default(task_delegate_t task, unsigned size, task_completion_d
 
     // Size of chunk that will be processed per job iteration.
     auto count_per_worker_ceil = size / num_workers + (size % num_workers != 0);
-    auto chunk_size = std::max(count_per_worker_ceil, 1ul);
+    auto chunk_size = std::max(count_per_worker_ceil, 1ull);
 
     // Number of jobs that will be dispatched. Must not be greater than number
     // of workers.
@@ -187,8 +187,8 @@ void enqueue_task_default(task_delegate_t task, unsigned size, task_completion_d
 void enqueue_task_wait_default(task_delegate_t task, unsigned size) {
     auto &dispatcher = job_dispatcher::global();
     auto num_workers = dispatcher.num_workers();
-    auto chunk_size = std::max(size / (num_workers + 1), 1ul);
-    auto num_jobs = std::min(num_workers, size - 1ul);
+    auto chunk_size = std::max(size / (num_workers + 1), 1ull);
+    auto num_jobs = std::min(num_workers, size - 1ull);
     auto context = parallel_for_context{0u, size, 1u, chunk_size, num_jobs, task};
 
     auto child_job = job();
