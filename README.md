@@ -10,10 +10,10 @@ _Edyn_ is a compiled library.
 
 ## Requirements
 
-A compiler with C++17 support is required, along with `CMake` version 3.12.4 or above.
+A compiler with C++17 support is required, along with `CMake` version 3.23.0 or above.
 
 Dependencies:
-- [EnTT](https://github.com/skypjack/entt) (installed via [Conan](https://conan.io/))
+- [EnTT](https://github.com/skypjack/entt) (installed via [Conan 2.0](https://conan.io/))
 
 ## Steps
 
@@ -49,7 +49,13 @@ $ make
 
 ## Windows and Visual Studio 2019
 
-After running `cmake ..`, the _Edyn.sln_ solution should be in the _build_ directory. Open it and it should be ready to build the library. It's important to note whether you want to build it as a static or dynamic library. It's is set to dynamic by default in VS2019. If you want to build it as a static library, you'll have to open the project properties (`Alt Enter`) and under `Configuration Properties > C/C++ > Code Generation > Runtime Library` select `Multi-threaded Debug (/MTd)` for debug builds and `Multi-thread (/MT)` for release builds.
+After cloning the repo using [Git Bash](https://git-scm.com/downloads/win), enter the following commands:
+```
+$ conan install .
+$ cmake -S . -B build/generators -G "Visual Studio 16 2019" -DCMAKE_TOOLCHAIN_FILE=conan_toolchain.cmake
+```
+
+The _Edyn.sln_ solution should be in the _build/generators_ directory. Open it and it should be ready to build the library. It's important to note whether you want to build it as a static or dynamic library. It's is set to dynamic by default in VS2019. If you want to build it as a static library, you'll have to open the project properties (`Alt Enter`) and under `Configuration Properties > C/C++ > Code Generation > Runtime Library` select `Multi-threaded Debug (/MTd)` for debug builds and `Multi-thread (/MT)` for release builds.
 
 When linking your application against _Edyn_ you'll also have to link `winmm.lib` because it needs the `timeGetTime()` function.
 
