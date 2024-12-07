@@ -73,7 +73,7 @@ class EdynConan(ConanFile):
     def requirements(self):
         self.requires("entt/3.14.0", transitive_headers=True)
         if self.options.build_tests:
-            self.requires("gtest/1.11.0", private=True)
+            self.requires("gtest/1.11.0")
 
     def validate(self):
         if self.settings.compiler.get_safe("cppstd"):
