@@ -2,8 +2,10 @@
 #define EDYN_NETWORKING_AABB_OF_INTEREST_HPP
 
 #include "edyn/comp/aabb.hpp"
+#include <entt/entity/fwd.hpp>
 #include <entt/signal/sigh.hpp>
 #include <entt/entity/sparse_set.hpp>
+#include <unordered_map>
 #include <vector>
 
 namespace edyn {
@@ -25,6 +27,10 @@ struct aabb_of_interest {
     // and so they get cleared up in every update and should not be modified.
     std::vector<entt::entity> entities_entered;
     std::vector<entt::entity> entities_exited;
+
+    std::unordered_map<entt::entity, unsigned> asset_entity_count;
+
+    static constexpr auto in_place_delete = true;
 };
 
 }

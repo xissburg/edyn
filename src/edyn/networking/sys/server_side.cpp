@@ -343,6 +343,7 @@ static void process_aabb_of_interest_entities_exited(entt::registry &registry,
 
     // Notify client of entities that have been removed from its AABB-of-interest.
     // Add assets separately. Do not include entities that belong to an asset.
+    // Only include asset if *all* of the asset's entities left the AABB.
     // With the asset entity the client will be able to delete all entities that
     // belong to it.
     entt::sparse_set assets;
@@ -353,6 +354,7 @@ static void process_aabb_of_interest_entities_exited(entt::registry &registry,
     for (auto entity : aabboi.entities_exited) {
         if (entry_view.contains(entity)) {
             auto [entry] = entry_view.get(entity);
+            --aabboi.asset_entity_count[entry.asset_entity];
 
             if (!assets.contains(entry.asset_entity)) {
                 assets.push(entry.asset_entity);
@@ -370,12 +372,22 @@ static void process_aabb_of_interest_entities_exited(entt::registry &registry,
         }
     }
 
-    auto packet = packet::entity_exited{};
-    packet.entities = std::move(entities);
-    packet.entities.insert(packet.entities.end(), assets.begin(), assets.end());
+    // Do not include asset in packet if any of its entities are still
+    // intersecting the AABB.
+    for (auto asset_entity : assets) {
+        if (aabboi.asset_entity_count.at(asset_entity) > 0) {
+            assets.remove(asset_entity);
+        }
+    }
 
-    auto &ctx = registry.ctx().get<server_network_context>();
-    ctx.packet_signal.publish(client_entity, packet::edyn_packet{std::move(packet)});
+    if (!entities.empty() || !assets.empty()) {
+        auto packet = packet::entity_exited{};
+        packet.entities = std::move(entities);
+        packet.entities.insert(packet.entities.end(), assets.begin(), assets.end());
+
+        auto &ctx = registry.ctx().get<server_network_context>();
+        ctx.packet_signal.publish(client_entity, packet::edyn_packet{std::move(packet)});
+    }
 
     // Do not forget to clear it after processing.
     aabboi.entities_exited.clear();
@@ -395,6 +407,12 @@ static void process_aabb_of_interest_entities_entered(entt::registry &registry,
     for (auto entity : aabboi.entities_entered) {
         if (entry_view.contains(entity)) {
             auto [entry] = entry_view.get(entity);
+
+            if (aabboi.asset_entity_count.count(entry.asset_entity) == 0) {
+                aabboi.asset_entity_count[entry.asset_entity] = 0;
+            }
+
+            ++aabboi.asset_entity_count[entry.asset_entity];
 
             if (!assets.contains(entry.asset_entity)) {
                 assets.push(entry.asset_entity);
