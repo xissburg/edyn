@@ -4,8 +4,10 @@
 #include <entt/entity/registry.hpp>
 #include "edyn/comp/graph_edge.hpp"
 #include "edyn/comp/graph_node.hpp"
+#include "edyn/constraints/constraint.hpp"
 #include "edyn/core/entity_pair.hpp"
 #include "edyn/math/vector3.hpp"
+#include "edyn/collision/contact_manifold.hpp"
 
 namespace edyn {
 
@@ -131,6 +133,43 @@ void create_graph_edge_for_constraint(entt::registry &registry, entt::entity ent
 template<typename... Constraints>
 void create_graph_edge_for_constraints(entt::registry &registry, entt::entity entity, entity_graph &graph, [[maybe_unused]] const std::tuple<Constraints...> &) {
     (create_graph_edge_for_constraint<Constraints>(registry, entity, graph), ...);
+}
+
+template<typename Constraint, typename It>
+void clear_applied_impulses_single(entt::registry &registry, It first, It last) {
+    auto con_view = registry.view<Constraint>();
+    auto manifold_view = registry.view<contact_manifold>();
+    std::vector<scalar> impulses(16, scalar{0});
+
+    for (; first != last; ++first) {
+        auto entity = *first;
+        if (!con_view.contains(entity)) continue;
+        auto &con = con_view.template get<Constraint>(entity);
+
+        if constexpr(std::is_same_v<Constraint, contact_constraint>) {
+            auto [manifold] = manifold_view.get(entity);
+            manifold.each_point([](contact_point &cp) {
+                cp.normal_impulse = 0;
+                cp.spin_friction_impulse = 0;
+                cp.normal_restitution_impulse = 0;
+
+                for (int i = 0; i < 2; ++i) {
+                    cp.friction_impulse[i] = 0;
+                    cp.rolling_friction_impulse[i] = 0;
+                    cp.friction_restitution_impulse[i] = 0;
+                }
+            });
+        } else {
+            con.store_applied_impulses(impulses);
+        }
+    }
+}
+
+template<typename It>
+void clear_applied_impulses(entt::registry &registry, It first, It last) {
+    std::apply([&](auto ... c) {
+        (clear_applied_impulses_single<decltype(c)>(registry, first, last), ...);
+    }, constraints_tuple);
 }
 
 }
