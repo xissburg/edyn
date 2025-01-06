@@ -3,7 +3,9 @@
 #include "edyn/comp/inertia.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/util/island_util.hpp"
+#include <entt/entity/fwd.hpp>
 #include <entt/entity/registry.hpp>
+#include <vector>
 
 namespace edyn {
 
@@ -24,6 +26,27 @@ void update_inertias(entt::registry &registry) {
 void update_inertia(entt::registry &registry, entt::entity entity) {
     auto view = registry.view<orientation, inertia_inv, inertia_world_inv, dynamic_tag>();
     update_inertia(entity, view);
+}
+
+template<typename It>
+void update_inertias(entt::registry &registry, It first, It last) {
+    auto view = registry.view<orientation, inertia_inv, inertia_world_inv, dynamic_tag>();
+
+    for (; first != last; ++first) {
+        auto entity = *first;
+
+        if (view.contains(entity)) {
+            update_inertia(entity, view);
+        }
+    }
+}
+
+void update_inertias(entt::registry &registry, const entt::sparse_set &entities) {
+    update_inertias(registry, entities.begin(), entities.end());
+}
+
+void update_inertias(entt::registry &registry, const std::vector<entt::entity> &entities) {
+    update_inertias(registry, entities.begin(), entities.end());
 }
 
 }

@@ -67,4 +67,26 @@ void update_rotated_meshes(entt::registry &registry) {
     }
 }
 
+template<typename It>
+void update_rotated_meshes(entt::registry &registry, It first, It last) {
+    auto rotated_view = registry.view<rotated_mesh_list>();
+    auto orn_view = registry.view<orientation>();
+
+    for (; first != last; ++first) {
+        auto entity = *first;
+
+        if (rotated_view.contains(entity)) {
+            update_rotated_mesh(entity, rotated_view, orn_view);
+        }
+    }
+}
+
+void update_rotated_meshes(entt::registry &registry, const entt::sparse_set &entities) {
+    update_rotated_meshes(registry, entities.begin(), entities.end());
+}
+
+void update_rotated_meshes(entt::registry &registry, const std::vector<entt::entity> &entities) {
+    update_rotated_meshes(registry, entities.begin(), entities.end());
+}
+
 }

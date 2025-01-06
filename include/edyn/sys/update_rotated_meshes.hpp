@@ -2,6 +2,7 @@
 #define EDYN_SYS_UPDATE_ROTATED_MESHES_HPP
 
 #include <entt/entity/fwd.hpp>
+#include <vector>
 
 namespace edyn {
 
@@ -15,6 +16,16 @@ struct quaternion;
  * @param registry Source of shapes.
  */
 void update_rotated_meshes(entt::registry &registry);
+
+/**
+ * @brief Updates the rotated mesh of the given entities.
+ * @param registry Data source.
+ * @param entities Entities to be updated.
+ */
+void update_rotated_meshes(entt::registry &registry, const entt::sparse_set &entities);
+
+/*! @copydoc update_rotated_meshes */
+void update_rotated_meshes(entt::registry &registry, const std::vector<entt::entity> &entities);
 
 /**
  * @brief Updates the rotated mesh of a single entity, which is assumed to have

@@ -3,8 +3,10 @@
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/aabb.hpp"
+#include "edyn/comp/shape_index.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/island.hpp"
+#include "edyn/shapes/shapes.hpp"
 #include "edyn/util/aabb_util.hpp"
 #include "edyn/util/island_util.hpp"
 #include <entt/entity/registry.hpp>
@@ -75,12 +77,47 @@ void update_aabbs(entt::registry &registry) {
     update_aabbs(registry, dynamic_shapes_tuple);
 }
 
-void update_island_aabbs(entt::registry &registry) {
+template<typename It>
+void update_aabbs_it(entt::registry &registry, It first, It last) {
+    auto tr_view = registry.view<position, orientation, shape_index, AABB>();
+    auto origin_view = registry.view<origin>();
+    auto shape_views_tuple = get_tuple_of_shape_views(registry);
+
+    for (; first != last; ++first) {
+        auto entity = *first;
+        if (tr_view.contains(entity)) {
+            auto &sh_idx = tr_view.template get<shape_index>(entity);
+            visit_shape(sh_idx, entity, shape_views_tuple, [&](auto &&shape) {
+                update_aabb(entity, shape, tr_view, origin_view);
+            });
+        }
+    }
+}
+
+void update_aabbs(entt::registry &registry, const entt::sparse_set &entities) {
+    update_aabbs_it(registry, entities.begin(), entities.end());
+}
+
+void update_aabbs(entt::registry &registry, const std::vector<entt::entity> &entities) {
+    update_aabbs_it(registry, entities.begin(), entities.end());
+}
+
+template<bool CheckContainment, typename It>
+void update_island_aabbs(entt::registry &registry, It first, It last) {
+    auto island_view = registry.view<island, island_AABB>();
     auto aabb_view = registry.view<AABB>();
     auto procedural_view = registry.view<procedural_tag>();
 
-    registry.view<island, island_AABB>(exclude_sleeping_disabled)
-        .each([&](island &island, island_AABB &aabb) {
+    for (; first != last; ++first) {
+        auto island_entity = *first;
+
+        if constexpr(CheckContainment) {
+            if (!island_view.contains(island_entity)) {
+                continue;
+            }
+        }
+
+        auto [island, aabb] = island_view.get(island_entity);
         auto is_first_node = true;
 
         for (auto entity : island.nodes) {
@@ -97,7 +134,20 @@ void update_island_aabbs(entt::registry &registry) {
                 aabb = {enclosing_aabb(aabb, node_aabb)};
             }
         }
-    });
+    }
+}
+
+void update_island_aabbs(entt::registry &registry) {
+    auto view = registry.view<island, island_AABB>(exclude_sleeping_disabled);
+    update_island_aabbs<false>(registry, view.begin(), view.end());
+}
+
+void update_island_aabbs(entt::registry &registry, const entt::sparse_set &entities) {
+    update_island_aabbs<true>(registry, entities.begin(), entities.end());
+}
+
+void update_island_aabbs(entt::registry &registry, const std::vector<entt::entity> &entities) {
+    update_island_aabbs<true>(registry, entities.begin(), entities.end());
 }
 
 }
