@@ -70,7 +70,7 @@ struct pool_snapshot_data_impl : public pool_snapshot_data {
     }
 
     void read(memory_input_archive &archive) override {
-        index_type num_entities;
+        auto num_entities = index_type{};
         archive(num_entities);
         entity_indices.resize(num_entities);
 
