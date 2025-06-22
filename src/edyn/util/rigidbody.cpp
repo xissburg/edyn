@@ -551,12 +551,14 @@ void rigidbody_replace_kind_tags(entt::registry &registry, entt::entity entity, 
 }
 
 void rigidbody_assert_supports_kind(entt::registry &registry, entt::entity entity, rigidbody_kind kind) {
+#ifndef EDYN_DISABLE_ASSERT
     if (kind == rigidbody_kind::rb_dynamic) {
         auto &mass = registry.get<edyn::mass>(entity);
         EDYN_ASSERT(mass > EDYN_EPSILON && mass < large_scalar, "Dynamic rigid body must have non-zero mass.");
         auto &inertia = registry.get<edyn::inertia>(entity);
         EDYN_ASSERT(inertia != matrix3x3_zero, "Dynamic rigid body must have non-zero inertia.");
     }
+#endif
 }
 
 void rigidbody_apply_kind(entt::registry &registry, entt::entity entity, rigidbody_kind kind,
