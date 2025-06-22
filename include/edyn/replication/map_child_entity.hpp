@@ -21,7 +21,7 @@ void map_child_entity_meta(const entity_map &emap, const entt::meta_type &meta_t
         if (data.type() == entt::resolve<entt::entity>()) {
             // If the member is an entity, assign the local value or null if
             // it's unavailable.
-            auto remote_entity = data.get(entt::meta_handle(value)).cast<entt::entity>();
+            auto remote_entity = data.get(entt::meta_handle(value)).template cast<entt::entity>();
             auto local_entity = entt::entity{entt::null};
 
             if (remote_entity != entt::null && emap.contains(remote_entity)) {
@@ -68,7 +68,7 @@ void set_invalid_child_entity_to_null_meta(const entt::registry &registry, const
 
     for (auto [id, data] : range) {
         if (data.type() == entt::resolve<entt::entity>()) {
-            auto entity = data.get(entt::meta_handle(value)).cast<entt::entity>();
+            auto entity = data.get(entt::meta_handle(value)).template cast<entt::entity>();
 
             if (entity != entt::null && !registry.valid(entity)) {
                 data.set(entt::meta_handle(value), entt::entity{entt::null});
