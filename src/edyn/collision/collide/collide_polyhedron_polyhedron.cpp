@@ -22,8 +22,9 @@ void max_support_direction(const polyhedron_shape &shA, const rotated_mesh &rota
     const auto &meshA = *shA.mesh;
     const auto &meshB = *shB.mesh;
 
-    for (auto face_idx : meshA.relevant_faces) {
-        auto normal_world = -rotatedA.normals[face_idx]; // Normal pointing towards A.
+    for (auto idx = 0u; idx < meshA.relevant_faces.size(); ++idx) {
+        auto normal_world = -rotatedA.relevant_normals[idx]; // Normal pointing towards A.
+        auto face_idx = meshA.relevant_faces[idx];
         auto vertexA = rotatedA.vertices[meshA.first_vertex_index(face_idx)];
         auto vertex_world = vertexA + posA;
         auto projA = dot(vertex_world, normal_world);
@@ -100,21 +101,19 @@ void collide(const polyhedron_shape &shA, const polyhedron_shape &shB,
     vector3 edge_dir;
 
     for (auto edge_idxA = 0u; edge_idxA < meshA.num_edges(); ++edge_idxA) {
-        auto vertex_idxA = meshA.get_edge_vertices(edge_idxA);
-        auto face_idxA = meshA.get_edge_faces(edge_idxA);
+        auto normalsA = rmeshA.get_edge_normals(edge_idxA);
+        auto verticesA = rmeshA.get_edge_vertices(edge_idxA);
+        verticesA[0] += posA;
+        verticesA[1] += posA;
 
-        vector3 normalsA[] = {rmeshA.normals[face_idxA[0]], rmeshA.normals[face_idxA[1]]};
-        vector3 verticesA[] = {rmeshA.vertices[vertex_idxA[0]] + posA,
-                               rmeshA.vertices[vertex_idxA[1]] + posA};
         auto edge_dirA = verticesA[0] - verticesA[1];
 
         for (auto edge_idxB = 0u; edge_idxB < meshB.num_edges(); ++edge_idxB) {
-            auto vertex_idxB = meshB.get_edge_vertices(edge_idxB);
-            auto face_idxB = meshB.get_edge_faces(edge_idxB);
+            auto normalsB = rmeshB.get_edge_normals(edge_idxB);
+            auto verticesB = rmeshB.get_edge_vertices(edge_idxB);
+            verticesB[0] += posB;
+            verticesB[1] += posB;
 
-            vector3 normalsB[] = {rmeshB.normals[face_idxB[0]], rmeshB.normals[face_idxB[1]]};
-            vector3 verticesB[] = {rmeshB.vertices[vertex_idxB[0]] + posB,
-                                   rmeshB.vertices[vertex_idxB[1]] + posB};
             auto edge_dirB = verticesB[0] - verticesB[1];
 
             // Negate normals due to the Minkowski _difference_.

@@ -44,6 +44,11 @@ struct convex_mesh {
     std::vector<uint32_t> relevant_faces;
     std::vector<uint32_t> relevant_edges;
 
+    std::vector<vector3> relevant_normals;
+
+    std::vector<vector3> edge_vertices;
+    std::vector<vector3> edge_normals;
+
     // Vertex adjacency information. The `neighbors_start` vector contains the
     // index where the indices start for the i-th vertex in the `neighbor_indices`
     // vector, which contains a sequence of neighboring vertex indices. The
@@ -175,6 +180,23 @@ struct convex_mesh {
 struct rotated_mesh {
     std::vector<vector3> vertices;
     std::vector<vector3> normals;
+    std::vector<vector3> relevant_normals;
+    std::vector<vector3> edge_vertices;
+    std::vector<vector3> edge_normals;
+
+    std::array<vector3, 2> get_edge_vertices(size_t idx) const {
+        return {
+            edge_vertices[idx * 2],
+            edge_vertices[idx * 2 + 1]
+        };
+    }
+
+    std::array<vector3, 2> get_edge_normals(size_t idx) const {
+        return {
+            edge_normals[idx * 2],
+            edge_normals[idx * 2 + 1]
+        };
+    }
 };
 
 /**

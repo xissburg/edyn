@@ -32,8 +32,8 @@ void convex_mesh::shift_to_centroid() {
 std::array<vector3, 2> convex_mesh::get_edge(size_t idx) const {
     EDYN_ASSERT(idx * 2 + 1 < edges.size());
     return {
-        vertices[edges[idx * 2 + 0]],
-        vertices[edges[idx * 2 + 1]]
+        edge_vertices[idx * 2 + 0],
+        edge_vertices[idx * 2 + 1]
     };
 }
 
@@ -42,8 +42,8 @@ std::array<vector3, 2> convex_mesh::get_rotated_edge(const rotated_mesh &rmesh,
     EDYN_ASSERT(idx * 2 + 1 < edges.size());
     EDYN_ASSERT(rmesh.vertices.size() == vertices.size());
     return {
-        rmesh.vertices[edges[idx * 2 + 0]],
-        rmesh.vertices[edges[idx * 2 + 1]]
+        rmesh.edge_vertices[idx * 2 + 0],
+        rmesh.edge_vertices[idx * 2 + 1]
     };
 }
 
@@ -147,6 +147,7 @@ void convex_mesh::calculate_edges() {
                     // as well.
                     EDYN_ASSERT(edge_faces[edge_idx * 2 + 1] == std::numeric_limits<uint32_t>::max());
                     edge_faces[edge_idx * 2 + 1] = face_idx;
+                    edge_normals[edge_idx * 2 + 1] = normals[face_idx];
                     break;
                 }
             }
@@ -156,6 +157,12 @@ void convex_mesh::calculate_edges() {
                 edges.push_back(vertex_idx1);
                 edge_faces.push_back(face_idx);
                 edge_faces.push_back(std::numeric_limits<uint32_t>::max());
+
+                edge_vertices.push_back(vertices[vertex_idx0]);
+                edge_vertices.push_back(vertices[vertex_idx1]);
+
+                edge_normals.push_back(normals[face_idx]);
+                edge_normals.push_back(vector3_zero);
             }
         }
     }
@@ -193,6 +200,7 @@ void convex_mesh::calculate_relevant_faces() {
 
         if (found_it == relevant_faces.end()) {
             relevant_faces.push_back(face_idx);
+            relevant_normals.push_back(normals[face_idx]);
         }
     }
 }
@@ -257,6 +265,9 @@ rotated_mesh make_rotated_mesh(const convex_mesh &mesh, const quaternion &orn) {
     auto rotated = rotated_mesh{};
     rotated.vertices.resize(mesh.vertices.size());
     rotated.normals.resize(mesh.normals.size());
+    rotated.relevant_normals.resize(mesh.relevant_faces.size());
+    rotated.edge_vertices.resize(mesh.edge_vertices.size());
+    rotated.edge_normals.resize(mesh.edge_normals.size());
 
     update_rotated_mesh(rotated, mesh, orn);
 

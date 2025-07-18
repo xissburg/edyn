@@ -16,6 +16,11 @@ static void update_rotated_mesh_vertices(rotated_mesh &rotated, const convex_mes
         auto &vertex_local = mesh.vertices[i];
         rotated.vertices[i] = rotate(orn, vertex_local);
     }
+
+    for (size_t i = 0; i < mesh.edge_vertices.size(); ++i) {
+        auto &vertex_local = mesh.edge_vertices[i];
+        rotated.edge_vertices[i] = rotate(orn, vertex_local);
+    }
 }
 
 static void update_rotated_mesh_normals(rotated_mesh &rotated, const convex_mesh &mesh,
@@ -25,6 +30,16 @@ static void update_rotated_mesh_normals(rotated_mesh &rotated, const convex_mesh
     for (size_t i = 0; i < mesh.normals.size(); ++i) {
         auto &normal_local = mesh.normals[i];
         rotated.normals[i] = rotate(orn, normal_local);
+    }
+
+    for (size_t i = 0; i < mesh.relevant_normals.size(); ++i) {
+        auto &normal_local = mesh.relevant_normals[i];
+        rotated.relevant_normals[i] = rotate(orn, normal_local);
+    }
+
+    for (size_t i = 0; i < mesh.edge_normals.size(); ++i) {
+        auto &normal_local = mesh.edge_normals[i];
+        rotated.edge_normals[i] = rotate(orn, normal_local);
     }
 }
 

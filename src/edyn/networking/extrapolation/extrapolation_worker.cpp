@@ -373,26 +373,12 @@ bool extrapolation_worker::begin_extrapolation(const extrapolation_request &requ
     }
 
     // Recalculate properties after setting initial state from server.
-    auto origin_view = m_registry.view<position, orientation, center_of_mass, origin>();
-
-    for (auto entity : entities) {
-        if (origin_view.contains(entity)) {
-            auto [pos, orn, com, orig] = origin_view.get(entity);
-            orig = to_world_space(-com, pos, orn);
-        }
-
-        if (m_registry.any_of<AABB>(entity)) {
-            update_aabb(m_registry, entity);
-        }
-
-        if (m_registry.any_of<dynamic_tag>(entity)) {
-            update_inertia(m_registry, entity);
-        }
-
-        if (m_registry.any_of<rotated_mesh_list>(entity)) {
-            update_rotated_mesh(m_registry, entity);
-        }
-    }
+    update_origins(m_registry, entities);
+    update_rotated_meshes(m_registry, entities);
+    update_aabbs(m_registry, entities);
+    auto island_entities = collect_islands_from_residents(m_registry, entities);
+    update_island_aabbs(m_registry, island_entities);
+    update_inertias(m_registry, entities);
 
     return true;
 }
