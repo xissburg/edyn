@@ -439,6 +439,8 @@ void extrapolation_worker::finish_extrapolation(const extrapolation_request &req
         m_entity_map.swap();
     }
 
+    result.terminated_early = m_terminated_early;
+
     auto &dispatcher = message_dispatcher::global();
     dispatcher.send<extrapolation_result>(request.destination, m_message_queue.identifier, std::move(result));
 }

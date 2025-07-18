@@ -559,11 +559,24 @@ static void destroy_remote_entities(entt::registry &registry, const std::vector<
     ctx.importing_entities = false;
 }
 
+static void notify_remote_entities_exited(entt::registry &registry, const std::vector<entt::entity> &entities) {
+    auto &ctx = registry.ctx().get<client_network_context>();
+
+    for (auto remote_entity : entities) {
+        if (!ctx.entity_map.contains(remote_entity)) continue;
+
+        auto local_entity = ctx.entity_map.at(remote_entity);
+        ctx.entity_exited_signal.publish(local_entity);
+    }
+}
+
 static void process_packet(entt::registry &registry, const packet::destroy_entity &packet) {
+    notify_remote_entities_exited(registry, packet.entities);
     destroy_remote_entities(registry, packet.entities);
 }
 
 static void process_packet(entt::registry &registry, const packet::entity_exited &packet) {
+    notify_remote_entities_exited(registry, packet.entities);
     destroy_remote_entities(registry, packet.entities);
 }
 

@@ -14,6 +14,7 @@
 #include "edyn/networking/comp/asset_entry.hpp"
 #include "edyn/networking/packet/asset_sync.hpp"
 #include "edyn/networking/packet/client_created.hpp"
+#include "edyn/networking/packet/destroy_entity.hpp"
 #include "edyn/networking/packet/edyn_packet.hpp"
 #include "edyn/networking/packet/entity_entered.hpp"
 #include "edyn/networking/packet/entity_exited.hpp"
@@ -380,16 +381,24 @@ static void process_aabb_of_interest_entities_exited(entt::registry &registry,
         }
     }
 
-    if (!entities.empty() || !assets.empty()) {
+    if (!assets.empty()) {
         auto packet = packet::entity_exited{};
-        packet.entities = std::move(entities);
         packet.entities.insert(packet.entities.end(), assets.begin(), assets.end());
 
         auto &ctx = registry.ctx().get<server_network_context>();
         ctx.packet_signal.publish(client_entity, packet::edyn_packet{std::move(packet)});
     }
 
-    // Do not forget to clear it after processing.
+    if (!entities.empty()) {
+        auto packet = packet::destroy_entity{};
+        packet.timestamp = get_simulation_timestamp(registry);
+        packet.entities = std::move(entities);
+
+        auto &ctx = registry.ctx().get<server_network_context>();
+        ctx.packet_signal.publish(client_entity, packet::edyn_packet{std::move(packet)});
+    }
+
+    // Must not forget to clear it after processing.
     aabboi.entities_exited.clear();
 }
 

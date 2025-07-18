@@ -78,6 +78,12 @@ struct client_network_context {
         return entt::sink{entity_entered_signal};
     }
 
+    using entity_exited_func_t = void(entt::entity);
+    entt::sigh<entity_exited_func_t> entity_exited_signal;
+    auto entity_exited_sink() {
+        return entt::sink{entity_exited_signal};
+    }
+
     entt::sigh<void(entt::entity)> instantiate_asset_signal;
     auto instantiate_asset_sink() {
         return entt::sink{instantiate_asset_signal};

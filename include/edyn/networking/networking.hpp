@@ -154,6 +154,17 @@ entt::sink<entt::sigh<void(entt::entity)>>
 network_client_entity_entered_sink(entt::registry &);
 
 /**
+ * @brief Notify client of an entity leaving its AABB of interest. This only
+ * applies to assets and its only triggered when all entities that belong to
+ * an asset have left the AABB.
+ * @param registry Data source.
+ * @return Sink which is triggered when an asset completely leaves the client's
+ * AABB of interest.
+ */
+entt::sink<entt::sigh<void(entt::entity)>>
+network_client_entity_exited_sink(entt::registry &);
+
+/**
  * @brief Ask client to instantiate an asset. Invoked when the initial asset
  * state is received and the asset is ready to be instantiated with the correct
  * initial state.

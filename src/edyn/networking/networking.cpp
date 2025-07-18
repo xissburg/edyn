@@ -123,6 +123,12 @@ network_client_entity_entered_sink(entt::registry &registry) {
 }
 
 entt::sink<entt::sigh<void(entt::entity)>>
+network_client_entity_exited_sink(entt::registry &registry) {
+    auto &ctx = registry.ctx().get<client_network_context>();
+    return ctx.entity_exited_sink();
+}
+
+entt::sink<entt::sigh<void(entt::entity)>>
 network_client_instantiate_asset_sink(entt::registry &registry) {
     auto &ctx = registry.ctx().get<client_network_context>();
     return ctx.instantiate_asset_sink();
