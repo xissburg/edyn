@@ -186,6 +186,10 @@ static void prepare_constraints(entt::registry &registry, scalar dt, bool mt) {
         }, con_view_tuple);
     };
 
+    // Ensure dummy delta velocities are always zero.
+    dummy_dv = vector3_zero;
+    dummy_dw = vector3_zero;
+
     const size_t max_sequential_size = 4;
     auto num_constraints = calculate_view_size(cache_view);
 

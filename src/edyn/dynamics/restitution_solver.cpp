@@ -387,6 +387,10 @@ void solve_restitution(entt::registry &registry, scalar dt) {
     auto &settings = registry.ctx().get<edyn::settings>();
     auto island_view = registry.view<island_tag>(exclude_sleeping_disabled);
 
+    // Ensure dummy delta velocities are always zero.
+    dummy_dv = vector3_zero;
+    dummy_dw = vector3_zero;
+
     for (unsigned i = 0; i < settings.num_restitution_iterations; ++i) {
         bool all_solved = true;
 
