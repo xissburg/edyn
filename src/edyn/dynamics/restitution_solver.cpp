@@ -80,6 +80,9 @@ scalar get_manifold_min_relvel(const contact_manifold &manifold, const BodyView 
     return min_relvel;
 }
 
+static thread_local delta_linvel dummy_dv {vector3_zero};
+static thread_local delta_angvel dummy_dw {vector3_zero};
+
 bool solve_restitution_iteration(entt::registry &registry, entt::entity island_entity,
                                  scalar dt, unsigned individual_iterations) {
     auto body_view = registry.view<position, orientation, linvel, angvel,
@@ -149,8 +152,8 @@ bool solve_restitution_iteration(entt::registry &registry, entt::entity island_e
         for (auto manifold_entity : manifold_entities) {
             auto &manifold = manifold_view.get<contact_manifold>(manifold_entity);
 
-            auto [posA, ornA, dvA, dwA] = body_view.get<position, orientation, delta_linvel, delta_angvel>(manifold.body[0]);
-            auto [posB, ornB, dvB, dwB] = body_view.get<position, orientation, delta_linvel, delta_angvel>(manifold.body[1]);
+            auto [posA, ornA] = body_view.get<position, orientation>(manifold.body[0]);
+            auto [posB, ornB] = body_view.get<position, orientation>(manifold.body[1]);
 
             auto originA = origin_view.contains(manifold.body[0]) ?
                 origin_view.get<origin>(manifold.body[0]) : static_cast<vector3>(posA);
@@ -164,6 +167,8 @@ bool solve_restitution_iteration(entt::registry &registry, entt::entity island_e
             vector3 angvelA, angvelB;
             scalar inv_mA, inv_mB;
             matrix3x3 inv_IA, inv_IB;
+            delta_linvel *dvA, *dvB;
+            delta_angvel *dwA, *dwB;
 
             if (procedural_view.contains(manifold.body[0])) {
                 inv_mA = body_view.get<mass_inv>(manifold.body[0]);
@@ -179,6 +184,14 @@ bool solve_restitution_iteration(entt::registry &registry, entt::entity island_e
             } else {
                 linvelA = body_view.get<linvel>(manifold.body[0]);
                 angvelA = body_view.get<angvel>(manifold.body[0]);
+            }
+
+            if (procedural_view.contains(manifold.body[0])) {
+                dvA = &body_view.template get<delta_linvel>(manifold.body[0]);
+                dwA = &body_view.template get<delta_angvel>(manifold.body[0]);
+            } else {
+                dvA = &dummy_dv;
+                dwA = &dummy_dw;
             }
 
             if (procedural_view.contains(manifold.body[1])) {
@@ -197,6 +210,14 @@ bool solve_restitution_iteration(entt::registry &registry, entt::entity island_e
                 angvelB = body_view.get<angvel>(manifold.body[1]);
             }
 
+            if (procedural_view.contains(manifold.body[1])) {
+                dvB = &body_view.template get<delta_linvel>(manifold.body[1]);
+                dwB = &body_view.template get<delta_angvel>(manifold.body[1]);
+            } else {
+                dvB = &dummy_dv;
+                dwB = &dummy_dw;
+            }
+
             // Create constraint rows for non-penetration constraints for each
             // contact point.
             for (size_t pt_idx = 0; pt_idx < manifold.num_points; ++pt_idx) {
@@ -213,8 +234,8 @@ bool solve_restitution_iteration(entt::registry &registry, entt::entity island_e
                 normal_row.J = {normal, cross(rA, normal), -normal, -cross(rB, normal)};
                 normal_row.inv_mA = inv_mA; normal_row.inv_IA = inv_IA;
                 normal_row.inv_mB = inv_mB; normal_row.inv_IB = inv_IB;
-                normal_row.dvA = &dvA; normal_row.dwA = &dwA;
-                normal_row.dvB = &dvB; normal_row.dwB = &dwB;
+                normal_row.dvA = dvA; normal_row.dwA = dwA;
+                normal_row.dvB = dvB; normal_row.dwB = dwB;
                 normal_row.lower_limit = 0;
                 normal_row.upper_limit = large_scalar;
 
@@ -280,6 +301,7 @@ bool solve_restitution_iteration(entt::registry &registry, entt::entity island_e
             auto &manifold = manifold_view.get<contact_manifold>(manifold_entity);
 
             for (auto body_entity : manifold.body) {
+                if (static_view.contains(body_entity)) continue;
                 // There are duplicates among all manifold bodies but this
                 // operation is idempotent since the delta velocity is set
                 // to zero.
@@ -298,9 +320,17 @@ bool solve_restitution_iteration(entt::registry &registry, entt::entity island_e
     // (i.e. static and kinematic rigid bodies).
     auto &graph = registry.ctx().get<entity_graph>();
     entity_graph::index_type start_node_index;
+    scalar speed_sqrA = 0, speed_sqrB = 0;
 
-    if (length_sqr(body_view.get<linvel>(fastest_manifold.body[0])) >
-        length_sqr(body_view.get<linvel>(fastest_manifold.body[1]))) {
+    if (!static_view.contains(fastest_manifold.body[0])){
+        speed_sqrA = length_sqr(body_view.get<linvel>(fastest_manifold.body[0]));
+    }
+
+    if (!static_view.contains(fastest_manifold.body[1])){
+        speed_sqrB = length_sqr(body_view.get<linvel>(fastest_manifold.body[1]));
+    }
+
+    if (speed_sqrA > speed_sqrB) {
         auto &node0 = registry.get<graph_node>(fastest_manifold.body[0]);
 
         if (graph.is_connecting_node(node0.node_index)) {

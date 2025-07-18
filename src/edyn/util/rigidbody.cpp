@@ -71,18 +71,9 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         auto basis = to_matrix3x3(def.orientation);
         auto I_inv_world = basis * I_inv * transpose(basis);
         registry.emplace<inertia_world_inv>(entity, I_inv_world);
-    } else {
-        registry.emplace<mass>(entity, EDYN_SCALAR_MAX);
-        registry.emplace<mass_inv>(entity, scalar(0));
-        registry.emplace<inertia>(entity, matrix3x3_zero);
-        registry.emplace<inertia_inv>(entity, matrix3x3_zero);
-        registry.emplace<inertia_world_inv>(entity, matrix3x3_zero);
     }
 
-    if (def.kind == rigidbody_kind::rb_static) {
-        registry.emplace<linvel>(entity, vector3_zero);
-        registry.emplace<angvel>(entity, vector3_zero);
-    } else {
+    if (def.kind != rigidbody_kind::rb_static) {
         registry.emplace<linvel>(entity, def.linvel);
         registry.emplace<angvel>(entity, def.angvel);
     }
@@ -209,9 +200,9 @@ void clear_rigidbody(entt::registry &registry, entt::entity entity) {
 
     registry.remove<material, gravity, center_of_mass>(entity);
 
-    registry.erase<linvel, angvel>(entity);
-    registry.erase<mass, mass_inv>(entity);
-    registry.erase<inertia, inertia_inv, inertia_world_inv>(entity);
+    registry.remove<linvel, angvel>(entity);
+    registry.remove<mass, mass_inv>(entity);
+    registry.remove<inertia, inertia_inv, inertia_world_inv>(entity);
 
     registry.remove<present_position, present_orientation>(entity);
     registry.erase<position, orientation>(entity);

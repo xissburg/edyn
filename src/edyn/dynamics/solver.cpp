@@ -56,14 +56,17 @@ solver::~solver() {
     m_registry->clear<constraint_row_prep_cache>();
 }
 
+static thread_local delta_linvel dummy_dv {vector3_zero};
+static thread_local delta_angvel dummy_dw {vector3_zero};
+
 template<typename C, typename BodyView, typename OriginView, typename ManifoldView, typename ProceduralView, typename StaticView>
 void invoke_prepare_constraint(entt::registry &registry, entt::entity entity, C &&con,
                                constraint_row_prep_cache &cache, scalar dt,
                                const BodyView &body_view, const OriginView &origin_view,
                                const ManifoldView &manifold_view, const ProceduralView &procedural_view,
                                const StaticView &static_view) {
-    auto [posA, ornA, dvA, dwA] = body_view.template get<position, orientation, delta_linvel, delta_angvel>(con.body[0]);
-    auto [posB, ornB, dvB, dwB] = body_view.template get<position, orientation, delta_linvel, delta_angvel>(con.body[1]);
+    auto [posA, ornA] = body_view.template get<position, orientation>(con.body[0]);
+    auto [posB, ornB] = body_view.template get<position, orientation>(con.body[1]);
 
     // Get velocity from registry for non-static entities (dynamic and kinematic).
     // Get mass and inertia from registry for procedural entities (dynamic only).
@@ -72,6 +75,8 @@ void invoke_prepare_constraint(entt::registry &registry, entt::entity entity, C 
     vector3 angvelA, angvelB;
     scalar inv_mA, inv_mB;
     matrix3x3 inv_IA, inv_IB;
+    delta_linvel *dvA, *dvB;
+    delta_angvel *dwA, *dwB;
 
     if (procedural_view.contains(con.body[0])) {
         inv_mA = body_view.template get<mass_inv>(con.body[0]);
@@ -89,6 +94,14 @@ void invoke_prepare_constraint(entt::registry &registry, entt::entity entity, C 
         angvelA = body_view.template get<angvel>(con.body[0]);
     }
 
+    if (procedural_view.contains(con.body[0])) {
+        dvA = &body_view.template get<delta_linvel>(con.body[0]);
+        dwA = &body_view.template get<delta_angvel>(con.body[0]);
+    } else {
+        dvA = &dummy_dv;
+        dwA = &dummy_dw;
+    }
+
     if (procedural_view.contains(con.body[1])) {
         inv_mB = body_view.template get<mass_inv>(con.body[1]);
         inv_IB = body_view.template get<inertia_world_inv>(con.body[1]);
@@ -103,6 +116,14 @@ void invoke_prepare_constraint(entt::registry &registry, entt::entity entity, C 
     } else {
         linvelB = body_view.template get<linvel>(con.body[1]);
         angvelB = body_view.template get<angvel>(con.body[1]);
+    }
+
+    if (procedural_view.contains(con.body[1])) {
+        dvB = &body_view.template get<delta_linvel>(con.body[1]);
+        dwB = &body_view.template get<delta_angvel>(con.body[1]);
+    } else {
+        dvB = &dummy_dv;
+        dwB = &dummy_dw;
     }
 
     auto originA = origin_view.contains(con.body[0]) ?
@@ -133,8 +154,8 @@ void invoke_prepare_constraint(entt::registry &registry, entt::entity entity, C 
         auto &row = cache.rows[i].row;
         row.inv_mA = inv_mA; row.inv_IA = inv_IA;
         row.inv_mB = inv_mB; row.inv_IB = inv_IB;
-        row.dvA = &dvA; row.dwA = &dwA;
-        row.dvB = &dvB; row.dwB = &dwB;
+        row.dvA = dvA; row.dwA = dwA;
+        row.dvB = dvB; row.dwB = dwB;
 
         auto &options = cache.rows[i].options;
         prepare_row(row, options, linvelA, angvelA, linvelB, angvelB);
