@@ -9,6 +9,7 @@
 #include "edyn/networking/comp/action_history.hpp"
 #include "edyn/networking/comp/asset_ref.hpp"
 #include "edyn/networking/comp/discontinuity.hpp"
+#include "edyn/networking/extrapolation/extrapolation_context.hpp"
 #include "edyn/networking/extrapolation/extrapolation_operation.hpp"
 #include "edyn/networking/extrapolation/extrapolation_result.hpp"
 #include "edyn/networking/networking_external.hpp"
@@ -132,6 +133,7 @@ static void on_extrapolation_result(entt::registry &registry, message<extrapolat
 
 void init_network_client(entt::registry &registry) {
     auto &ctx = registry.ctx().emplace<client_network_context>(registry);
+    registry.ctx().emplace<extrapolation_context>();
 
     registry.on_construct<networked_tag>().connect<&on_construct_networked_entity>();
     registry.on_destroy<networked_tag>().connect<&on_destroy_networked_entity>();
@@ -290,8 +292,10 @@ static void dispatch_extrapolations(entt::registry &registry) {
     }
 
     auto &dispatcher = message_dispatcher::global();
+    auto &extr_ctx = registry.ctx().get<extrapolation_context>();
 
     for (auto &req : ctx.pending_extrapolations) {
+        req.context = extr_ctx;
         dispatcher.send<extrapolation_request>({"extrapolation_worker"},
                                                ctx.message_queue.identifier,
                                                std::move(req));

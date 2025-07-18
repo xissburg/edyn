@@ -13,6 +13,7 @@
 #include "edyn/context/settings.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
 #include "edyn/networking/context/client_network_context.hpp"
+#include "edyn/networking/extrapolation/extrapolation_context.hpp"
 #include "edyn/networking/extrapolation/extrapolation_operation.hpp"
 #include "edyn/networking/extrapolation/extrapolation_request.hpp"
 #include "edyn/networking/settings/client_network_settings.hpp"
@@ -60,6 +61,7 @@ extrapolation_worker::extrapolation_worker(const settings &settings,
     m_registry.ctx().emplace<edyn::settings>(settings);
     m_registry.ctx().emplace<registry_operation_context>(reg_op_ctx);
     m_registry.ctx().emplace<material_mix_table>(material_table);
+    m_registry.ctx().emplace<extrapolation_context>();
 
     m_message_queue.sink<extrapolation_request>().connect<&extrapolation_worker::on_extrapolation_request>(*this);
     m_message_queue.sink<extrapolation_operation_create>().connect<&extrapolation_worker::on_extrapolation_operation_create>(*this);
@@ -364,6 +366,8 @@ bool extrapolation_worker::begin_extrapolation(const extrapolation_request &requ
     // Only necessary to include entities in the snapshot since these are the
     // only ones which changed.
     m_modified_comp->export_remote_state(snapshot_entities);
+
+    m_registry.ctx().get<extrapolation_context>() = std::move(request.context);
 
     // Invoke pre-extrapolation callback after setting up initial state.
     auto &client_settings = std::get<client_network_settings>(settings.network_settings);
