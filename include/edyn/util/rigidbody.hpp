@@ -121,10 +121,21 @@ void rigidbody_apply_impulse(entt::registry &, entt::entity,
 void rigidbody_apply_torque_impulse(entt::registry &, entt::entity,
                                     const vector3 &torque_impulse);
 
-// TODO: Review and document these functions that properly handle kinematic movement.
-void update_kinematic_position(entt::registry &, entt::entity, const vector3 &, scalar dt);
-void update_kinematic_orientation(entt::registry &, entt::entity, const quaternion &, scalar dt);
-void clear_kinematic_velocities(entt::registry &);
+/**
+ * @brief Utility to move a kinematic body.
+ * @remark When a kinematic moves, it's important to assign a velocity that
+ * equals the displacement divided by time. This ensures constraints and
+ * contacts will behave correctly.
+ * @param registry Data source.
+ * @param entity Kinematic rigid body entity.
+ * @param pos Position.
+ * @param orn Orientation.
+ */
+void set_kinematic_position(entt::registry &, entt::entity, const vector3 &pos, scalar dt);
+
+/*! @copydoc set_kinematic_position */
+void set_kinematic_orientation(entt::registry &, entt::entity, const quaternion &orn, scalar dt);
+
 
 bool validate_rigidbody(entt::registry &, entt::entity &);
 

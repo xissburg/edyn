@@ -233,29 +233,45 @@ void rigidbody_apply_torque_impulse(entt::registry &registry, entt::entity entit
     });
 }
 
-void update_kinematic_position(entt::registry &registry, entt::entity entity, const vector3 &pos, scalar dt) {
+void set_kinematic_position(entt::registry &registry, entt::entity entity, const vector3 &pos, scalar dt) {
     EDYN_ASSERT(registry.any_of<kinematic_tag>(entity));
     auto &curpos = registry.get<position>(entity);
-    auto &vel = registry.get<linvel>(entity);
-    vel = (pos - curpos) / dt;
+
+    registry.patch<linvel>(entity, [&](linvel &vel) {
+        vel = (pos - curpos) / dt;
+    });
+
     curpos = pos;
+    registry.patch<position>(entity);
 }
 
-void update_kinematic_orientation(entt::registry &registry, entt::entity entity, const quaternion &orn, scalar dt) {
+void set_kinematic_orientation(entt::registry &registry, entt::entity entity, const quaternion &orn, scalar dt) {
     EDYN_ASSERT(registry.any_of<kinematic_tag>(entity));
     auto &curorn = registry.get<orientation>(entity);
-    auto q = normalize(conjugate(curorn) * orn);
-    auto &vel = registry.get<angvel>(entity);
-    vel = (quaternion_axis(q) * quaternion_angle(q)) / dt;
-    curorn = orn;
-}
 
-void clear_kinematic_velocities(entt::registry &registry) {
-    auto view = registry.view<kinematic_tag, linvel, angvel>();
-    view.each([](linvel &v, angvel &w) {
-        v = vector3_zero;
-        w = vector3_zero;
+    registry.patch<angvel>(entity, [&](angvel &vel) {
+        // Rotation that takes current orientation to new.
+        auto r = orn * conjugate(curorn);
+
+        // Calculate angular velocity doing the inverse of what
+        // edyn::quaternion::integrate does.
+        const auto ws = std::acos(r.w) / (0.5f * dt);
+        const auto min_ws = scalar(0.001);
+        constexpr auto half = scalar(0.5);
+        scalar t;
+
+        if (ws < min_ws) {
+            constexpr auto k = scalar(1) / scalar(48);
+            t = half * dt - dt * dt * dt * k * ws * ws;
+        } else {
+            t = std::sin(half * ws * dt) / ws;
+        }
+
+        vel = edyn::vector3 {r.x, r.y, r.z} / t;
     });
+
+    curorn = orn;
+    registry.patch<orientation>(entity);
 }
 
 bool validate_rigidbody(entt::registry &registry, entt::entity &entity) {
