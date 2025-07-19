@@ -27,9 +27,9 @@ TEST(networking_test, input_state_history) {
     registry.emplace<input>(ent2, 997);
 
     auto entities = entt::sparse_set{};
-    entities.emplace(ent0);
-    entities.emplace(ent1);
-    entities.emplace(ent2);
+    entities.push(ent0);
+    entities.push(ent1);
+    entities.push(ent2);
 
     // Entities must be networked to make this work.
     for (auto entity : entities) {

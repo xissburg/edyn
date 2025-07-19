@@ -74,7 +74,7 @@ class EdynConan(ConanFile):
     def requirements(self):
         self.requires("entt/3.14.0", transitive_headers=True)
         if self.options.build_tests:
-            self.requires("gtest/1.11.0")
+            self.requires("gtest/1.16.0")
 
     def validate(self):
         if self.settings.compiler.get_safe("cppstd"):
@@ -93,7 +93,7 @@ class EdynConan(ConanFile):
         tc.variables["EDYN_CONFIG_DOUBLE"] = self.options.floating_type == "double"
         tc.variables["EDYN_INSTALL"] = True
         tc.variables["EDYN_BUILD_EXAMPLES"] = False
-        tc.variables["EDYN_BUILD_TESTS"] = False
+        tc.variables["EDYN_BUILD_TESTS"] = self.options.build_tests
         tc.variables["CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS"] = True
         tc.variables["EDYN_DISABLE_ASSERT"] = not self.options.enable_assert
         tc.variables["EDYN_ENABLE_SANITIZER"] = self.options.enable_sanitizer

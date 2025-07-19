@@ -2,11 +2,6 @@
 #include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/shapes/create_paged_triangle_mesh.hpp"
 
-class triangle_mesh_page_loader: public edyn::triangle_mesh_page_loader_base {
-public:
-    void load(edyn::paged_triangle_mesh *trimesh, size_t index) override {}
-};
-
 TEST(test_paged_trimesh, voronoi_regions) {
     edyn::job_dispatcher::global().start(1);
 
@@ -26,14 +21,14 @@ TEST(test_paged_trimesh, voronoi_regions) {
     indices.insert(indices.end(), {3, 0, 4});
     indices.insert(indices.end(), {0, 5, 1});
 
-    auto loader = std::make_shared<triangle_mesh_page_loader>();
-    auto trimesh = edyn::paged_triangle_mesh(loader);
-    edyn::create_paged_triangle_mesh(trimesh, vertices.begin(), vertices.end(), indices.begin(), indices.end(), 2, {}, {});
+    auto input = std::make_shared<edyn::paged_triangle_mesh_file_input_archive>("terrain_large.bin", &edyn::enqueue_task_default);
+    auto trimesh = std::make_shared<edyn::paged_triangle_mesh>(std::static_pointer_cast<edyn::triangle_mesh_page_loader_base>(input));
+    edyn::create_paged_triangle_mesh(*trimesh, vertices.begin(), vertices.end(), indices.begin(), indices.end(), 2, {}, {}, &edyn::enqueue_task_wait_default);
 
     auto offset = edyn::vector3_one * 0.01f;
     auto vertex_aabb = edyn::AABB{vertices[4] - offset, vertices[4] + offset};
-    trimesh.visit_triangles(vertex_aabb, [&](size_t mesh_idx, size_t tri_idx) {
-        auto submesh = trimesh.get_submesh(mesh_idx);
+    trimesh->visit_triangles(vertex_aabb, [&](size_t mesh_idx, size_t tri_idx) {
+        auto submesh = trimesh->get_submesh(mesh_idx);
         auto tri_vertices = submesh->get_triangle_vertices(tri_idx);
 
         for (auto i = 0; i < 3; ++i) {

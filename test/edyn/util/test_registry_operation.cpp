@@ -45,7 +45,7 @@ struct comp_with_entity {
 
 TEST(test_registry_operation, test_components) {
     using namespace entt::literals;
-    entt::meta<comp_with_entity>().type()
+    entt::meta<comp_with_entity>()
         .data<&comp_with_entity::entity, entt::as_ref_t>("entity"_hs);
 
     auto reg0 = entt::registry{};
@@ -109,7 +109,7 @@ struct another_comp {
 
 TEST(test_registry_operation, test_impl) {
     using namespace entt::literals;
-    entt::meta<comp_with_entity>().type()
+    entt::meta<comp_with_entity>()
         .data<&comp_with_entity::entity, entt::as_ref_t>("entity"_hs);
 
     auto reg0 = entt::registry{};
