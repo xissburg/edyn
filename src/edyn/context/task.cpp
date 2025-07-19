@@ -205,6 +205,10 @@ void enqueue_task_wait_default(task_delegate_t task, unsigned size) {
     // Process chunks of the for loop in the current thread as well.
     run_parallel_for(context);
 
+    if (num_jobs == 0) {
+        return;
+    }
+
     // Wait all background jobs to finish.
     context.wait();
 }
