@@ -2,8 +2,10 @@
 #define EDYN_CONTEXT_SETTINGS_HPP
 
 #include <memory>
+#include <optional>
 #include <variant>
 #include "edyn/config/execution_mode.hpp"
+#include "edyn/context/async_settings.hpp"
 #include "edyn/context/task.hpp"
 #include "edyn/context/step_callback.hpp"
 #include "edyn/context/start_thread.hpp"
@@ -50,6 +52,8 @@ struct settings {
         std::monostate,
         client_network_settings,
         server_network_settings> network_settings;
+
+    std::optional<async_settings> async_settings;
 };
 
 }

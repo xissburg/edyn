@@ -113,6 +113,7 @@ void attach(entt::registry &registry, const init_config &config) {
                                                    config.execution_mode == execution_mode::sequential_multithreaded);
         break;
     case execution_mode::asynchronous:
+        settings.async_settings = async_settings{};
         registry.ctx().emplace<stepper_async>(registry, timestamp);
         break;
     }

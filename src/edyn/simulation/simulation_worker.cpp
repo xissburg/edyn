@@ -437,6 +437,11 @@ void simulation_worker::mark_transforms_replaced() {
     m_op_builder->replace<orientation>(body_view.begin(), body_view.end());
     m_op_builder->replace<linvel>(body_view.begin(), body_view.end());
     m_op_builder->replace<angvel>(body_view.begin(), body_view.end());
+
+    if (m_registry.ctx().get<edyn::settings>().async_settings->sync_contact_points) {
+        auto manifold_view = m_registry.view<contact_manifold>(entt::exclude_t<sleeping_tag>{});
+        m_op_builder->replace<contact_manifold>(manifold_view.begin(), manifold_view.end());
+    }
 }
 
 void simulation_worker::on_set_paused(message<msg::set_paused> &msg) {
