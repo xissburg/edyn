@@ -48,7 +48,7 @@ struct island_solver_context {
     entt::registry *registry;
     entt::entity island_entity;
     atomic_counter_sync *counter_sync {nullptr};
-    scalar dt;
+    scalar dt {0};
     uint8_t num_iterations;
     uint8_t num_position_iterations;
     uint8_t iteration {};
@@ -380,7 +380,7 @@ bool apply_solution(entt::registry &registry, scalar dt, const entt::sparse_set 
 
     struct apply_solution_context {
         entt::registry *registry;
-        scalar dt;
+        scalar dt {0};
         std::vector<entt::entity> entities;
         island_solver_context *isle_ctx;
 

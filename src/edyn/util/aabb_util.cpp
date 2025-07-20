@@ -41,7 +41,7 @@ AABB plane_aabb(const vector3 &normal, scalar constant) {
 
 AABB box_aabb(const vector3 &half_extents, const vector3 &pos, const quaternion &orn) {
     // Reference: Real-Time Collision Detection - Christer Ericson, section 4.2.6.
-    auto aabb = AABB{pos, pos};
+    auto result = AABB{pos, pos};
     auto basis = to_matrix3x3(orn);
 
     for (int i = 0; i < 3; ++i) {
@@ -50,16 +50,16 @@ AABB box_aabb(const vector3 &half_extents, const vector3 &pos, const quaternion 
             auto f = -e;
 
             if (e < f) {
-                aabb.min[i] += e;
-                aabb.max[i] += f;
+                result.min[i] += e;
+                result.max[i] += f;
             } else {
-                aabb.min[i] += f;
-                aabb.max[i] += e;
+                result.min[i] += f;
+                result.max[i] += e;
             }
         }
     }
 
-    return aabb;
+    return result;
 }
 
 AABB sphere_aabb(scalar radius, const vector3 &pos) {
