@@ -282,11 +282,27 @@ static void process_packet(entt::registry &, entt::entity, const packet::entity_
 static void process_packet(entt::registry &, entt::entity, const packet::entity_exited &) {}
 static void process_packet(entt::registry &, entt::entity, const packet::asset_sync_response &) {}
 
+#ifndef EDYN_DISABLE_PROFILING
+static void on_packet_sent(entt::registry &registry, const packet::edyn_packet &packet) {
+    auto data = std::vector<uint8_t>{};
+    auto archive = edyn::memory_output_archive(data);
+    archive(packet);
+
+    auto &profile = registry.ctx().get<profile_network>();
+    profile.sent += data.size();
+}
+#endif
+
 void init_network_server(entt::registry &registry) {
     registry.ctx().emplace<server_network_context>(registry);
 
     auto &settings = registry.ctx().get<edyn::settings>();
     settings.network_settings = server_network_settings{};
+
+#ifndef EDYN_DISABLE_PROFILING
+    registry.ctx().emplace<profile_network>();
+    registry.ctx().get<server_network_context>().packet_sink().connect<&on_packet_sent>(registry);
+#endif
 }
 
 void deinit_network_server(entt::registry &registry) {
@@ -294,6 +310,10 @@ void deinit_network_server(entt::registry &registry) {
 
     auto &settings = registry.ctx().get<edyn::settings>();
     settings.network_settings = {};
+
+#ifndef EDYN_DISABLE_PROFILING
+    registry.ctx().erase<profile_network>();
+#endif
 }
 
 static void server_process_timed_packets(entt::registry &registry, double time) {
@@ -590,6 +610,22 @@ void update_server_snapshot_exporter(entt::registry &registry, double time) {
     ctx.snapshot_exporter->update(time);
 }
 
+#ifndef EDYN_DISABLE_PROFILING
+void update_network_profiling(entt::registry &registry, double time) {
+    auto &profile = registry.ctx().get<profile_network>();
+    auto dt = time - profile.last_time;
+    profile.incoming_rate = profile.received / dt;
+    profile.outgoing_rate = profile.sent / dt;
+
+    if (dt > profile.sample_length) {
+        profile.last_time = time;
+        profile.total_sent += profile.sent;
+        profile.total_received += profile.received;
+        profile.received = profile.sent = 0;
+    }
+}
+#endif
+
 void update_network_server(entt::registry &registry) {
     auto &settings = registry.ctx().get<edyn::settings>();
     const auto time = (*settings.time_func)();
@@ -600,6 +636,9 @@ void update_network_server(entt::registry &registry) {
     process_aabbs_of_interest(registry, time);
     publish_pending_created_clients(registry);
     dispatch_actions(registry, time);
+#ifndef EDYN_DISABLE_PROFILING
+    update_network_profiling(registry, time);
+#endif
 }
 
 template<typename T>
@@ -669,6 +708,15 @@ void enqueue_packet<packet::registry_snapshot>(entt::registry &registry, entt::e
 }
 
 void server_receive_packet(entt::registry &registry, entt::entity client_entity, packet::edyn_packet &packet) {
+#ifndef EDYN_DISABLE_PROFILING
+    auto data = std::vector<uint8_t>{};
+    auto archive = edyn::memory_output_archive(data);
+    archive(packet);
+
+    auto &profile = registry.ctx().get<profile_network>();
+    profile.received += data.size();
+#endif
+
     std::visit([&](auto &&decoded_packet) {
         using PacketType = std::decay_t<decltype(decoded_packet)>;
         // If it's a timed packet, enqueue for later execution. Process

@@ -13,6 +13,7 @@
 #include "edyn/comp/center_of_mass.hpp"
 #include "edyn/config/config.h"
 #include "edyn/constraints/null_constraint.hpp"
+#include "edyn/context/profile.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/networking/comp/discontinuity.hpp"
 #include "edyn/networking/sys/accumulate_discontinuities.hpp"
@@ -34,6 +35,7 @@
 #include "edyn/comp/rotated_mesh_list.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/math/transform.hpp"
+#include "edyn/time/time.hpp"
 #include "edyn/util/aabb_util.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/util/island_util.hpp"
@@ -44,6 +46,7 @@
 #include "edyn/context/settings.hpp"
 #include "edyn/context/registry_operation_context.hpp"
 #include "edyn/networking/extrapolation/extrapolation_result.hpp"
+#include "edyn/context/profile_macros.hpp"
 #include <entt/core/type_info.hpp>
 #include <entt/entity/fwd.hpp>
 #include <entt/entity/registry.hpp>
@@ -86,6 +89,11 @@ simulation_worker::simulation_worker(const settings &settings,
     m_registry.ctx().emplace<edyn::settings>(settings);
     m_registry.ctx().emplace<registry_operation_context>(reg_op_ctx);
     m_registry.ctx().emplace<material_mix_table>(material_table);
+
+#ifndef EDYN_DISABLE_PROFILING
+    m_registry.ctx().emplace<profile_timers>();
+    m_registry.ctx().emplace<profile_counters>();
+#endif
 }
 
 simulation_worker::~simulation_worker() {
@@ -304,6 +312,15 @@ void simulation_worker::sync() {
     }
 }
 
+void simulation_worker::sync_profiling() {
+#ifndef EDYN_DISABLE_PROFILING
+    auto &timers = m_registry.ctx().get<profile_timers>();
+    auto &counters = m_registry.ctx().get<profile_counters>();
+    message_dispatcher::global().send<msg::profiling>(
+        {"main"}, m_message_queue.identifier, std::move(timers), std::move(counters));
+#endif
+}
+
 void simulation_worker::start() {
     m_running.store(true, std::memory_order_release);
 
@@ -328,12 +345,24 @@ void simulation_worker::update() {
     clear_accumulated_discontinuities_quietly(m_registry);
 
     m_message_queue.update();
+
+#ifndef EDYN_DISABLE_PROFILING
+    auto &profile = m_registry.ctx().get<profile_timers>();
+    profile = {};
+#endif
+
+    EDYN_PROFILE_BEGIN(prof_time);
+
     m_raycast_service.update(true);
     consume_raycast_results();
 
+    EDYN_PROFILE_MEASURE(prof_time, profile, raycasts);
+
     if (m_paused) {
         m_island_manager.update(m_last_time);
+        EDYN_PROFILE_MEASURE(prof_time, profile, islands);
         sync();
+        sync_profiling();
         return;
     }
 
@@ -364,14 +393,28 @@ void simulation_worker::update() {
     bphase.init_new_aabb_entities();
 
     for (unsigned i = 0; i < effective_steps; ++i) {
+        EDYN_PROFILE_BEGIN(full_step_time);
+
         if (settings.pre_step_callback) {
             (*settings.pre_step_callback)(m_registry);
         }
 
+        EDYN_PROFILE_BEGIN(step_time);
+        EDYN_PROFILE_BEGIN(task_time);
+
         bphase.update(true);
+        EDYN_PROFILE_MEASURE_ACCUM(task_time, profile, broadphase);
+
         m_island_manager.update(m_sim_time);
+        EDYN_PROFILE_MEASURE_ACCUM(task_time, profile, islands);
+
         nphase.update(true);
+        EDYN_PROFILE_MEASURE_ACCUM(task_time, profile, narrowphase);
+
         m_solver.update(true);
+        EDYN_PROFILE_MEASURE_ACCUM(task_time, profile, solve_islands);
+
+        EDYN_PROFILE_MEASURE_ACCUM(step_time, profile, step);
 
         m_sim_time += step_dt;
 
@@ -385,7 +428,18 @@ void simulation_worker::update() {
 
         mark_transforms_replaced();
         sync();
+
+        EDYN_PROFILE_MEASURE_ACCUM(full_step_time, profile, full_step);
     }
+
+    EDYN_PROFILE_MEASURE_AVG(profile, broadphase,    effective_steps);
+    EDYN_PROFILE_MEASURE_AVG(profile, islands,       effective_steps);
+    EDYN_PROFILE_MEASURE_AVG(profile, narrowphase,   effective_steps);
+    EDYN_PROFILE_MEASURE_AVG(profile, solve_islands, effective_steps);
+    EDYN_PROFILE_MEASURE_AVG(profile, step,          effective_steps);
+    EDYN_PROFILE_MEASURE_AVG(profile, full_step,     effective_steps);
+
+    sync_profiling();
 
     m_last_time = m_current_time;
     m_sim_time = m_last_time - m_accumulated_time;

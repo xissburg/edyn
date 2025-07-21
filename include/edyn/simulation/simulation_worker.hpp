@@ -31,6 +31,7 @@ class simulation_worker final {
     void init();
     void deinit();
     void sync();
+    void sync_profiling();
     void run();
     void update();
 

@@ -63,6 +63,11 @@ extrapolation_worker::extrapolation_worker(const settings &settings,
     m_registry.ctx().emplace<material_mix_table>(material_table);
     m_registry.ctx().emplace<extrapolation_context>();
 
+#ifndef EDYN_DISABLE_PROFILING
+    m_registry.ctx().emplace<profile_timers>();
+    m_registry.ctx().emplace<profile_counters>();
+#endif
+
     m_message_queue.sink<extrapolation_request>().connect<&extrapolation_worker::on_extrapolation_request>(*this);
     m_message_queue.sink<extrapolation_operation_create>().connect<&extrapolation_worker::on_extrapolation_operation_create>(*this);
     m_message_queue.sink<extrapolation_operation_destroy>().connect<&extrapolation_worker::on_extrapolation_operation_destroy>(*this);

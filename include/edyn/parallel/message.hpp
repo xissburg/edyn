@@ -5,6 +5,7 @@
 #include "edyn/collision/raycast.hpp"
 #include "edyn/comp/aabb.hpp"
 #include "edyn/comp/island.hpp"
+#include "edyn/context/profile.hpp"
 #include "edyn/context/registry_operation_context.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/context/settings.hpp"
@@ -112,6 +113,11 @@ struct set_extrapolator_context_settings {
 struct paged_triangle_mesh_load_page {
     paged_triangle_mesh *trimesh;
     size_t mesh_index;
+};
+
+struct profiling {
+    profile_timers timers;
+    profile_counters counters;
 };
 
 }

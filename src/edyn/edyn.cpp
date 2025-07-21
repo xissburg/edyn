@@ -13,6 +13,7 @@
 #include "edyn/config/execution_mode.hpp"
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/constraints/null_constraint.hpp"
+#include "edyn/context/profile.hpp"
 #include "edyn/context/registry_operation_context.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/networking/comp/entity_owner.hpp"
@@ -119,6 +120,11 @@ void attach(entt::registry &registry, const init_config &config) {
     }
 
     internal::init_paged_mesh_load_reporting(registry);
+
+#ifndef EDYN_DISABLE_PROFILING
+    registry.ctx().emplace<profile_timers>();
+    registry.ctx().emplace<profile_counters>();
+#endif
 }
 
 template<typename... Ts>
@@ -139,6 +145,11 @@ void detach(entt::registry &registry) {
     registry.ctx().erase<narrowphase>();
     registry.ctx().erase<stepper_async>();
     registry.ctx().erase<stepper_sequential>();
+
+#ifndef EDYN_DISABLE_PROFILING
+    registry.ctx().erase<profile_timers>();
+    registry.ctx().erase<profile_counters>();
+#endif
 
     registry.clear<rigidbody_tag, constraint_tag, dynamic_tag, kinematic_tag, static_tag,
                    procedural_tag, networked_tag, external_tag, network_exclude_tag,
