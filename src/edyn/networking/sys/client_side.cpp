@@ -4,6 +4,7 @@
 #include "edyn/config/config.h"
 #include "edyn/config/execution_mode.hpp"
 #include "edyn/constraints/constraint.hpp"
+#include "edyn/context/profile.hpp"
 #include "edyn/context/registry_operation_context.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
 #include "edyn/networking/comp/action_history.hpp"
@@ -131,6 +132,17 @@ static void on_extrapolation_result(entt::registry &registry, message<extrapolat
     }
 }
 
+#ifndef EDYN_DISABLE_PROFILING
+static void on_packet_sent(entt::registry &registry, const packet::edyn_packet &packet) {
+    auto data = std::vector<uint8_t>{};
+    auto archive = edyn::memory_output_archive(data);
+    archive(packet);
+
+    auto &profile = registry.ctx().get<profile_network>();
+    profile.sent += data.size();
+}
+#endif
+
 void init_network_client(entt::registry &registry) {
     auto &ctx = registry.ctx().emplace<client_network_context>(registry);
     registry.ctx().emplace<extrapolation_context>();
@@ -159,6 +171,11 @@ void init_network_client(entt::registry &registry) {
     ctx.extrapolator->start();
 
     ctx.message_queue.sink<extrapolation_result>().connect<&on_extrapolation_result>(registry);
+
+#ifndef EDYN_DISABLE_PROFILING
+    registry.ctx().emplace<profile_network>();
+    ctx.packet_sink().connect<&on_packet_sent>(registry);
+#endif
 }
 
 void deinit_network_client(entt::registry &registry) {
@@ -173,6 +190,10 @@ void deinit_network_client(entt::registry &registry) {
     registry.on_destroy<graph_node>().disconnect<&on_destroy_shared>();
     registry.on_construct<graph_edge>().disconnect<&on_construct_shared>();
     registry.on_destroy<graph_edge>().disconnect<&on_destroy_shared>();
+
+#ifndef EDYN_DISABLE_PROFILING
+    registry.ctx().erase<profile_network>();
+#endif
 }
 
 void add_entities_to_extrapolator(entt::registry &registry,
@@ -351,6 +372,22 @@ void update_client_snapshot_exporter(entt::registry &registry, double time) {
     ctx.snapshot_exporter->update(time);
 }
 
+#ifndef EDYN_DISABLE_PROFILING
+void update_network_profiling(entt::registry &registry, double time) {
+    auto &profile = registry.ctx().get<profile_network>();
+    auto dt = time - profile.last_time;
+    profile.incoming_rate = profile.received / dt;
+    profile.outgoing_rate = profile.sent / dt;
+
+    if (dt > profile.sample_length) {
+        profile.last_time = time;
+        profile.total_sent += profile.sent;
+        profile.total_received += profile.received;
+        profile.received = profile.sent = 0;
+    }
+}
+#endif
+
 void update_network_client(entt::registry &registry) {
     auto &settings = registry.ctx().get<edyn::settings>();
     auto time = (*settings.time_func)();
@@ -366,6 +403,10 @@ void update_network_client(entt::registry &registry) {
     registry.ctx().get<client_network_context>().message_queue.update();
     trim_and_insert_actions(registry, time);
     update_input_history(registry, time);
+
+#ifndef EDYN_DISABLE_PROFILING
+    update_network_profiling(registry, time);
+#endif
 }
 
 static void process_packet(entt::registry &registry, const packet::client_created &packet) {
@@ -847,6 +888,15 @@ static void process_packet(entt::registry &, const packet::query_entity &) {}
 static void process_packet(entt::registry &, const packet::asset_sync &) {}
 
 void client_receive_packet(entt::registry &registry, packet::edyn_packet &packet) {
+#ifndef EDYN_DISABLE_PROFILING
+    auto data = std::vector<uint8_t>{};
+    auto archive = edyn::memory_output_archive(data);
+    archive(packet);
+
+    auto &profile = registry.ctx().get<profile_network>();
+    profile.received += data.size();
+#endif
+
     std::visit([&](auto &&inner_packet) {
         process_packet(registry, inner_packet);
     }, packet.var);
