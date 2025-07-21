@@ -842,9 +842,9 @@ static void process_packet(entt::registry &registry, packet::asset_sync_response
     ctx.snapshot_exporter->set_observer_enabled(true);
 }
 
-static void process_packet(entt::registry &, const packet::set_aabb_of_interest &) {}
-static void process_packet(entt::registry &, const packet::query_entity &) {}
-static void process_packet(entt::registry &, const packet::asset_sync &) {}
+static void process_packet([[maybe_unused]] entt::registry &registry, [[maybe_unused]] const packet::set_aabb_of_interest &packet) {}
+static void process_packet([[maybe_unused]] entt::registry &registry, [[maybe_unused]] const packet::query_entity &packet) {}
+static void process_packet([[maybe_unused]] entt::registry &registry, [[maybe_unused]] const packet::asset_sync &packet) {}
 
 void client_receive_packet(entt::registry &registry, packet::edyn_packet &packet) {
     std::visit([&](auto &&inner_packet) {
