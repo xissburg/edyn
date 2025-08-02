@@ -18,7 +18,7 @@ void serialize(Archive &archive, comp &c) {
 
 TEST(networking_test, client_export_import) {
     using namespace entt::literals;
-    entt::meta<comp>()
+    entt::meta_factory<comp>()
         .data<&comp::entity, entt::as_ref_t>("entity"_hs);
 
     auto reg0 = entt::registry{};
