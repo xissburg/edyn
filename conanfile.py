@@ -72,7 +72,7 @@ class EdynConan(ConanFile):
         self.cpp.source.includedirs.append(f"build/{self.settings.build_type}/include")
 
     def requirements(self):
-        self.requires("entt/3.14.0", transitive_headers=True)
+        self.requires("entt/3.15.0", transitive_headers=True)
         if self.options.build_tests:
             self.requires("gtest/1.16.0")
 
