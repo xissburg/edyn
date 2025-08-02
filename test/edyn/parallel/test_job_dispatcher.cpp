@@ -85,7 +85,7 @@ TEST_F(job_dispatcher_test, parallel_for_tiny) {
         }, num_samples);
 
         for (auto value : values) {
-            ASSERT_EQ(values[i], 27 + 18);
+            ASSERT_EQ(value, 27 + 18);
         }
     }
 }
