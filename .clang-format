@@ -4,7 +4,7 @@ BasedOnStyle: LLVM
 IndentWidth: 4
 AccessModifierOffset: -4
 ColumnLimit: 0
-AlignConsecutiveAssignments: true
+AlignConsecutiveAssignments: false
 AlignConsecutiveDeclarations: false
 AlignOperands: false
 AlignTrailingComments: false
@@ -19,10 +19,11 @@ IndentCaseLabels: false
 KeepEmptyLinesAtTheStartOfBlocks: true
 MaxEmptyLinesToKeep: 2
 NamespaceIndentation: None
+FixNamespaceComments: false
 SortIncludes: false
 SpaceAfterCStyleCast: false
 SpaceAfterLogicalNot: false
-SpaceAfterTemplateKeyword: true
+SpaceAfterTemplateKeyword: false
 SpaceBeforeAssignmentOperators: true
 SpaceBeforeCpp11BracedList: false
 SpaceBeforeParens: ControlStatements
