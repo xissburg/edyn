@@ -25,6 +25,7 @@ class EdynConan(ConanFile):
         "fPIC": [True, False],
         "enable_assert": [True, False],
         "enable_sanitizer": [True, False],
+        "enable_profiling": [True, False],
         "floating_type": ["float", "double"],
         "build_tests": [True, False],
     }
@@ -33,6 +34,7 @@ class EdynConan(ConanFile):
         "fPIC": True,
         "enable_assert": False,
         "enable_sanitizer": False,
+        "enable_profiling": False,
         "floating_type": "float",
         "build_tests": False,
         "gtest/*:no_main": False,
@@ -97,6 +99,7 @@ class EdynConan(ConanFile):
         tc.variables["CMAKE_WINDOWS_EXPORT_ALL_SYMBOLS"] = True
         tc.variables["EDYN_DISABLE_ASSERT"] = not self.options.enable_assert
         tc.variables["EDYN_ENABLE_SANITIZER"] = self.options.enable_sanitizer
+        tc.variables["EDYN_DISABLE_PROFILING"] = not self.options.enable_profiling
         tc.generate()
 
         deps = CMakeDeps(self)

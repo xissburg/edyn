@@ -46,7 +46,7 @@
 #include "edyn/context/settings.hpp"
 #include "edyn/context/registry_operation_context.hpp"
 #include "edyn/networking/extrapolation/extrapolation_result.hpp"
-#include "edyn/context/profile_macros.hpp"
+#include "edyn/util/profile_util.hpp"
 #include <entt/core/type_info.hpp>
 #include <entt/entity/fwd.hpp>
 #include <entt/entity/registry.hpp>
@@ -348,9 +348,12 @@ void simulation_worker::update() {
 
 #ifndef EDYN_DISABLE_PROFILING
     auto &profile = m_registry.ctx().get<profile_timers>();
-    profile = {};
+    if (!m_paused) {
+        profile = {};
+    }
 #endif
 
+    EDYN_PROFILE_BEGIN(update_time);
     EDYN_PROFILE_BEGIN(prof_time);
 
     m_raycast_service.update(true);
@@ -361,6 +364,7 @@ void simulation_worker::update() {
     if (m_paused) {
         m_island_manager.update(m_last_time);
         EDYN_PROFILE_MEASURE(prof_time, profile, islands);
+        EDYN_PROFILE_MEASURE(update_time, profile, update);
         sync();
         sync_profiling();
         return;
@@ -391,15 +395,14 @@ void simulation_worker::update() {
     auto &nphase = m_registry.ctx().get<narrowphase>();
     auto &bphase = m_registry.ctx().get<broadphase>();
     bphase.init_new_aabb_entities();
+    EDYN_PROFILE_BEGIN(step_time);
 
     for (unsigned i = 0; i < effective_steps; ++i) {
-        EDYN_PROFILE_BEGIN(full_step_time);
 
         if (settings.pre_step_callback) {
             (*settings.pre_step_callback)(m_registry);
         }
 
-        EDYN_PROFILE_BEGIN(step_time);
         EDYN_PROFILE_BEGIN(task_time);
 
         bphase.update(true);
@@ -414,8 +417,6 @@ void simulation_worker::update() {
         m_solver.update(true);
         EDYN_PROFILE_MEASURE_ACCUM(task_time, profile, solve_islands);
 
-        EDYN_PROFILE_MEASURE_ACCUM(step_time, profile, step);
-
         m_sim_time += step_dt;
 
         if (settings.clear_actions_func) {
@@ -429,7 +430,7 @@ void simulation_worker::update() {
         mark_transforms_replaced();
         sync();
 
-        EDYN_PROFILE_MEASURE_ACCUM(full_step_time, profile, full_step);
+        EDYN_PROFILE_MEASURE_ACCUM(step_time, profile, step);
     }
 
     EDYN_PROFILE_MEASURE_AVG(profile, broadphase,    effective_steps);
@@ -437,8 +438,7 @@ void simulation_worker::update() {
     EDYN_PROFILE_MEASURE_AVG(profile, narrowphase,   effective_steps);
     EDYN_PROFILE_MEASURE_AVG(profile, solve_islands, effective_steps);
     EDYN_PROFILE_MEASURE_AVG(profile, step,          effective_steps);
-    EDYN_PROFILE_MEASURE_AVG(profile, full_step,     effective_steps);
-
+    EDYN_PROFILE_MEASURE(update_time, profile, update);
     sync_profiling();
 
     m_last_time = m_current_time;

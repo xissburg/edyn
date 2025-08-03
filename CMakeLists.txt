@@ -16,6 +16,7 @@ option(EDYN_INSTALL "Enable installation of Edyn" ${Edyn_MAIN_PROJECT})
 option(EDYN_BUILD_EXAMPLES "Build examples" ${Edyn_MAIN_PROJECT})
 option(EDYN_BUILD_TESTS "Build tests with gtest" OFF)
 option(EDYN_DISABLE_ASSERT "Disable assertions in Edyn for better performance." OFF)
+option(EDYN_DISABLE_PROFILING "Disable profiling if unused." OFF)
 cmake_dependent_option(EDYN_ENABLE_SANITIZER "Enable address sanitizer." OFF "NOT MSVC" OFF)
 
 if(NOT CMAKE_DEBUG_POSTFIX)
@@ -110,6 +111,7 @@ add_library(Edyn
     src/edyn/util/island_util.cpp
     src/edyn/util/settings_util.cpp
     src/edyn/util/paged_mesh_load_reporting.cpp
+    src/edyn/util/profile_util.cpp
     src/edyn/shapes/box_shape.cpp
     src/edyn/shapes/cylinder_shape.cpp
     src/edyn/shapes/polyhedron_shape.cpp
@@ -184,8 +186,10 @@ target_compile_definitions(Edyn
     PUBLIC
         $<$<CONFIG:Debug>:EDYN_DEBUG>
         $<$<BOOL:${EDYN_DISABLE_ASSERT}>:EDYN_DISABLE_ASSERT>
+        $<$<BOOL:${EDYN_DISABLE_PROFILING}>:EDYN_DISABLE_PROFILING>
     PRIVATE
         $<$<BOOL:${EDYN_DISABLE_ASSERT}>:ENTT_DISABLE_ASSERT>
+        $<$<BOOL:${EDYN_DISABLE_PROFILING}>:EDYN_DISABLE_PROFILING>
 )
 
 target_compile_options(Edyn PUBLIC

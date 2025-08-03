@@ -1,7 +1,8 @@
-#ifndef EDYN_CONTEXT_PROFILE_MACROS_HPP
-#define EDYN_CONTEXT_PROFILE_MACROS_HPP
+#ifndef EDYN_UTIL_PROFILE_UTIL_HPP
+#define EDYN_UTIL_PROFILE_UTIL_HPP
 
 #include "edyn/time/time.hpp"
+#include <entt/entity/fwd.hpp>
 
 namespace edyn {
 
@@ -16,13 +17,21 @@ namespace edyn {
 
 #define EDYN_PROFILE_MEASURE_ACCUM(time_var, profile, what) \
     {\
-        auto dt = edyn::performance_time() - time_var; \
-        profile.what += dt; \
-        time_var += dt; \
+        auto t0 = edyn::performance_time(); \
+        profile.what += t0 - time_var; \
+        time_var = t0; \
     }
 
 #define EDYN_PROFILE_MEASURE_AVG(profile, what, count) \
     profile.what /= count;
+
+namespace packet {
+    struct edyn_packet;
+}
+
+void profile_on_packet_sent(entt::registry &registry, const packet::edyn_packet &packet);
+void profile_on_packet_received(entt::registry &registry, const packet::edyn_packet &packet);
+void update_network_profiling(entt::registry &registry, double time);
 
 #else
 
@@ -42,4 +51,4 @@ namespace edyn {
 
 }
 
-#endif // EDYN_CONTEXT_PROFILE_MACROS_HPP
+#endif // EDYN_UTIL_PROFILE_UTIL_HPP

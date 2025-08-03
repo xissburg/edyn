@@ -11,7 +11,7 @@
 #include "edyn/dynamics/island_solver.hpp"
 #include "edyn/constraints/constraint_body.hpp"
 #include "edyn/context/profile.hpp"
-#include "edyn/context/profile_macros.hpp"
+#include "edyn/util/profile_util.hpp"
 #include "edyn/context/task.hpp"
 #include "edyn/dynamics/island_constraint_entities.hpp"
 #include "edyn/dynamics/row_cache.hpp"
@@ -259,7 +259,15 @@ void solver::update(bool mt) {
 
 #ifndef EDYN_DISABLE_PROFILING
     auto &counters = registry.ctx().get<profile_counters>();
+    counters.bodies = registry.view<rigidbody_tag>().size();
+    counters.islands = registry.view<island>().size();
+    counters.constraints = 0;
     counters.constraint_rows = 0;
+
+    auto con_view_tuple = get_tuple_of_views(registry, constraints_tuple);
+    std::apply([&](auto &&... con_view) {
+        counters.constraints = (con_view.size() + ...);
+    }, con_view_tuple);
 
     for (auto island_entity : island_view) {
         auto &cache = registry.get<row_cache>(island_entity);

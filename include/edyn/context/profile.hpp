@@ -10,8 +10,8 @@ struct profile_timers {
     scalar broadphase {};
     scalar islands {};
     scalar narrowphase {};
-    scalar step {}; // just the physics.
-    scalar full_step {}; // including step callbacks, the whole operation.
+    scalar step {};
+    scalar update {};
     scalar restitution {};
     scalar prepare_constraints {};
     scalar solve_islands {};
@@ -19,7 +19,10 @@ struct profile_timers {
 };
 
 struct profile_counters {
+    unsigned bodies;
+    unsigned constraints;
     unsigned constraint_rows;
+    unsigned islands;
 };
 
 struct profile_network {

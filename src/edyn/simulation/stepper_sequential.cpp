@@ -1,9 +1,11 @@
 #include "edyn/simulation/stepper_sequential.hpp"
 #include "edyn/collision/contact_event_emitter.hpp"
+#include "edyn/context/profile.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/collision/broadphase.hpp"
 #include "edyn/collision/contact_manifold_map.hpp"
 #include "edyn/collision/narrowphase.hpp"
+#include "edyn/util/profile_util.hpp"
 #include "edyn/core/entity_graph.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
 #include "edyn/sys/update_presentation.hpp"
@@ -25,8 +27,19 @@ stepper_sequential::stepper_sequential(entt::registry &registry, double time, bo
 }
 
 void stepper_sequential::update(double time) {
+#ifndef EDYN_DISABLE_PROFILING
+    auto &profile = m_registry->ctx().get<profile_timers>();
+    if (!m_paused) {
+        profile = {};
+    }
+#endif
+
+    EDYN_PROFILE_BEGIN(update_time);
+    EDYN_PROFILE_BEGIN(prof_time);
+
     if (m_paused) {
         m_island_manager.update(m_last_time);
+        EDYN_PROFILE_MEASURE(prof_time, profile, islands);
         snap_presentation(*m_registry);
         return;
     }
@@ -59,16 +72,28 @@ void stepper_sequential::update(double time) {
     bphase.init_new_aabb_entities();
 
     for (unsigned i = 0; i < effective_steps; ++i) {
+        EDYN_PROFILE_BEGIN(step_prof_time);
+
         auto step_time = sim_time + step_dt * i;
 
         if (settings.pre_step_callback) {
             (*settings.pre_step_callback)(*m_registry);
         }
 
+        EDYN_PROFILE_BEGIN(task_time);
+
         bphase.update(m_multithreaded);
+        EDYN_PROFILE_MEASURE_ACCUM(task_time, profile, broadphase);
+
         m_island_manager.update(step_time);
+        EDYN_PROFILE_MEASURE_ACCUM(task_time, profile, islands);
+
         nphase.update(m_multithreaded);
+        EDYN_PROFILE_MEASURE_ACCUM(task_time, profile, narrowphase);
+
         m_solver.update(m_multithreaded);
+        EDYN_PROFILE_MEASURE_ACCUM(task_time, profile, solve_islands);
+
         emitter.consume_events();
 
         if (settings.clear_actions_func) {
@@ -78,10 +103,19 @@ void stepper_sequential::update(double time) {
         if (settings.post_step_callback) {
             (*settings.post_step_callback)(*m_registry);
         }
+
+        EDYN_PROFILE_MEASURE_ACCUM(step_prof_time, profile, step);
     }
 
     m_last_time = time;
     update_presentation(*m_registry, get_simulation_timestamp(), time, elapsed, fixed_dt);
+
+    EDYN_PROFILE_MEASURE_AVG(profile, broadphase,    effective_steps);
+    EDYN_PROFILE_MEASURE_AVG(profile, islands,       effective_steps);
+    EDYN_PROFILE_MEASURE_AVG(profile, narrowphase,   effective_steps);
+    EDYN_PROFILE_MEASURE_AVG(profile, solve_islands, effective_steps);
+    EDYN_PROFILE_MEASURE_AVG(profile, step,          effective_steps);
+    EDYN_PROFILE_MEASURE(update_time, profile, update);
 }
 
 void stepper_sequential::step_simulation(double time) {
