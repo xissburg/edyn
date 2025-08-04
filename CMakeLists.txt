@@ -11,7 +11,7 @@ set(CMAKE_CXX_STANDARD 17)
 include(CMakeDependentOption)
 
 # Options
-option(EDYN_CONFIG_DOUBLE "Use doubles instead of floats" OFF)
+option(EDYN_DOUBLE_PRECISION "Use doubles instead of floats" OFF)
 option(EDYN_INSTALL "Enable installation of Edyn" ${Edyn_MAIN_PROJECT})
 option(EDYN_BUILD_EXAMPLES "Build examples" ${Edyn_MAIN_PROJECT})
 option(EDYN_BUILD_TESTS "Build tests with gtest" OFF)
