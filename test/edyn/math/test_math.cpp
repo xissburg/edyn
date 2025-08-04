@@ -9,6 +9,6 @@ TEST(math_test, average) {
     };
     auto center = edyn::average(vertices);
     ASSERT_SCALAR_EQ(center.x, 0);
-    ASSERT_SCALAR_EQ(center.y, 1.f / 3.f);
+    ASSERT_SCALAR_EQ(center.y, edyn::scalar(1) / edyn::scalar(3));
     ASSERT_SCALAR_EQ(center.z, 0);
 }
