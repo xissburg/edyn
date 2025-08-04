@@ -49,6 +49,9 @@ void register_external_components(entt::registry &registry, std::tuple<Actions..
         };
     }
 
+    // Assure storage is allocated prior to execution of parallel tasks.
+    (registry.storage<Components>(), ...);
+
     if (auto *stepper = registry.ctx().find<stepper_async>()) {
         stepper->settings_changed();
         stepper->reg_op_ctx_changed();

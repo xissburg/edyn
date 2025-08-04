@@ -7,6 +7,7 @@
 #include "edyn/comp/child_list.hpp"
 #include "edyn/comp/collision_exclusion.hpp"
 #include "edyn/comp/island.hpp"
+#include "edyn/comp/shared_comp.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/tree_resident.hpp"
 #include "edyn/config/config.h"
@@ -29,6 +30,7 @@
 #include "edyn/parallel/job_dispatcher.hpp"
 #include <entt/meta/factory.hpp>
 #include <entt/core/hashed_string.hpp>
+#include <tuple>
 
 namespace edyn {
 
@@ -125,6 +127,11 @@ void attach(entt::registry &registry, const init_config &config) {
     registry.ctx().emplace<profile_timers>();
     registry.ctx().emplace<profile_counters>();
 #endif
+
+    // Assure storage is allocated prior to execution of parallel tasks.
+    std::apply([&registry](auto ... c) {
+        (registry.storage<decltype(c)>(), ...);
+    }, shared_components_t{});
 }
 
 template<typename... Ts>
