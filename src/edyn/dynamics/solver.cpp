@@ -46,15 +46,13 @@ solver::solver(entt::registry &registry)
 {
     m_connections.emplace_back(registry.on_construct<linvel>().connect<&entt::registry::emplace<delta_linvel>>());
     m_connections.emplace_back(registry.on_construct<angvel>().connect<&entt::registry::emplace<delta_angvel>>());
-    m_connections.emplace_back(registry.on_construct<island_tag>().connect<&entt::registry::emplace<row_cache>>());
-    m_connections.emplace_back(registry.on_construct<island_tag>().connect<&entt::registry::emplace<island_constraint_entities>>());
+    m_connections.emplace_back(registry.on_construct<constraint_tag>().connect<&entt::registry::emplace<row_cache>>());
     m_connections.emplace_back(registry.on_construct<constraint_tag>().connect<&entt::registry::emplace<constraint_row_prep_cache>>());
 }
 
 solver::~solver() {
     m_registry->clear<delta_linvel, delta_angvel>();
     m_registry->clear<row_cache>();
-    m_registry->clear<island_constraint_entities>();
     m_registry->clear<constraint_row_prep_cache>();
 }
 
@@ -269,8 +267,7 @@ void solver::update(bool mt) {
         counters.constraints = (con_view.size() + ...);
     }, con_view_tuple);
 
-    for (auto island_entity : island_view) {
-        auto &cache = registry.get<row_cache>(island_entity);
+    for (auto [entity, cache] : registry.view<row_cache>().each()) {
         counters.constraint_rows += cache.rows.size();
     }
 #endif

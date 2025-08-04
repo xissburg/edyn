@@ -14,6 +14,7 @@
 #include "edyn/config/config.h"
 #include "edyn/constraints/null_constraint.hpp"
 #include "edyn/context/profile.hpp"
+#include "edyn/dynamics/constraint_colors.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/networking/comp/discontinuity.hpp"
 #include "edyn/networking/sys/accumulate_discontinuities.hpp"
@@ -89,6 +90,7 @@ simulation_worker::simulation_worker(const settings &settings,
     m_registry.ctx().emplace<edyn::settings>(settings);
     m_registry.ctx().emplace<registry_operation_context>(reg_op_ctx);
     m_registry.ctx().emplace<material_mix_table>(material_table);
+    m_registry.ctx().emplace<constraint_colors>();
 
 #ifndef EDYN_DISABLE_PROFILING
     m_registry.ctx().emplace<profile_timers>();
@@ -219,6 +221,9 @@ void simulation_worker::on_update_entities(message<msg::update_entities> &msg) {
             if (!registry.any_of<graph_edge>(local_entity)) {
                 create_graph_edge_for_constraints(registry, local_entity, graph, constraints_tuple);
                 create_graph_edge_for_constraint<null_constraint>(registry, local_entity, graph);
+
+                auto &colors = registry.ctx().get<constraint_colors>();
+                colors.insert(registry, local_entity);
             }
         }
 

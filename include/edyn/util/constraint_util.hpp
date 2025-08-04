@@ -6,6 +6,7 @@
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/core/entity_pair.hpp"
+#include "edyn/dynamics/constraint_colors.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 
@@ -96,6 +97,8 @@ void visit_neighbors(entt::registry &registry, entt::entity entity, Func func) {
     auto &graph = registry.ctx().get<entity_graph>();
     graph.visit_neighbors(node.node_index, func);
 }
+
+entity_pair constraint_get_bodies(const entt::registry &registry, entt::entity entity);
 
 entt::entity make_contact_manifold(entt::registry &registry,
                                    entt::entity body0, entt::entity body1,

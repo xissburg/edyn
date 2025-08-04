@@ -12,6 +12,7 @@
 #include "edyn/context/settings.hpp"
 #include "edyn/core/entity_graph.hpp"
 #include "edyn/constraints/constraint_row.hpp"
+#include "edyn/dynamics/constraint_colors.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
 
 namespace edyn {
@@ -39,6 +40,9 @@ namespace internal {
         registry.emplace<island_resident>(entity);
         registry.emplace<constraint_tag>(entity);
 
+        auto &colors = registry.ctx().get<constraint_colors>();
+        colors.insert(registry, entity);
+
         return true;
     }
 }
@@ -53,6 +57,12 @@ void clear_constraint(entt::registry &registry, entt::entity entity) {
     registry.erase<graph_edge, island_resident>(entity);
     registry.remove<null_constraint>(entity);
     remove_components(registry, entity, constraints_tuple);
+}
+
+entity_pair constraint_get_bodies(const entt::registry &registry, entt::entity entity) {
+    auto &graph = registry.ctx().get<entity_graph>();
+    auto &edge = registry.get<graph_edge>(entity);
+    return graph.edge_node_entities(edge.edge_index);
 }
 
 entt::entity make_contact_manifold(entt::registry &registry,

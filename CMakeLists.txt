@@ -83,6 +83,7 @@ add_library(Edyn
     src/edyn/constraints/constraint_row.cpp
     src/edyn/constraints/constraint_row_friction.cpp
     src/edyn/constraints/constraint_row_spin_friction.cpp
+    src/edyn/dynamics/constraint_colors.cpp
     src/edyn/dynamics/solver.cpp
     src/edyn/dynamics/restitution_solver.cpp
     src/edyn/dynamics/island_solver.cpp

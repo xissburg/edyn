@@ -7,6 +7,7 @@
 #include "edyn/comp/tag.hpp"
 #include "edyn/config/execution_mode.hpp"
 #include "edyn/context/settings.hpp"
+#include "edyn/dynamics/constraint_colors.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/util/island_util.hpp"
 #include "edyn/util/vector_util.hpp"
@@ -66,6 +67,9 @@ void island_manager::on_destroy_graph_node(entt::registry &registry, entt::entit
 }
 
 void island_manager::on_destroy_graph_edge(entt::registry &registry, entt::entity entity) {
+    auto &colors = registry.ctx().get<constraint_colors>();
+    colors.remove(registry, entity);
+
     auto &graph = registry.ctx().get<entity_graph>();
     auto &edge = registry.get<graph_edge>(entity);
     graph.remove_edge(edge.edge_index);
