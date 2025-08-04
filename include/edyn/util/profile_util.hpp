@@ -16,10 +16,10 @@ namespace edyn {
     time_var += profile.what;
 
 #define EDYN_PROFILE_MEASURE_ACCUM(time_var, profile, what) \
-    {\
-        auto t0 = edyn::performance_time(); \
-        profile.what += t0 - time_var; \
-        time_var = t0; \
+    { \
+        auto t1 = edyn::performance_time(); \
+        profile.what += t1 - time_var; \
+        time_var = t1; \
     }
 
 #define EDYN_PROFILE_MEASURE_AVG(profile, what, count) \

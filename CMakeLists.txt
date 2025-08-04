@@ -186,10 +186,8 @@ target_compile_definitions(Edyn
     PUBLIC
         $<$<CONFIG:Debug>:EDYN_DEBUG>
         $<$<BOOL:${EDYN_DISABLE_ASSERT}>:EDYN_DISABLE_ASSERT>
-        $<$<BOOL:${EDYN_DISABLE_PROFILING}>:EDYN_DISABLE_PROFILING>
     PRIVATE
         $<$<BOOL:${EDYN_DISABLE_ASSERT}>:ENTT_DISABLE_ASSERT>
-        $<$<BOOL:${EDYN_DISABLE_PROFILING}>:EDYN_DISABLE_PROFILING>
 )
 
 target_compile_options(Edyn PUBLIC

@@ -11,7 +11,6 @@ struct profile_timers {
     scalar islands {};
     scalar narrowphase {};
     scalar step {};
-    scalar update {};
     scalar restitution {};
     scalar prepare_constraints {};
     scalar solve_islands {};

@@ -228,12 +228,12 @@ void solver::update(bool mt) {
     EDYN_PROFILE_BEGIN(prof_time);
 
     solve_restitution(registry, dt);
-    EDYN_PROFILE_MEASURE(prof_time, profile, restitution);
+    EDYN_PROFILE_MEASURE_ACCUM(prof_time, profile, restitution);
 
     apply_gravity(registry, dt);
 
     prepare_constraints(registry, dt, mt);
-    EDYN_PROFILE_MEASURE(prof_time, profile, prepare_constraints);
+    EDYN_PROFILE_MEASURE_ACCUM(prof_time, profile, prepare_constraints);
 
     auto island_view = registry.view<island>(exclude_sleeping_disabled);
     auto num_islands = calculate_view_size(island_view);
@@ -275,7 +275,7 @@ void solver::update(bool mt) {
     }
 #endif
 
-    EDYN_PROFILE_MEASURE(prof_time, profile, solve_islands);
+    EDYN_PROFILE_MEASURE_ACCUM(prof_time, profile, solve_islands);
 
     update_origins(registry);
 
@@ -291,7 +291,7 @@ void solver::update(bool mt) {
     // Update world-space moment of inertia.
     update_inertias(registry);
 
-    EDYN_PROFILE_MEASURE(prof_time, profile, apply_results);
+    EDYN_PROFILE_MEASURE_ACCUM(prof_time, profile, apply_results);
 }
 
 }

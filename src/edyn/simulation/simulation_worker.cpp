@@ -353,7 +353,6 @@ void simulation_worker::update() {
     }
 #endif
 
-    EDYN_PROFILE_BEGIN(update_time);
     EDYN_PROFILE_BEGIN(prof_time);
 
     m_raycast_service.update(true);
@@ -364,7 +363,6 @@ void simulation_worker::update() {
     if (m_paused) {
         m_island_manager.update(m_last_time);
         EDYN_PROFILE_MEASURE(prof_time, profile, islands);
-        EDYN_PROFILE_MEASURE(update_time, profile, update);
         sync();
         sync_profiling();
         return;
@@ -415,7 +413,6 @@ void simulation_worker::update() {
         EDYN_PROFILE_MEASURE_ACCUM(task_time, profile, narrowphase);
 
         m_solver.update(true);
-        EDYN_PROFILE_MEASURE_ACCUM(task_time, profile, solve_islands);
 
         m_sim_time += step_dt;
 
@@ -433,13 +430,20 @@ void simulation_worker::update() {
         EDYN_PROFILE_MEASURE_ACCUM(step_time, profile, step);
     }
 
-    EDYN_PROFILE_MEASURE_AVG(profile, broadphase,    effective_steps);
-    EDYN_PROFILE_MEASURE_AVG(profile, islands,       effective_steps);
-    EDYN_PROFILE_MEASURE_AVG(profile, narrowphase,   effective_steps);
-    EDYN_PROFILE_MEASURE_AVG(profile, solve_islands, effective_steps);
-    EDYN_PROFILE_MEASURE_AVG(profile, step,          effective_steps);
-    EDYN_PROFILE_MEASURE(update_time, profile, update);
+#ifndef EDYN_DISABLE_PROFILING
+    if (effective_steps > 0) {
+        EDYN_PROFILE_MEASURE_AVG(profile, broadphase,    effective_steps);
+        EDYN_PROFILE_MEASURE_AVG(profile, islands,       effective_steps);
+        EDYN_PROFILE_MEASURE_AVG(profile, narrowphase,   effective_steps);
+        EDYN_PROFILE_MEASURE_AVG(profile, restitution,   effective_steps);
+        EDYN_PROFILE_MEASURE_AVG(profile, prepare_constraints, effective_steps);
+        EDYN_PROFILE_MEASURE_AVG(profile, solve_islands, effective_steps);
+        EDYN_PROFILE_MEASURE_AVG(profile, apply_results, effective_steps);
+        EDYN_PROFILE_MEASURE_AVG(profile, step,          effective_steps);
+    }
+
     sync_profiling();
+#endif
 
     m_last_time = m_current_time;
     m_sim_time = m_last_time - m_accumulated_time;

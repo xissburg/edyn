@@ -34,7 +34,6 @@ void stepper_sequential::update(double time) {
     }
 #endif
 
-    EDYN_PROFILE_BEGIN(update_time);
     EDYN_PROFILE_BEGIN(prof_time);
 
     if (m_paused) {
@@ -92,7 +91,6 @@ void stepper_sequential::update(double time) {
         EDYN_PROFILE_MEASURE_ACCUM(task_time, profile, narrowphase);
 
         m_solver.update(m_multithreaded);
-        EDYN_PROFILE_MEASURE_ACCUM(task_time, profile, solve_islands);
 
         emitter.consume_events();
 
@@ -110,12 +108,18 @@ void stepper_sequential::update(double time) {
     m_last_time = time;
     update_presentation(*m_registry, get_simulation_timestamp(), time, elapsed, fixed_dt);
 
-    EDYN_PROFILE_MEASURE_AVG(profile, broadphase,    effective_steps);
-    EDYN_PROFILE_MEASURE_AVG(profile, islands,       effective_steps);
-    EDYN_PROFILE_MEASURE_AVG(profile, narrowphase,   effective_steps);
-    EDYN_PROFILE_MEASURE_AVG(profile, solve_islands, effective_steps);
-    EDYN_PROFILE_MEASURE_AVG(profile, step,          effective_steps);
-    EDYN_PROFILE_MEASURE(update_time, profile, update);
+#ifndef EDYN_DISABLE_PROFILING
+    if (effective_steps > 0) {
+        EDYN_PROFILE_MEASURE_AVG(profile, broadphase,    effective_steps);
+        EDYN_PROFILE_MEASURE_AVG(profile, islands,       effective_steps);
+        EDYN_PROFILE_MEASURE_AVG(profile, narrowphase,   effective_steps);
+        EDYN_PROFILE_MEASURE_AVG(profile, restitution,   effective_steps);
+        EDYN_PROFILE_MEASURE_AVG(profile, prepare_constraints, effective_steps);
+        EDYN_PROFILE_MEASURE_AVG(profile, solve_islands, effective_steps);
+        EDYN_PROFILE_MEASURE_AVG(profile, apply_results, effective_steps);
+        EDYN_PROFILE_MEASURE_AVG(profile, step,          effective_steps);
+    }
+#endif
 }
 
 void stepper_sequential::step_simulation(double time) {
