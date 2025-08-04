@@ -53,6 +53,7 @@ public:
     void on_step_update(message<msg::step_update> &);
     void on_raycast_response(message<msg::raycast_response> &);
     void on_query_aabb_response(message<msg::query_aabb_response> &);
+    void on_profiling(message<msg::profiling> &);
 
     void update(double current_time);
 
@@ -103,7 +104,8 @@ private:
     message_queue_handle<
         msg::step_update,
         msg::raycast_response,
-        msg::query_aabb_response
+        msg::query_aabb_response,
+        msg::profiling
     > m_message_queue_handle;
 
     bool m_importing {false};

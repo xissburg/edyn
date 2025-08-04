@@ -10,6 +10,8 @@
 #include "edyn/comp/orientation.hpp"
 #include "edyn/dynamics/island_solver.hpp"
 #include "edyn/constraints/constraint_body.hpp"
+#include "edyn/context/profile.hpp"
+#include "edyn/util/profile_util.hpp"
 #include "edyn/context/task.hpp"
 #include "edyn/dynamics/island_constraint_entities.hpp"
 #include "edyn/dynamics/row_cache.hpp"
@@ -220,10 +222,18 @@ void solver::update(bool mt) {
     auto &settings = registry.ctx().get<edyn::settings>();
     auto dt = settings.fixed_dt;
 
+#ifndef EDYN_DISABLE_PROFILING
+    auto &profile = registry.ctx().get<profile_timers>();
+#endif
+    EDYN_PROFILE_BEGIN(prof_time);
+
     solve_restitution(registry, dt);
+    EDYN_PROFILE_MEASURE_ACCUM(prof_time, profile, restitution);
+
     apply_gravity(registry, dt);
 
     prepare_constraints(registry, dt, mt);
+    EDYN_PROFILE_MEASURE_ACCUM(prof_time, profile, prepare_constraints);
 
     auto island_view = registry.view<island>(exclude_sleeping_disabled);
     auto num_islands = calculate_view_size(island_view);
@@ -247,6 +257,26 @@ void solver::update(bool mt) {
         }
     }
 
+#ifndef EDYN_DISABLE_PROFILING
+    auto &counters = registry.ctx().get<profile_counters>();
+    counters.bodies = registry.view<rigidbody_tag>().size();
+    counters.islands = registry.view<island>().size();
+    counters.constraints = 0;
+    counters.constraint_rows = 0;
+
+    auto con_view_tuple = get_tuple_of_views(registry, constraints_tuple);
+    std::apply([&](auto &&... con_view) {
+        counters.constraints = (con_view.size() + ...);
+    }, con_view_tuple);
+
+    for (auto island_entity : island_view) {
+        auto &cache = registry.get<row_cache>(island_entity);
+        counters.constraint_rows += cache.rows.size();
+    }
+#endif
+
+    EDYN_PROFILE_MEASURE_ACCUM(prof_time, profile, solve_islands);
+
     update_origins(registry);
 
     // Update rotated vertices of convex meshes after rotations change. It is
@@ -260,6 +290,8 @@ void solver::update(bool mt) {
 
     // Update world-space moment of inertia.
     update_inertias(registry);
+
+    EDYN_PROFILE_MEASURE_ACCUM(prof_time, profile, apply_results);
 }
 
 }

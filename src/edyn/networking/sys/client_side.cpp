@@ -4,6 +4,7 @@
 #include "edyn/config/config.h"
 #include "edyn/config/execution_mode.hpp"
 #include "edyn/constraints/constraint.hpp"
+#include "edyn/context/profile.hpp"
 #include "edyn/context/registry_operation_context.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
 #include "edyn/networking/comp/action_history.hpp"
@@ -38,6 +39,7 @@
 #include "edyn/util/island_util.hpp"
 #include "edyn/util/vector_util.hpp"
 #include "edyn/util/aabb_util.hpp"
+#include "edyn/util/profile_util.hpp"
 #include "edyn/time/simulation_time.hpp"
 #include <entt/entity/registry.hpp>
 #include <set>
@@ -159,6 +161,11 @@ void init_network_client(entt::registry &registry) {
     ctx.extrapolator->start();
 
     ctx.message_queue.sink<extrapolation_result>().connect<&on_extrapolation_result>(registry);
+
+#ifndef EDYN_DISABLE_PROFILING
+    registry.ctx().emplace<profile_network>();
+    ctx.packet_sink().connect<&profile_on_packet_sent>(registry);
+#endif
 }
 
 void deinit_network_client(entt::registry &registry) {
@@ -173,6 +180,10 @@ void deinit_network_client(entt::registry &registry) {
     registry.on_destroy<graph_node>().disconnect<&on_destroy_shared>();
     registry.on_construct<graph_edge>().disconnect<&on_construct_shared>();
     registry.on_destroy<graph_edge>().disconnect<&on_destroy_shared>();
+
+#ifndef EDYN_DISABLE_PROFILING
+    registry.ctx().erase<profile_network>();
+#endif
 }
 
 void add_entities_to_extrapolator(entt::registry &registry,
@@ -366,6 +377,10 @@ void update_network_client(entt::registry &registry) {
     registry.ctx().get<client_network_context>().message_queue.update();
     trim_and_insert_actions(registry, time);
     update_input_history(registry, time);
+
+#ifndef EDYN_DISABLE_PROFILING
+    update_network_profiling(registry, time);
+#endif
 }
 
 static void process_packet(entt::registry &registry, const packet::client_created &packet) {
@@ -847,6 +862,10 @@ static void process_packet(entt::registry &, const packet::query_entity &) {}
 static void process_packet(entt::registry &, const packet::asset_sync &) {}
 
 void client_receive_packet(entt::registry &registry, packet::edyn_packet &packet) {
+#ifndef EDYN_DISABLE_PROFILING
+    profile_on_packet_received(registry, packet);
+#endif
+
     std::visit([&](auto &&inner_packet) {
         process_packet(registry, inner_packet);
     }, packet.var);

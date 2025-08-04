@@ -372,15 +372,13 @@ static bool solve_position_constraints(entt::registry &registry, const island_co
 
 static void island_solver_update(island_solver_context &ctx);
 
-bool apply_solution(entt::registry &registry, scalar dt, const entt::sparse_set &entities,
-                    execution_mode mode, island_solver_context *isle_ctx) {
-    auto view = registry.view<position, orientation,
-                              linvel, angvel, delta_linvel, delta_angvel,
-                              dynamic_tag>();
+template<typename It, typename View>
+void integrate_velocities(View &view, It first, It last, scalar dt) {
+    for (; first != last; ++first) {
+        auto entity = *first;
 
-    auto for_loop_body = [view, dt](entt::entity entity) {
         if (view.contains(entity)) {
-            auto [pos, orn, v, w, dv, dw] = view.get(entity);
+            auto [pos, orn, v, w, dv, dw] = view.template get(entity);
 
             // Apply deltas.
             v += dv;
@@ -392,7 +390,11 @@ bool apply_solution(entt::registry &registry, scalar dt, const entt::sparse_set 
             dv = vector3_zero;
             dw = vector3_zero;
         }
-    };
+    }
+}
+
+bool apply_solution(entt::registry &registry, scalar dt, const entt::sparse_set &entities,
+                    execution_mode mode, island_solver_context *isle_ctx) {
 
     struct apply_solution_context {
         entt::registry *registry;
@@ -407,26 +409,10 @@ bool apply_solution(entt::registry &registry, scalar dt, const entt::sparse_set 
             std::advance(last, end - start);
 
             auto view = registry->view<position, orientation,
-                                            linvel, angvel,
-                                            delta_linvel, delta_angvel,
-                                            dynamic_tag>();
-
-            for (; first != last; ++first) {
-                auto entity = *first;
-                if (view.contains(entity)) {
-                    auto [pos, orn, v, w, dv, dw] = view.get(entity);
-
-                    // Apply deltas.
-                    v += dv;
-                    w += dw;
-                    // Integrate velocities and obtain new transforms.
-                    pos += v * dt;
-                    orn = integrate(orn, w, dt);
-                    // Reset deltas back to zero for next update.
-                    dv = vector3_zero;
-                    dw = vector3_zero;
-                }
-            }
+                                       linvel, angvel,
+                                       delta_linvel, delta_angvel,
+                                       dynamic_tag>();
+            integrate_velocities(view, first, last, dt);
         }
 
         void completion_func() {
@@ -439,9 +425,11 @@ bool apply_solution(entt::registry &registry, scalar dt, const entt::sparse_set 
     constexpr auto max_sequential_size = 64u;
 
     if (mode == execution_mode::sequential || entities.size() <= max_sequential_size) {
-        for (auto &entity : entities) {
-            for_loop_body(entity);
-        }
+        auto view = registry.view<position, orientation,
+                                  linvel, angvel,
+                                  delta_linvel, delta_angvel,
+                                  dynamic_tag>();
+        integrate_velocities(view, entities.begin(), entities.end(), dt);
         return true;
     } else if (mode == execution_mode::sequential_multithreaded) {
         auto ctx = apply_solution_context{};

@@ -33,6 +33,7 @@
 #include "edyn/parallel/message.hpp"
 #include "edyn/replication/entity_map.hpp"
 #include "edyn/util/island_util.hpp"
+#include "edyn/util/profile_util.hpp"
 #include "edyn/util/vector_util.hpp"
 #include "edyn/util/aabb_util.hpp"
 #include "edyn/time/simulation_time.hpp"
@@ -287,6 +288,11 @@ void init_network_server(entt::registry &registry) {
 
     auto &settings = registry.ctx().get<edyn::settings>();
     settings.network_settings = server_network_settings{};
+
+#ifndef EDYN_DISABLE_PROFILING
+    registry.ctx().emplace<profile_network>();
+    registry.ctx().get<server_network_context>().packet_sink().connect<&profile_on_packet_sent>(registry);
+#endif
 }
 
 void deinit_network_server(entt::registry &registry) {
@@ -294,6 +300,10 @@ void deinit_network_server(entt::registry &registry) {
 
     auto &settings = registry.ctx().get<edyn::settings>();
     settings.network_settings = {};
+
+#ifndef EDYN_DISABLE_PROFILING
+    registry.ctx().erase<profile_network>();
+#endif
 }
 
 static void server_process_timed_packets(entt::registry &registry, double time) {
@@ -600,6 +610,9 @@ void update_network_server(entt::registry &registry) {
     process_aabbs_of_interest(registry, time);
     publish_pending_created_clients(registry);
     dispatch_actions(registry, time);
+#ifndef EDYN_DISABLE_PROFILING
+    update_network_profiling(registry, time);
+#endif
 }
 
 template<typename T>
@@ -669,6 +682,10 @@ void enqueue_packet<packet::registry_snapshot>(entt::registry &registry, entt::e
 }
 
 void server_receive_packet(entt::registry &registry, entt::entity client_entity, packet::edyn_packet &packet) {
+#ifndef EDYN_DISABLE_PROFILING
+    profile_on_packet_received(registry, packet);
+#endif
+
     std::visit([&](auto &&decoded_packet) {
         using PacketType = std::decay_t<decltype(decoded_packet)>;
         // If it's a timed packet, enqueue for later execution. Process

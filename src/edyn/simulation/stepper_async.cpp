@@ -7,6 +7,7 @@
 #include "edyn/comp/tag.hpp"
 #include "edyn/constraints/null_constraint.hpp"
 #include "edyn/constraints/constraint.hpp"
+#include "edyn/context/profile.hpp"
 #include "edyn/context/registry_operation_context.hpp"
 #include "edyn/math/math.hpp"
 #include "edyn/parallel/message.hpp"
@@ -29,7 +30,8 @@ stepper_async::stepper_async(entt::registry &registry, double time)
         message_dispatcher::global().make_queue<
             msg::step_update,
             msg::raycast_response,
-            msg::query_aabb_response
+            msg::query_aabb_response,
+            msg::profiling
         >("main"))
     , m_worker(registry.ctx().get<settings>(),
                registry.ctx().get<registry_operation_context>(),
@@ -46,6 +48,10 @@ stepper_async::stepper_async(entt::registry &registry, double time)
     m_message_queue_handle.sink<msg::step_update>().connect<&stepper_async::on_step_update>(*this);
     m_message_queue_handle.sink<msg::raycast_response>().connect<&stepper_async::on_raycast_response>(*this);
     m_message_queue_handle.sink<msg::query_aabb_response>().connect<&stepper_async::on_query_aabb_response>(*this);
+
+#ifndef EDYN_DISABLE_PROFILING
+    m_message_queue_handle.sink<msg::profiling>().connect<&stepper_async::on_profiling>(*this);
+#endif
 
     auto &reg_op_ctx = m_registry->ctx().get<registry_operation_context>();
     m_op_builder = (*reg_op_ctx.make_reg_op_builder)(*m_registry);
@@ -209,6 +215,13 @@ void stepper_async::on_query_aabb_response(message<msg::query_aabb_response> &ms
     auto &ctx = m_query_aabb_ctx.at(response.id);
     ctx.delegate(response.id, std::move(result));
     m_query_aabb_ctx.erase(response.id);
+}
+
+void stepper_async::on_profiling(message<msg::profiling> &msg) {
+#ifndef EDYN_DISABLE_PROFILING
+    m_registry->ctx().get<profile_timers>() = msg.content.timers;
+    m_registry->ctx().get<profile_counters>() = msg.content.counters;
+#endif
 }
 
 void stepper_async::sync() {
