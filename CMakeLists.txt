@@ -16,7 +16,7 @@ option(EDYN_INSTALL "Enable installation of Edyn" ${Edyn_MAIN_PROJECT})
 option(EDYN_BUILD_EXAMPLES "Build examples" ${Edyn_MAIN_PROJECT})
 option(EDYN_BUILD_TESTS "Build tests with gtest" OFF)
 option(EDYN_DISABLE_ASSERT "Disable assertions in Edyn for better performance." OFF)
-option(EDYN_DISABLE_PROFILING "Disable profiling if unused." OFF)
+option(EDYN_DISABLE_PROFILING "Disable profiling if unused." ON)
 cmake_dependent_option(EDYN_ENABLE_SANITIZER "Enable address sanitizer." OFF "NOT MSVC" OFF)
 
 if(NOT CMAKE_DEBUG_POSTFIX)
