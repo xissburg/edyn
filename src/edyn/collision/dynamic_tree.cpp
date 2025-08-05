@@ -12,7 +12,6 @@ tree_node_id_t dynamic_tree::allocate() {
     if (m_free_list == null_tree_node_id) {
         auto id = static_cast<tree_node_id_t>(m_nodes.size());
         auto &node = m_nodes.emplace_back();
-        node.next = null_tree_node_id;
         node.parent = null_tree_node_id;
         node.child1 = null_tree_node_id;
         node.child2 = null_tree_node_id;
@@ -22,12 +21,12 @@ tree_node_id_t dynamic_tree::allocate() {
     } else {
         auto id = m_free_list;
         auto &node = m_nodes[id];
+        m_free_list = node.next;
         node.parent = null_tree_node_id;
         node.child1 = null_tree_node_id;
         node.child2 = null_tree_node_id;
         node.entity = entt::null;
         node.height = 0;
-        m_free_list = node.next;
         return id;
     }
 }
