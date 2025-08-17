@@ -216,14 +216,12 @@ void process_collision(entt::entity manifold_entity,
         // for the caller if it determines this is a new point that must be
         // appended, i.e. `res.type` will be `point_insertion_type::append`.
         std::array<vector3, max_contacts> pivots;
-        std::array<scalar, max_contacts> distances;
 
         for (size_t i = 0; i < num_points; ++i) {
             pivots[i] = local_points[i].point.pivotA;
-            distances[i] = local_points[i].point.distance;
         }
 
-        auto res = insertion_point_index(pivots, distances, num_points, rp.pivotA);
+        auto res = insertion_point_index(pivots, num_points, rp.pivotA);
 
         // No closest point found for pivotA, try pivotB.
         if (res.type == point_insertion_type::none) {
@@ -231,7 +229,7 @@ void process_collision(entt::entity manifold_entity,
                 pivots[i] = local_points[i].point.pivotB;
             }
 
-            res = insertion_point_index(pivots, distances, num_points, rp.pivotB);
+            res = insertion_point_index(pivots, num_points, rp.pivotB);
         }
 
         if (res.type != point_insertion_type::none) {

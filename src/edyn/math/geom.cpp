@@ -855,7 +855,6 @@ scalar manifold_score(const vector3 &p0, const vector3 &p1, const vector3 &p2, c
 }
 
 insertion_point_result insertion_point_index(const vector3 *points,
-                                             const scalar *depths,
                                              size_t count,
                                              size_t &num_points,
                                              const vector3 &new_point) noexcept {

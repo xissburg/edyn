@@ -262,17 +262,15 @@ struct insertion_point_result {
 };
 
 insertion_point_result insertion_point_index(const vector3 *points,
-                                             const scalar *depths,
                                              size_t count,
                                              size_t &num_points,
                                              const vector3 &new_point) noexcept;
 
 template<size_t N>
 insertion_point_result insertion_point_index(const std::array<vector3, N> &points,
-                                             const std::array<scalar, N> &depths,
                                              size_t &num_points,
                                              const vector3 &new_point) noexcept {
-    return insertion_point_index(points.data(), depths.data(), N, num_points, new_point);
+    return insertion_point_index(points.data(), N, num_points, new_point);
 }
 
 /**
