@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.12.4)
+cmake_minimum_required(VERSION 3.15)
 
 set(Edyn_MAIN_PROJECT ON)
 if(DEFINED PROJECT_SOURCE_DIR)
