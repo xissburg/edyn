@@ -378,7 +378,7 @@ void integrate_velocities(View &view, It first, It last, scalar dt) {
         auto entity = *first;
 
         if (view.contains(entity)) {
-            auto [pos, orn, v, w, dv, dw] = view.template get(entity);
+            auto [pos, orn, v, w, dv, dw] = view.get(entity);
 
             // Apply deltas.
             v += dv;
