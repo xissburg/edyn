@@ -79,7 +79,7 @@ void triangle_mesh::init_edge_indices() {
     m_is_boundary_edge.resize(m_edge_vertex_indices.size());
 
     // Edges with a single valid _edge face index_ are at the boundary.
-    for (index_type edge_idx = 0; edge_idx < m_edge_face_indices.size(); ++edge_idx) {
+    for (index_type edge_idx = 0; edge_idx < static_cast<index_type>(m_edge_face_indices.size()); ++edge_idx) {
         auto &edge_face_indices = m_edge_face_indices[edge_idx];
         EDYN_ASSERT(edge_face_indices[0] != idx_max);
 
