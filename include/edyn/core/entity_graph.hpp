@@ -10,6 +10,7 @@
 #include <entt/entity/entity.hpp>
 #include "edyn/config/config.h"
 #include "edyn/core/entity_pair.hpp"
+#include "edyn/core/free_list.hpp"
 
 namespace edyn {
 
@@ -34,23 +35,23 @@ public:
 
 private:
     struct node {
-        entt::entity entity;
+        entt::entity entity {entt::null};
         bool non_connecting;
-        index_type adjacency_index;
-        index_type next;
+        index_type adjacency_index {null_index};
+        index_type next {null_index};
     };
 
     struct edge {
-        entt::entity entity;
-        index_type node_index0, node_index1;
-        index_type adj_index0, adj_index1;
-        index_type next;
+        entt::entity entity {entt::null};
+        index_type node_index0 {null_index}, node_index1 {null_index};
+        index_type adj_index0 {null_index}, adj_index1 {null_index};
+        index_type next {null_index};
     };
 
     struct adjacency {
-        index_type node_index;
-        index_type edge_index;
-        index_type next;
+        index_type node_index {null_index};
+        index_type edge_index {null_index};
+        index_type next {null_index};
     };
 
     void insert_adjacency(index_type node_index0, index_type node_index1, index_type edge_index);
@@ -166,22 +167,19 @@ public:
 
     void clear();
 
+    auto num_nodes() const { return m_nodes.count(); }
+    auto num_edges() const { return m_edges.count(); }
+
 private:
-    std::vector<node> m_nodes;
-    std::vector<edge> m_edges;
-    std::vector<adjacency> m_adjacencies;
 
-    size_t m_node_count {};
-    size_t m_edge_count {};
-
-    size_t m_nodes_free_list {null_index};
-    size_t m_edges_free_list {null_index};
-    size_t m_adjacencies_free_list {null_index};
+    free_list<node, index_type, null_index> m_nodes;
+    free_list<edge, index_type, null_index> m_edges;
+    free_list<adjacency, index_type, null_index> m_adjacencies;
 };
 
 template<typename Func>
 void entity_graph::visit_neighbors(index_type node_index, Func func) const {
-    EDYN_ASSERT(node_index < m_nodes.size());
+    EDYN_ASSERT(node_index < m_nodes.range());
     EDYN_ASSERT(m_nodes[node_index].entity != entt::null);
 
     auto adj_index = m_nodes[node_index].adjacency_index;
@@ -204,8 +202,8 @@ void entity_graph::visit_neighbors(index_type node_index, Func func) const {
 
 template<typename Func>
 void entity_graph::visit_edges(index_type node_index0, index_type node_index1, Func func) const {
-    EDYN_ASSERT(node_index0 < m_nodes.size());
-    EDYN_ASSERT(node_index1 < m_nodes.size());
+    EDYN_ASSERT(node_index0 < m_nodes.range());
+    EDYN_ASSERT(node_index1 < m_nodes.range());
 
     auto adj_index = m_nodes[node_index0].adjacency_index;
 
@@ -233,7 +231,7 @@ void entity_graph::visit_edges(index_type node_index0, index_type node_index1, F
 
 template<typename Func>
 void entity_graph::visit_edges(index_type node_index, Func func) const {
-    EDYN_ASSERT(node_index < m_nodes.size());
+    EDYN_ASSERT(node_index < m_nodes.range());
 
     auto adj_index = m_nodes[node_index].adjacency_index;
 
@@ -270,8 +268,8 @@ void entity_graph::reach(It first, It last, VisitNodeFunc visit_node_func,
 
     std::vector<bool> visited;
     std::vector<bool> visited_edges;
-    visited.assign(m_nodes.size(), false);
-    visited_edges.assign(m_edges.size(), false);
+    visited.assign(m_nodes.range(), false);
+    visited_edges.assign(m_edges.range(), false);
 
     std::vector<index_type> non_connecting_indices;
     std::vector<index_type> to_visit;
@@ -361,12 +359,12 @@ void entity_graph::traverse(index_type start_node_index,
                             VisitEdgeFunc visit_edge_func) const {
     std::vector<bool> visited;
     std::vector<bool> visited_edges;
-    visited.assign(m_nodes.size(), false);
+    visited.assign(m_nodes.range(), false);
 
     constexpr auto should_visit_edges = !std::is_same_v<VisitEdgeFunc, internal::no_edge_visits>;
 
     if constexpr(should_visit_edges) {
-        visited_edges.assign(m_edges.size(), false);
+        visited_edges.assign(m_edges.range(), false);
     }
 
     std::vector<index_type> to_visit;
