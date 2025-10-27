@@ -69,6 +69,7 @@ public:
         return const_cast<T &>(std::as_const(*this)[index]);
     }
 
+    // Total number of valid elements.
     auto count() const {
         return m_size;
     }
@@ -77,6 +78,7 @@ public:
         return m_size == 0;
     }
 
+    // Valid indices go from 0 up to `range() -1`.
     auto range() const {
         return m_elem.size();
     }
