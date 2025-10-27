@@ -1,5 +1,55 @@
 #include "../common/common.hpp"
-#include <edyn/core/entity_graph.hpp>
+#include "edyn/core/entity_graph.hpp"
+#include <algorithm>
+#include <entt/entity/registry.hpp>
+
+TEST(entity_graph_test, insert) {
+    auto registry = entt::registry{};
+    auto graph = edyn::entity_graph{};
+
+    auto e0 = registry.create();
+    auto node0 = graph.insert_node(e0);
+
+    auto e1 = registry.create();
+    auto node1 = graph.insert_node(e1);
+
+    auto e2 = registry.create();
+    auto edge0 = graph.insert_edge(e2, node0, node1);
+
+    // Check nodes and edges exist.
+    ASSERT_EQ(e0, graph.node_entity(node0));
+    ASSERT_EQ(e1, graph.node_entity(node1));
+    ASSERT_EQ(e2, graph.edge_entity(edge0));
+
+    ASSERT_TRUE(graph.has_adjacency(node0, node1));
+
+    auto indices = graph.edge_node_indices(edge0);
+    ASSERT_NE(std::find(indices.begin(), indices.end(), node0), indices.end());
+    ASSERT_NE(std::find(indices.begin(), indices.end(), node1), indices.end());
+}
+
+TEST(entity_graph_test, remove) {
+    auto registry = entt::registry{};
+    auto graph = edyn::entity_graph{};
+
+    auto e0 = registry.create();
+    auto node0 = graph.insert_node(e0);
+
+    auto e1 = registry.create();
+    auto node1 = graph.insert_node(e1);
+
+    auto e2 = registry.create();
+    auto edge0 = graph.insert_edge(e2, node0, node1);
+
+    graph.remove_edge(edge0);
+    ASSERT_EQ(graph.num_edges(), 0);
+
+    graph.remove_node(node0);
+    ASSERT_EQ(graph.num_nodes(), 1);
+
+    graph.remove_node(node1);
+    ASSERT_EQ(graph.num_nodes(), 0);
+}
 
 TEST(entity_graph_test, test_connected_components) {
     auto registry = entt::registry();
