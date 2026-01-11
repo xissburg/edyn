@@ -275,13 +275,13 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     ctx.packet_signal.publish(client_entity, packet::edyn_packet{res});
 }
 
-static void process_packet(entt::registry &, entt::entity, const packet::entity_response &) {}
-static void process_packet(entt::registry &, entt::entity, const packet::client_created &) {}
-static void process_packet(entt::registry &, entt::entity, const packet::set_playout_delay &) {}
-static void process_packet(entt::registry &, entt::entity, const packet::server_settings &) {}
-static void process_packet(entt::registry &, entt::entity, const packet::entity_entered &) {}
-static void process_packet(entt::registry &, entt::entity, const packet::entity_exited &) {}
-static void process_packet(entt::registry &, entt::entity, const packet::asset_sync_response &) {}
+static void process_packet([[maybe_unused]] entt::registry &, [[maybe_unused]] entt::entity, [[maybe_unused]] const packet::entity_response &) {}
+static void process_packet([[maybe_unused]] entt::registry &, [[maybe_unused]] entt::entity, [[maybe_unused]] const packet::client_created &) {}
+static void process_packet([[maybe_unused]] entt::registry &, [[maybe_unused]] entt::entity, [[maybe_unused]] const packet::set_playout_delay &) {}
+static void process_packet([[maybe_unused]] entt::registry &, [[maybe_unused]] entt::entity, [[maybe_unused]] const packet::server_settings &) {}
+static void process_packet([[maybe_unused]] entt::registry &, [[maybe_unused]] entt::entity, [[maybe_unused]] const packet::entity_entered &) {}
+static void process_packet([[maybe_unused]] entt::registry &, [[maybe_unused]] entt::entity, [[maybe_unused]] const packet::entity_exited &) {}
+static void process_packet([[maybe_unused]] entt::registry &, [[maybe_unused]] entt::entity, [[maybe_unused]] const packet::asset_sync_response &) {}
 
 void init_network_server(entt::registry &registry) {
     registry.ctx().emplace<server_network_context>(registry);

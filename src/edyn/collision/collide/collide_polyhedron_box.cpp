@@ -71,7 +71,7 @@ void collide(const polyhedron_shape &shA, const box_shape &shB,
 
     // Edge vs edge.
     scalar min_edge_dist = -EDYN_SCALAR_MAX;
-    scalar edge_projectionA, edge_projectionB;
+    scalar edge_projectionA {0}, edge_projectionB {0};
     auto edge_dir = vector3_zero;
 
     for (auto edge_idxA = 0u; edge_idxA < meshA.num_edges(); ++edge_idxA) {
