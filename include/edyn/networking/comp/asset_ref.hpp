@@ -15,15 +15,14 @@ namespace edyn {
  */
 struct asset_ref {
     // Asset id.
-    entt::id_type id;
-    uint32_t version;
+    std::string id;
     // Maps internal asset ids to instantiated entities.
     std::map<entt::id_type, entt::entity> entity_map;
 };
 
 template<typename Archive>
 void serialize(Archive &archive, asset_ref &ref) {
-    archive(ref.id, ref.version);
+    archive(ref.id);
     archive(ref.entity_map);
 }
 
