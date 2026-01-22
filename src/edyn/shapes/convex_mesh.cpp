@@ -121,6 +121,9 @@ void convex_mesh::calculate_normals() {
 
 void convex_mesh::calculate_edges() {
     edges.clear();
+    edge_faces.clear();
+    edge_vertices.clear();
+    edge_normals.clear();
 
     for (size_t face_idx = 0; face_idx < num_faces(); ++face_idx) {
         const auto first = faces[face_idx * 2];
