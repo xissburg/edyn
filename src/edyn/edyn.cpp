@@ -210,6 +210,10 @@ void set_max_steps_per_update(entt::registry &registry, unsigned max_steps) {
     refresh_settings(registry);
 }
 
+unsigned get_max_steps_per_update(entt::registry &registry) {
+    return registry.ctx().get<settings>().max_steps_per_update;
+}
+
 bool is_paused(const entt::registry &registry) {
     return registry.ctx().get<settings>().paused;
 }

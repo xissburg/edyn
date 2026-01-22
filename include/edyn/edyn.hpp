@@ -99,6 +99,13 @@ void set_fixed_dt(entt::registry &registry, scalar dt);
 void set_max_steps_per_update(entt::registry &registry, unsigned);
 
 /**
+* @brief Get the limit of steps per update.
+* @param registry Data source.
+* @return Maximum number of steps per update.
+*/
+unsigned get_max_steps_per_update(entt::registry &registry);
+
+/**
  * @brief Checks if simulation is paused.
  * @param registry Data source.
  * @return Whether simulation is paused.
