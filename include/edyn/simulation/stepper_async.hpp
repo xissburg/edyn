@@ -93,6 +93,9 @@ public:
 
     query_aabb_id_type query_aabb_of_interest(const AABB &aabb, const query_aabb_delegate_type &delegate);
 
+    void set_pre_step_callback(step_callback_t func) { m_pre_step_callback = func; }
+    void set_post_step_callback(step_callback_t func) { m_post_step_callback = func; }
+
 private:
     entt::registry *m_registry;
 
@@ -122,6 +125,9 @@ private:
 
     query_aabb_id_type m_next_query_aabb_id {};
     std::map<query_aabb_id_type, worker_query_aabb_context> m_query_aabb_ctx;
+
+    step_callback_t m_pre_step_callback {nullptr};
+    step_callback_t m_post_step_callback {nullptr};
 
     std::vector<entt::scoped_connection> m_connections;
 };

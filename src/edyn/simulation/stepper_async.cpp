@@ -116,6 +116,10 @@ void stepper_async::on_step_update(message<msg::step_update> &msg) {
     auto &registry = *m_registry;
     auto &graph = registry.ctx().get<entity_graph>();
 
+    if (m_pre_step_callback) {
+        (*m_pre_step_callback)(*m_registry);
+    }
+
     m_importing = true;
     m_op_observer->set_active(false);
 
@@ -170,6 +174,10 @@ void stepper_async::on_step_update(message<msg::step_update> &msg) {
     // could be overriden in the next snapshot.
     auto &emitter = registry.ctx().get<contact_event_emitter>();
     emitter.consume_events();
+
+    if (m_post_step_callback) {
+        (*m_post_step_callback)(*m_registry);
+    }
 }
 
 void stepper_async::on_raycast_response(message<msg::raycast_response> &msg) {
