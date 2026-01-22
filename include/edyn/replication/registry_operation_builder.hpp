@@ -168,6 +168,7 @@ public:
     }
 
     registry_operation && finish() {
+        m_data_index = 0;
         return std::move(operation);
     }
 
