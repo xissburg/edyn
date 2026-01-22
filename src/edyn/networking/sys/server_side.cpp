@@ -754,7 +754,11 @@ void server_destroy_client(entt::registry &registry, entt::entity client_entity)
 void server_set_allow_full_ownership(entt::registry &registry, entt::entity client_entity, bool allow_full_ownership) {
     auto &client = registry.get<remote_client>(client_entity);
     client.allow_full_ownership = allow_full_ownership;
-    // TODO notify client
+
+    auto &settings = registry.ctx().get<edyn::settings>();
+    auto settings_packet = packet::server_settings(settings, allow_full_ownership);
+    auto &ctx = registry.ctx().get<server_network_context>();
+    ctx.packet_signal.publish(client_entity, packet::edyn_packet{settings_packet});
 }
 
 void server_set_client_round_trip_time(entt::registry &registry, entt::entity client_entity, double rtt) {
