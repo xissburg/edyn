@@ -43,7 +43,7 @@ void narrowphase::detect_collision_parallel_range(unsigned start, unsigned end) 
     auto mesh_shape_view = registry.view<mesh_shape>();
     auto paged_mesh_shape_view = registry.view<paged_mesh_shape>();
     auto shapes_views_tuple = get_tuple_of_shape_views(registry);
-    auto contact_storages = get_contact_point_storage_array(registry);
+    auto contact_storages = get_contact_storage_array(registry);
     auto dt = registry.ctx().get<settings>().fixed_dt;
     auto first = manifold_view.begin();
     std::advance(first, start);

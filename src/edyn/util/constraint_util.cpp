@@ -1,5 +1,6 @@
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/collision/contact_manifold.hpp"
+#include "edyn/collision/contact_point.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/material.hpp"
 #include "edyn/comp/tag.hpp"
@@ -13,6 +14,7 @@
 #include "edyn/constraints/constraint_row.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
 #include "edyn/util/collision_util.hpp"
+#include "edyn/util/transient_util.hpp"
 
 namespace edyn {
 
@@ -68,6 +70,12 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
                            scalar separation_threshold) {
     EDYN_ASSERT(registry.valid(body0) && registry.valid(body1));
     registry.emplace<contact_manifold>(manifold_entity, body0, body1, separation_threshold);
+
+    auto &async_settings = registry.ctx().get<settings>().async_settings;
+
+    if (async_settings && async_settings->sync_contact_points) {
+        mark_transient<contact_point>(registry, manifold_entity);
+    }
 
     auto material_view = registry.view<material>();
 

@@ -38,7 +38,7 @@ class simulation_worker final {
 
     void wake_up_affected_islands(const registry_operation &ops);
     void consume_raycast_results();
-    void mark_transforms_replaced();
+    void mark_transient_replaced();
 
 public:
     simulation_worker(const settings &settings,
@@ -48,16 +48,6 @@ public:
 
     void on_construct_shared_entity(entt::registry &registry, entt::entity entity);
     void on_destroy_shared_entity(entt::registry &registry, entt::entity entity);
-
-    template<unsigned StorageIndex>
-    void on_construct_contact_point(entt::registry &registry, entt::entity entity) {
-        m_op_builder->emplace_storage<contact_point>(contact_point_storage_names[StorageIndex], entity);
-    }
-
-    template<unsigned StorageIndex>
-    void on_destroy_contact_point(entt::registry &registry, entt::entity entity) {
-        m_op_builder->remove_storage<contact_point>(contact_point_storage_names[StorageIndex], entity);
-    }
 
     void on_update_entities(message<msg::update_entities> &msg);
     void on_set_paused(message<msg::set_paused> &msg);

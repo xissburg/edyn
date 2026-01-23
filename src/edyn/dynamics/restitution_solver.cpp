@@ -92,7 +92,7 @@ bool solve_restitution_iteration(entt::registry &registry, entt::entity island_e
     auto static_view = registry.view<static_tag>();
     auto restitution_view = registry.view<contact_manifold_with_restitution>();
     auto manifold_view = registry.view<contact_manifold>();
-    auto contact_storages = get_contact_point_storage_array(registry);
+    auto contact_storages = get_contact_storage_array(registry);
 
     // Solve manifolds in small groups, these groups being all manifolds connected
     // to one rigid body, usually a fast moving one. Ignore manifolds which are
@@ -115,7 +115,7 @@ bool solve_restitution_iteration(entt::registry &registry, entt::entity island_e
 
         auto &manifold = manifold_view.get<contact_manifold>(entity);
         auto local_min_relvel = get_manifold_min_relvel(manifold, entity, body_view, origin_view, static_view,
-                                                        get_contact_point_storage_array(std::as_const(registry)));
+                                                        get_contact_storage_array(std::as_const(registry)));
 
         if (local_min_relvel < min_relvel) {
             min_relvel = local_min_relvel;
@@ -351,7 +351,7 @@ bool solve_restitution_iteration(entt::registry &registry, entt::entity island_e
     }
 
     std::vector<entt::entity> manifold_entities;
-    auto contact_storages_const = get_contact_point_storage_array(std::as_const(registry));
+    auto contact_storages_const = get_contact_storage_array(std::as_const(registry));
 
     graph.traverse(start_node_index, [&](auto node_index) {
         // Ignore non-procedural entities.

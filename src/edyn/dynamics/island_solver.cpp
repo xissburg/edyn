@@ -181,7 +181,7 @@ void update_impulse(entt::registry &registry, const std::vector<entt::entity> &e
                     row_cache &cache, size_t &con_idx, size_t &row_idx, size_t &friction_row_idx,
                     size_t &rolling_row_idx, size_t &spinning_row_idx) {
     auto con_view = registry.view<C>();
-    auto contact_storages = get_contact_point_storage_array(registry);
+    auto contact_storages = get_contact_storage_array(registry);
     std::vector<scalar> applied_impulses;
 
     for (auto entity : entities) {

@@ -106,17 +106,22 @@ void detect_collision(std::array<entt::entity, 2> body, collision_result &,
                       const tuple_of_shape_views_t &);
 
 
-inline auto get_contact_point_storage_array(entt::registry &registry) {
+template<typename T>
+auto get_contact_storage_array(entt::registry &registry) {
     contact_point_storage_array_t contact_storages;
 
     for (auto i = 0u; i < max_contacts; ++i) {
-        contact_storages[i] = &registry.storage<contact_point>(contact_point_storage_names[i]);
+        contact_storages[i] = &registry.storage<T>(contact_point_storage_names[i]);
     }
 
     return contact_storages;
 }
 
-inline auto get_contact_point_storage_array(const entt::registry &registry) {
+inline auto get_contact_storage_array(entt::registry &registry) {
+    return get_contact_storage_array<contact_point>(registry);
+}
+
+inline auto get_contact_storage_array(const entt::registry &registry) {
     contact_point_storage_array_const_t contact_storages;
 
     for (auto i = 0u; i < max_contacts; ++i) {
@@ -166,13 +171,13 @@ void contact_point_for_each(const contact_point_storage_array_const_t &storages,
 
 template<typename Func>
 void contact_point_for_each(entt::registry &registry, entt::entity entity, Func func) {
-    auto contact_storages = get_contact_point_storage_array(registry);
+    auto contact_storages = get_contact_storage_array(registry);
     contact_point_for_each(contact_storages, entity, func);
 }
 
 template<typename Func>
 void contact_point_for_each(const entt::registry &registry, entt::entity entity, Func func) {
-    auto contact_storages = get_contact_point_storage_array(registry);
+    auto contact_storages = get_contact_storage_array(registry);
     contact_point_for_each(contact_storages, entity, func);
 }
 

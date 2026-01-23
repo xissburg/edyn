@@ -24,7 +24,7 @@ void update_contact_distances(entt::registry &registry) {
     auto manifold_view = registry.view<contact_manifold>(exclude_sleeping_disabled);
     auto tr_view = registry.view<position, orientation>();
     auto origin_view = registry.view<origin>();
-    auto contact_storages = get_contact_point_storage_array(registry);
+    auto contact_storages = get_contact_storage_array(registry);
 
     for (auto [entity, manifold] : manifold_view.each()) {
         auto [posA, ornA] = tr_view.get(manifold.body[0]);
@@ -304,7 +304,7 @@ void create_contact_point(entt::registry &registry,
                           entt::entity manifold_entity,
                           contact_manifold& manifold,
                           const collision_result::collision_point& rp) {
-    auto contact_storages = get_contact_point_storage_array(registry);
+    auto contact_storages = get_contact_storage_array(registry);
 
     EDYN_ASSERT(length_sqr(rp.normal) > EDYN_EPSILON);
 
@@ -370,7 +370,7 @@ bool should_remove_point(const contact_point &cp,
 }
 
 void destroy_contact_point(entt::registry &registry, entt::entity manifold_entity, contact_manifold::contact_id_type pt_id) {
-    get_contact_point_storage_array(registry)[pt_id]->erase(manifold_entity);
+    get_contact_storage_array(registry)[pt_id]->erase(manifold_entity);
 }
 
 void detect_collision(std::array<entt::entity, 2> body, collision_result &result,

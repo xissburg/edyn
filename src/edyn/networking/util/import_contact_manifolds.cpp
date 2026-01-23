@@ -34,9 +34,10 @@ void replace_manifold(entt::registry &registry, contact_manifold &manifold,
     if (manifold.body[0] != original_manifold.body[0]) {
         EDYN_ASSERT(manifold.body[1] == original_manifold.body[0]);
         EDYN_ASSERT(manifold.body[0] == original_manifold.body[1]);
-        swap_manifold(manifold, manifold_entity, get_contact_point_storage_array(registry));
+        swap_manifold(manifold, manifold_entity, get_contact_storage_array(registry));
     }
 
+    // TODO: Must replace contact points.
     registry.replace<contact_manifold>(manifold_entity, manifold);
 }
 

@@ -134,7 +134,7 @@ void attach(entt::registry &registry, const init_config &config) {
         (registry.storage<decltype(c)>(), ...);
     }, shared_components_t{});
 
-    get_contact_point_storage_array(registry);
+    get_contact_storage_array(registry);
 }
 
 template<typename... Ts>

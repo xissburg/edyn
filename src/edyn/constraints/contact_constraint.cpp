@@ -18,7 +18,7 @@ void contact_constraint::prepare(
     const constraint_body &bodyA, const constraint_body &bodyB) {
 
     auto &settings = registry.ctx().get<edyn::settings>();
-    auto contact_storages = get_contact_point_storage_array(registry);
+    auto contact_storages = get_contact_storage_array(registry);
     auto num_points = get_num_contact_points(contact_storages, entity);
 
     // Create constraint rows for each contact point.

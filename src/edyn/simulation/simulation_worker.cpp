@@ -7,6 +7,7 @@
 #include "edyn/comp/angvel.hpp"
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/position.hpp"
+#include "edyn/comp/transient.hpp"
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/tag.hpp"
@@ -115,16 +116,6 @@ void simulation_worker::init() {
     m_connections.push_back(m_registry.on_destroy<graph_node>().connect<&simulation_worker::on_destroy_shared_entity>(*this));
     m_connections.push_back(m_registry.on_destroy<graph_edge>().connect<&simulation_worker::on_destroy_shared_entity>(*this));
     m_connections.push_back(m_registry.on_destroy<island_tag>().connect<&simulation_worker::on_destroy_shared_entity>(*this));
-
-    auto contact_storages = get_contact_point_storage_array(m_registry);
-    m_connections.push_back(contact_storages[0]->on_construct().connect<&simulation_worker::on_construct_contact_point<0>>(*this));
-    m_connections.push_back(contact_storages[0]->on_destroy()  .connect<&simulation_worker::on_destroy_contact_point  <0>>(*this));
-    m_connections.push_back(contact_storages[1]->on_construct().connect<&simulation_worker::on_construct_contact_point<1>>(*this));
-    m_connections.push_back(contact_storages[1]->on_destroy()  .connect<&simulation_worker::on_destroy_contact_point  <1>>(*this));
-    m_connections.push_back(contact_storages[2]->on_construct().connect<&simulation_worker::on_construct_contact_point<2>>(*this));
-    m_connections.push_back(contact_storages[2]->on_destroy()  .connect<&simulation_worker::on_destroy_contact_point  <2>>(*this));
-    m_connections.push_back(contact_storages[3]->on_construct().connect<&simulation_worker::on_construct_contact_point<3>>(*this));
-    m_connections.push_back(contact_storages[3]->on_destroy()  .connect<&simulation_worker::on_destroy_contact_point  <3>>(*this));
 
     m_message_queue.sink<msg::update_entities>().connect<&simulation_worker::on_update_entities>(*this);
     m_message_queue.sink<msg::set_paused>().connect<&simulation_worker::on_set_paused>(*this);
@@ -436,7 +427,7 @@ void simulation_worker::update() {
             (*settings.post_step_callback)(m_registry);
         }
 
-        mark_transforms_replaced();
+        mark_transient_replaced();
         sync();
 
         EDYN_PROFILE_MEASURE_ACCUM(step_time, profile, step);
@@ -501,24 +492,21 @@ void simulation_worker::consume_raycast_results() {
     });
 }
 
-void simulation_worker::mark_transforms_replaced() {
-    auto body_view = m_registry.view<position, orientation, linvel, angvel, dynamic_tag>(exclude_sleeping_disabled);
-    m_op_builder->replace<position>(body_view.begin(), body_view.end());
-    m_op_builder->replace<orientation>(body_view.begin(), body_view.end());
-    m_op_builder->replace<linvel>(body_view.begin(), body_view.end());
-    m_op_builder->replace<angvel>(body_view.begin(), body_view.end());
+void simulation_worker::mark_transient_replaced() {
+    auto transient_view = m_registry.view<transient>(exclude_sleeping_disabled);
 
-    if (m_registry.ctx().get<edyn::settings>().async_settings->sync_contact_points) {
-        auto contact_storages = get_contact_point_storage_array(m_registry);
-        auto manifold_view = m_registry.view<contact_manifold>(entt::exclude_t<sleeping_tag>{});
+    for (auto [entity, transient] : transient_view.each()) {
+        m_op_builder->replace_type_ids(entity, transient.ids.begin(), transient.ids.end());
+    }
 
-        for (auto i = 0u; i < contact_storages.size(); ++i) {
-            auto cp_storage = contact_storages[i];
-            auto cp_view = entt::basic_view{*cp_storage} | manifold_view;
+    auto contact_storages = get_contact_storage_array(m_registry);
 
-            if (cp_view.size_hint() > 0) {
-                m_op_builder->replace_storage<contact_point>(contact_point_storage_names[i], cp_view.begin(), cp_view.end());
-            }
+    for (auto i = 0u; i < contact_storages.size(); ++i) {
+        auto cp_storage = contact_storages[i];
+        auto cp_view = entt::basic_view{*cp_storage} | transient_view;
+
+        for (auto [entity, cp, transient] : cp_view.each()) {
+            m_op_builder->replace_type_ids_storage(contact_point_storage_names[i], entity, transient.ids.begin(), transient.ids.end());
         }
     }
 }
@@ -560,7 +548,7 @@ void simulation_worker::on_step_simulation(message<msg::step_simulation> &) {
         (*settings.post_step_callback)(m_registry);
     }
 
-    mark_transforms_replaced();
+    mark_transient_replaced();
     sync();
 }
 

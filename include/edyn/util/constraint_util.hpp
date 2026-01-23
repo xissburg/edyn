@@ -142,7 +142,7 @@ template<typename Constraint, typename It>
 void clear_applied_impulses_single(entt::registry &registry, It first, It last) {
     auto con_view = registry.view<Constraint>();
     std::vector<scalar> impulses(16, scalar{0});
-    auto contact_storages = get_contact_point_storage_array(registry);
+    auto contact_storages = get_contact_storage_array(registry);
 
     for (; first != last; ++first) {
         auto entity = *first;

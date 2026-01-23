@@ -8,6 +8,7 @@
 #include "edyn/comp/origin.hpp"
 #include "edyn/comp/roll_direction.hpp"
 #include "edyn/comp/shape_index.hpp"
+#include "edyn/comp/transient.hpp"
 #include "edyn/config/config.h"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/transform.hpp"
@@ -34,6 +35,7 @@
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/dynamics/moment_of_inertia.hpp"
 #include "edyn/util/aabb_util.hpp"
+#include "edyn/util/transient_util.hpp"
 #include "edyn/util/tuple_util.hpp"
 #include "edyn/util/gravity_util.hpp"
 #include "edyn/simulation/stepper_async.hpp"
@@ -166,6 +168,16 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         registry.emplace<island_resident>(entity);
     } else {
         registry.emplace<multi_island_resident>(entity);
+    }
+
+    // Mark transform and velocity as transient by default so they're synchronized
+    // with the main registry continuously while they're awake.
+    if (registry.ctx().get<settings>().execution_mode == execution_mode::asynchronous) {
+        if (def.kind == rigidbody_kind::rb_static) {
+            mark_transient<position, orientation>(registry, entity);
+        } else {
+            mark_transient<position, orientation, linvel, angvel>(registry, entity);
+        }
     }
 
     // Always do this last to signal the completion of the construction of this
@@ -305,7 +317,7 @@ void set_rigidbody_friction(entt::registry &registry, entt::entity entity, scala
 
     auto material_view = registry.view<material>();
     auto manifold_view = registry.view<contact_manifold>();
-    auto contact_storages = get_contact_point_storage_array(registry);
+    auto contact_storages = get_contact_storage_array(registry);
 
     auto &material = registry.patch<edyn::material>(entity, [friction](auto &mat) {
         mat.friction = friction;
@@ -324,10 +336,6 @@ void set_rigidbody_friction(entt::registry &registry, entt::entity entity, scala
         }
 
         auto &manifold = manifold_view.get<contact_manifold>(edge_entity);
-
-        if (manifold.num_points == 0) {
-            return;
-        }
 
         // One of the bodies could be a sensor and not have a material.
         if (!material_view.contains(manifold.body[0]) ||
