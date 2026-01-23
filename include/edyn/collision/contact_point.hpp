@@ -3,7 +3,6 @@
 
 #include <array>
 #include <cstdint>
-#include <entt/core/fwd.hpp>
 #include <optional>
 #include <entt/entity/fwd.hpp>
 #include <entt/entity/entity.hpp>
@@ -15,35 +14,43 @@
 
 namespace edyn {
 
-using namespace entt::literals;
-
-static constexpr std::array<entt::hashed_string, max_contacts> contact_point_storage_names = {
-    "contacts_0"_hs,
-    "contacts_1"_hs,
-    "contacts_2"_hs,
-    "contacts_3"_hs
-};
-
 struct contact_point {
     vector3 pivotA; // A's pivot in object space.
     vector3 pivotB; // B's pivot in object space.
     vector3 normal; // Normal in world space.
+    uint32_t lifetime {0}; // Incremented in each simulation step where the contact is persisted.
+
+    // contact_point_list
+    entt::entity parent {entt::null};
+    entt::entity prev {entt::null};
+    entt::entity next {entt::null};
+
+    // contact_point_geometry
     vector3 local_normal; // Normal in object space.
     contact_normal_attachment normal_attachment; // To which body the normal is attached.
+    scalar distance; // Signed distance along normal.
+    std::optional<collision_feature> featureA; // Closest feature on A.
+    std::optional<collision_feature> featureB; // Closest feature on B.
+
+    // contact_point_material
     scalar friction; // Combined friction coefficient.
     scalar spin_friction; // Combined spin friction coefficient.
     scalar roll_friction; // Combined rolling friction coefficient.
     scalar restitution; // Combined coefficient of restitution.
     scalar stiffness {large_scalar};
     scalar damping {large_scalar};
-    uint32_t lifetime {0}; // Incremented in each simulation step where the contact is persisted.
-    scalar distance; // Signed distance along normal.
-    std::optional<collision_feature> featureA; // Closest feature on A.
-    std::optional<collision_feature> featureB; // Closest feature on B.
+
+    // contact_point_impulse
     scalar normal_impulse; // Applied normal impulse.
     std::array<scalar, 2> friction_impulse; // Applied tangential friction impulse.
+
+    // contact_point_spin_friction_impulse
     scalar spin_friction_impulse; // Applied spin friction impulse.
+
+    // contact_point_roll_friction_impulse
     std::array<scalar, 2> rolling_friction_impulse; // Applied rolling friction impulse.
+
+    // contact_point_restitution_impulse
     scalar normal_restitution_impulse; // Applied normal impulse in restitution solver.
     std::array<scalar, 2> friction_restitution_impulse; // Applied tangential friction impulse in restitution solver.
     /**
@@ -59,6 +66,8 @@ template<typename Archive>
 void serialize(Archive &archive, contact_point &cp) {
     archive(cp.pivotA, cp.pivotB);
     archive(cp.normal);
+    archive(cp.lifetime);
+    archive(cp.parent, cp.next, cp.prev);
     archive(cp.local_normal);
     archive(cp.normal_attachment);
     archive(cp.friction);
@@ -67,7 +76,6 @@ void serialize(Archive &archive, contact_point &cp) {
     archive(cp.restitution);
     archive(cp.stiffness);
     archive(cp.damping);
-    archive(cp.lifetime);
     archive(cp.distance);
     archive(cp.featureA, cp.featureB);
     archive(cp.normal_impulse);

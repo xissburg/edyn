@@ -62,6 +62,13 @@ static void init_meta() {
     entt::meta_factory<child_list>()
         .data<&child_list::parent, entt::as_ref_t>("parent"_hs)
         .data<&child_list::next, entt::as_ref_t>("next"_hs);
+
+    entt::meta_factory<contact_manifold>()
+        .data<&contact_manifold::contact_entity, entt::as_ref_t>("contact_entity"_hs);
+
+    entt::meta_factory<contact_point>()
+        .data<&contact_point::prev, entt::as_ref_t>("prev"_hs)
+        .data<&contact_point::next, entt::as_ref_t>("next"_hs);
 }
 
 void attach(entt::registry &registry, const init_config &config) {
@@ -133,8 +140,6 @@ void attach(entt::registry &registry, const init_config &config) {
     std::apply([&registry](auto ... c) {
         (registry.storage<decltype(c)>(), ...);
     }, shared_components_t{});
-
-    get_contact_storage_array(registry);
 }
 
 template<typename... Ts>

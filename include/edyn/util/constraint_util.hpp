@@ -108,7 +108,7 @@ void make_contact_manifold(entt::entity contact_entity, entt::registry &,
                            entt::entity body0, entt::entity body1,
                            scalar separation_threshold);
 
-void swap_manifold(contact_manifold &manifold, entt::entity entity, contact_point_storage_array_t &&contact_storages);
+void swap_manifold(entt::registry &registry, entt::entity manifold_entity);
 
 scalar get_effective_mass(const constraint_row &);
 
@@ -142,14 +142,13 @@ template<typename Constraint, typename It>
 void clear_applied_impulses_single(entt::registry &registry, It first, It last) {
     auto con_view = registry.view<Constraint>();
     std::vector<scalar> impulses(16, scalar{0});
-    auto contact_storages = get_contact_storage_array(registry);
 
     for (; first != last; ++first) {
         auto entity = *first;
         if (!con_view.contains(entity)) continue;
 
         if constexpr(std::is_same_v<Constraint, contact_constraint>) {
-            contact_point_for_each(contact_storages, entity, [&](contact_point &cp) {
+            contact_point_for_each(registry, entity, [&](contact_point &cp) {
                 cp.normal_impulse = 0;
                 cp.spin_friction_impulse = 0;
                 cp.normal_restitution_impulse = 0;

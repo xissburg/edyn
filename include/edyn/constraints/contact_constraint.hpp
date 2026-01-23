@@ -17,7 +17,7 @@ struct contact_manifold;
  */
 struct contact_constraint : public constraint_base {
     void prepare(
-        const entt::registry &, entt::entity, const contact_manifold &,
+        const entt::registry &, entt::entity,
         constraint_row_prep_cache &cache, scalar dt,
         const constraint_body &bodyA, const constraint_body &bodyB);
 

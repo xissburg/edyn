@@ -1,4 +1,5 @@
 #include "edyn/collision/broadphase.hpp"
+#include "edyn/collision/contact_point.hpp"
 #include "edyn/collision/tree_node.hpp"
 #include "edyn/comp/aabb.hpp"
 #include "edyn/comp/collision_exclusion.hpp"
@@ -119,6 +120,7 @@ void broadphase::move_aabbs() {
 void broadphase::destroy_separated_manifolds() {
     auto aabb_view = m_registry->view<AABB>();
     auto manifold_view = m_registry->view<contact_manifold>(exclude_sleeping_disabled);
+    auto cp_view = m_registry->view<contact_point>();
 
     // Destroy manifolds of pairs whose AABBs are not intersecting anymore.
     manifold_view.each([&](entt::entity entity, contact_manifold &manifold) {
@@ -127,6 +129,14 @@ void broadphase::destroy_separated_manifolds() {
         const auto separation_offset = vector3_one * -manifold.separation_threshold;
 
         if (!intersect(b0.inset(separation_offset), b1)) {
+            auto contact_entity = manifold.contact_entity;
+
+            while (contact_entity != entt::null) {
+                auto next = std::get<0>(cp_view.get(contact_entity)).next;
+                m_registry->destroy(contact_entity);
+                contact_entity = next;
+            }
+
             m_registry->destroy(entity);
         }
     });

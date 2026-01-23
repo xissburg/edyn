@@ -22,6 +22,11 @@ struct contact_manifold {
     // intersect the AABB of the other, the manifold will be destroyed.
     // See `edyn::broadphase::destroy_separated_manifolds`.
     scalar separation_threshold;
+
+    // Number of contact points in this manifold.
+    uint8_t num_points {0};
+
+    entt::entity contact_entity {entt::null};
 };
 
 /**
@@ -33,6 +38,8 @@ template<typename Archive>
 void serialize(Archive &archive, contact_manifold &manifold) {
     archive(manifold.body);
     archive(manifold.separation_threshold);
+    archive(manifold.num_points);
+    archive(manifold.contact_entity);
 }
 
 }

@@ -36,6 +36,7 @@ void narrowphase::detect_collision_parallel_range(unsigned start, unsigned end) 
     auto body_view = registry.view<AABB, shape_index, position, orientation>();
     auto tr_view = registry.view<position, orientation>();
     auto vel_view = registry.view<angvel>();
+    auto cp_view = m_registry->view<contact_point>();
     auto rolling_view = registry.view<rolling_tag>();
     auto origin_view = registry.view<origin>();
     auto material_view = registry.view<material>();
@@ -43,7 +44,6 @@ void narrowphase::detect_collision_parallel_range(unsigned start, unsigned end) 
     auto mesh_shape_view = registry.view<mesh_shape>();
     auto paged_mesh_shape_view = registry.view<paged_mesh_shape>();
     auto shapes_views_tuple = get_tuple_of_shape_views(registry);
-    auto contact_storages = get_contact_storage_array(registry);
     auto dt = registry.ctx().get<settings>().fixed_dt;
     auto first = manifold_view.begin();
     std::advance(first, start);
@@ -56,14 +56,13 @@ void narrowphase::detect_collision_parallel_range(unsigned start, unsigned end) 
         auto &destruction_info = m_cp_destruction_infos[index];
 
         detect_collision(manifold.body, result, body_view, origin_view, shapes_views_tuple);
-        process_collision(entity, manifold, contact_storages, result, tr_view, vel_view,
+        process_collision(entity, manifold, result, tr_view, vel_view, cp_view,
                         rolling_view, origin_view, orn_view, material_view,
                         mesh_shape_view, paged_mesh_shape_view, dt,
                         [&construction_info](const collision_result::collision_point &rp) {
             construction_info.point[construction_info.count++] = rp;
-        }, [&destruction_info](auto pt_id) {
-            EDYN_ASSERT(pt_id < max_contacts);
-            destruction_info.point_id[destruction_info.count++] = pt_id;
+        }, [&destruction_info](entt::entity contact_entity) {
+            destruction_info.contact_entities.push_back(contact_entity);
         });
     }
 }
@@ -84,16 +83,18 @@ void narrowphase::finish_detect_collision() {
 
     // Destroy contact points.
     for (size_t i = 0; i < manifold_view.size(); ++i, ++it) {
-        auto entity = *it;
         auto &info_result = m_cp_destruction_infos[i];
 
-        for (size_t j = 0; j < info_result.count; ++j) {
-            destroy_contact_point(*m_registry, entity, info_result.point_id[j]);
+        for (auto contact_entity : info_result.contact_entities) {
+            destroy_contact_point(*m_registry, contact_entity);
         }
     }
 
     // Create contact points.
     it = manifold_view.begin();
+
+    auto &async_settings = m_registry->ctx().get<const settings>().async_settings;
+    const auto transient = async_settings->sync_contact_points;
 
     for (size_t i = 0; i < manifold_view.size(); ++i, ++it) {
         auto entity = *it;
@@ -101,7 +102,7 @@ void narrowphase::finish_detect_collision() {
         auto &info_result = m_cp_construction_infos[i];
 
         for (size_t j = 0; j < info_result.count; ++j) {
-            create_contact_point(*m_registry, entity, manifold, info_result.point[j]);
+            create_contact_point(*m_registry, entity, manifold, info_result.point[j], transient);
         }
     }
 

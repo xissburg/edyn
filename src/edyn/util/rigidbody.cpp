@@ -173,9 +173,7 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
     // Mark transform and velocity as transient by default so they're synchronized
     // with the main registry continuously while they're awake.
     if (registry.ctx().get<settings>().execution_mode == execution_mode::asynchronous) {
-        if (def.kind == rigidbody_kind::rb_static) {
-            mark_transient<position, orientation>(registry, entity);
-        } else {
+        if (def.kind != rigidbody_kind::rb_static) {
             mark_transient<position, orientation, linvel, angvel>(registry, entity);
         }
     }
@@ -317,7 +315,6 @@ void set_rigidbody_friction(entt::registry &registry, entt::entity entity, scala
 
     auto material_view = registry.view<material>();
     auto manifold_view = registry.view<contact_manifold>();
-    auto contact_storages = get_contact_storage_array(registry);
 
     auto &material = registry.patch<edyn::material>(entity, [friction](auto &mat) {
         mat.friction = friction;
@@ -354,7 +351,7 @@ void set_rigidbody_friction(entt::registry &registry, entt::entity entity, scala
 
         auto combined_friction = material_mix_friction(friction, other_material.friction);
 
-        contact_point_for_each(contact_storages, edge_entity,
+        contact_point_for_each(registry, edge_entity,
             [combined_friction](contact_point &cp) {
                 cp.friction = combined_friction;
             });

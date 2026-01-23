@@ -160,60 +160,6 @@ public:
         op->entity = entity;
     }
 
-    template<typename Component>
-    void emplace_storage(entt::hashed_string name, entt::entity entity) {
-        auto *op = make_op<operation_emplace_storage<Component>>();
-        op->name = name;
-        op->entity = entity;
-
-        if constexpr(!std::is_empty_v<Component>) {
-            auto &storage = registry->storage<Component>(name);
-            op->component = storage.get(entity);
-        }
-    }
-
-    template<typename Component, typename It>
-    void replace_storage(entt::hashed_string name, It first, It last) {
-
-        for (; first != last; ++first) {
-            auto *op = make_op<operation_replace_storage<Component>>();
-            op->name = name;
-            op->entity = *first;
-
-            if constexpr(!std::is_empty_v<Component>) {
-                auto &storage = registry->storage<Component>(name);
-                op->component = storage.get(op->entity);
-            }
-        }
-    }
-
-    template<typename Component>
-    void replace_storage(entt::hashed_string name, entt::entity entity) {
-        auto *op = make_op<operation_replace_storage<Component>>();
-        op->name = name;
-        op->entity = entity;
-
-        if constexpr(!std::is_empty_v<Component>) {
-            auto &storage = registry->storage<Component>(name);
-            op->component = storage.get(entity);
-        }
-    }
-
-    template<typename Component>
-    void replace_storage(entt::hashed_string name, entt::entity entity, const Component &comp) {
-        auto *op = make_op<operation_replace_storage<Component>>();
-        op->name = name;
-        op->entity = entity;
-        op->component = comp;
-    }
-
-    template<typename Component>
-    void remove_storage(entt::hashed_string name, entt::entity entity) {
-        auto *op = make_op<operation_remove_storage<Component>>();
-        op->name = name;
-        op->entity = entity;
-    }
-
     void add_entity_mapping(entt::entity local_entity, entt::entity remote_entity) {
         auto *op = make_op<operation_map_entity>();
         op->entity = local_entity;
@@ -249,10 +195,6 @@ public:
     virtual void replace_type_id(entt::entity entity, entt::id_type id) = 0;
     virtual void remove_type_id(entt::entity entity, entt::id_type id) = 0;
 
-    virtual void emplace_type_id_storage(entt::hashed_string name, entt::entity entity, entt::id_type id) = 0;
-    virtual void replace_type_id_storage(entt::hashed_string name, entt::entity entity, entt::id_type id) = 0;
-    virtual void remove_type_id_storage(entt::hashed_string name, entt::entity entity, entt::id_type id) = 0;
-
     template<typename It>
     void emplace_type_ids(entt::entity entity, It first, It last) {
         for (; first != last; ++first) {
@@ -271,27 +213,6 @@ public:
     void remove_type_ids(entt::entity entity, It first, It last) {
         for (; first != last; ++first) {
             remove_type_id(entity, *first);
-        }
-    }
-
-    template<typename It>
-    void emplace_type_ids_storage(entt::hashed_string name, entt::entity entity, It first, It last) {
-        for (; first != last; ++first) {
-            emplace_type_id_storage(name, entity, *first);
-        }
-    }
-
-    template<typename It>
-    void replace_type_ids_storage(entt::hashed_string name, entt::entity entity, It first, It last) {
-        for (; first != last; ++first) {
-            replace_type_id_storage(name, entity, *first);
-        }
-    }
-
-    template<typename It>
-    void remove_type_ids_storage(entt::hashed_string name, entt::entity entity, It first, It last) {
-        for (; first != last; ++first) {
-            remove_type_id_storage(name, entity, *first);
         }
     }
 
@@ -383,27 +304,6 @@ public:
         visit_tuple(components_tuple, m_indices.at(id), [&](auto &&comp) {
             using Component = std::decay_t<decltype(comp)>;
             remove<Component>(entity);
-        });
-    }
-
-    void emplace_type_id_storage(entt::hashed_string name, entt::entity entity, entt::id_type id) override {
-        visit_tuple(components_tuple, m_indices.at(id), [&](auto &&comp) {
-            using Component = std::decay_t<decltype(comp)>;
-            emplace_storage<Component>(name, entity);
-        });
-    }
-
-    void replace_type_id_storage(entt::hashed_string name, entt::entity entity, entt::id_type id) override {
-        visit_tuple(components_tuple, m_indices.at(id), [&](auto &&comp) {
-            using Component = std::decay_t<decltype(comp)>;
-            replace_storage<Component>(name, entity);
-        });
-    }
-
-    void remove_type_id_storage(entt::hashed_string name, entt::entity entity, entt::id_type id) override {
-        visit_tuple(components_tuple, m_indices.at(id), [&](auto &&comp) {
-            using Component = std::decay_t<decltype(comp)>;
-            remove_storage<Component>(name, entity);
         });
     }
 

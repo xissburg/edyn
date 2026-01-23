@@ -21,6 +21,7 @@
 #include "edyn/dynamics/position_solver.hpp"
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/parallel/atomic_counter_sync.hpp"
+#include "edyn/util/collision_util.hpp"
 #include "edyn/util/entt_util.hpp"
 #include "edyn/util/island_util.hpp"
 #include "edyn/util/constraint_util.hpp"
@@ -181,7 +182,6 @@ void update_impulse(entt::registry &registry, const std::vector<entt::entity> &e
                     row_cache &cache, size_t &con_idx, size_t &row_idx, size_t &friction_row_idx,
                     size_t &rolling_row_idx, size_t &spinning_row_idx) {
     auto con_view = registry.view<C>();
-    auto contact_storages = get_contact_storage_array(registry);
     std::vector<scalar> applied_impulses;
 
     for (auto entity : entities) {
@@ -189,39 +189,26 @@ void update_impulse(entt::registry &registry, const std::vector<entt::entity> &e
         auto num_rows = cache.con_num_rows[con_idx];
 
         if constexpr(std::is_same_v<C, contact_constraint>) {
-            auto storage_index = 0u;
-            const auto next_contact = [&]() {
-                auto *cp_storage = contact_storages[storage_index];
+            auto &cp = registry.get<contact_point>(entity);
 
-                while (!cp_storage->contains(entity)) {
-                    cp_storage = contact_storages[++storage_index];
-                }
+            auto flags = cache.flags[row_idx];
+            cp.normal_impulse = cache.rows[row_idx++].impulse;
 
-                ++storage_index;
-                return &cp_storage->get(entity);
-            };
+            if (flags & constraint_row_flag_friction) {
+                auto &friction_row = cache.friction[friction_row_idx++];
+                cp.friction_impulse[0] = friction_row.row[0].impulse;
+                cp.friction_impulse[1] = friction_row.row[1].impulse;
+            }
 
-            for (size_t i = 0; i < num_rows; ++i) {
-                auto flags = cache.flags[row_idx];
-                auto &cp = *next_contact();
-                cp.normal_impulse = cache.rows[row_idx++].impulse;
+            if (flags & constraint_row_flag_rolling_friction) {
+                auto &roll_row = cache.rolling[rolling_row_idx++];
+                cp.rolling_friction_impulse[0] = roll_row.row[0].impulse;
+                cp.rolling_friction_impulse[1] = roll_row.row[1].impulse;
+            }
 
-                if (flags & constraint_row_flag_friction) {
-                    auto &friction_row = cache.friction[friction_row_idx++];
-                    cp.friction_impulse[0] = friction_row.row[0].impulse;
-                    cp.friction_impulse[1] = friction_row.row[1].impulse;
-                }
-
-                if (flags & constraint_row_flag_rolling_friction) {
-                    auto &roll_row = cache.rolling[rolling_row_idx++];
-                    cp.rolling_friction_impulse[0] = roll_row.row[0].impulse;
-                    cp.rolling_friction_impulse[1] = roll_row.row[1].impulse;
-                }
-
-                if (flags & constraint_row_flag_spinning_friction) {
-                    auto &spin_row = cache.spinning[spinning_row_idx++];
-                    cp.spin_friction_impulse = spin_row.impulse;
-                }
+            if (flags & constraint_row_flag_spinning_friction) {
+                auto &spin_row = cache.spinning[spinning_row_idx++];
+                cp.spin_friction_impulse = spin_row.impulse;
             }
         } else {
             applied_impulses.reserve(num_rows);

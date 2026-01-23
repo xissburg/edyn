@@ -71,12 +71,6 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
     EDYN_ASSERT(registry.valid(body0) && registry.valid(body1));
     registry.emplace<contact_manifold>(manifold_entity, body0, body1, separation_threshold);
 
-    auto &async_settings = registry.ctx().get<settings>().async_settings;
-
-    if (async_settings && async_settings->sync_contact_points) {
-        mark_transient<contact_point>(registry, manifold_entity);
-    }
-
     auto material_view = registry.view<material>();
 
     // Only create contact constraint if bodies have material.
@@ -103,14 +97,18 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
         registry.emplace<contact_manifold_with_restitution>(manifold_entity);
     }
 
-    // Assign contact constraint to manifold.
-    make_constraint<contact_constraint>(registry, manifold_entity, body0, body1);
+    auto node_index0 = registry.get<graph_node>(body0).node_index;
+    auto node_index1 = registry.get<graph_node>(body1).node_index;
+    auto edge_index = registry.ctx().get<entity_graph>().insert_edge(manifold_entity, node_index0, node_index1);
+    registry.emplace<graph_edge>(manifold_entity, edge_index);
+    registry.emplace<island_resident>(manifold_entity);
 }
 
-void swap_manifold(contact_manifold &manifold, entt::entity entity, contact_point_storage_array_t &&contact_storages) {
+void swap_manifold(entt::registry &registry, entt::entity manifold_entity) {
+    auto &manifold = registry.get<contact_manifold>(manifold_entity);
     std::swap(manifold.body[0], manifold.body[1]);
 
-    contact_point_for_each(contact_storages, entity, [&](contact_point &cp) {
+    contact_point_for_each(registry, manifold_entity, [&](contact_point &cp) {
         std::swap(cp.pivotA, cp.pivotB);
         std::swap(cp.featureA, cp.featureB);
         cp.normal *= -1; // Point towards new A.

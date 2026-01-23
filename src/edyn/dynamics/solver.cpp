@@ -61,12 +61,11 @@ solver::~solver() {
 static thread_local delta_linvel dummy_dv {vector3_zero};
 static thread_local delta_angvel dummy_dw {vector3_zero};
 
-template<typename C, typename BodyView, typename OriginView, typename ManifoldView, typename ProceduralView, typename StaticView>
+template<typename C, typename BodyView, typename OriginView, typename ProceduralView, typename StaticView>
 void invoke_prepare_constraint(entt::registry &registry, entt::entity entity, C &&con,
                                constraint_row_prep_cache &cache, scalar dt,
                                const BodyView &body_view, const OriginView &origin_view,
-                               const ManifoldView &manifold_view, const ProceduralView &procedural_view,
-                               const StaticView &static_view) {
+                               const ProceduralView &procedural_view, const StaticView &static_view) {
     auto [posA, ornA] = body_view.template get<position, orientation>(con.body[0]);
     auto [posB, ornB] = body_view.template get<position, orientation>(con.body[1]);
 
@@ -141,15 +140,7 @@ void invoke_prepare_constraint(entt::registry &registry, entt::entity entity, C 
     // Grab index of first row so all rows that will be added can be iterated
     // later to finish their setup. Note that no rows could be added as well.
     auto row_start_index = cache.num_rows;
-
-    if constexpr(std::is_same_v<std::decay_t<C>, contact_constraint>) {
-        auto &manifold = manifold_view.template get<contact_manifold>(entity);
-        EDYN_ASSERT(manifold.body[0] == con.body[0]);
-        EDYN_ASSERT(manifold.body[1] == con.body[1]);
-        con.prepare(registry, entity, manifold, cache, dt, bodyA, bodyB);
-    } else {
-        con.prepare(registry, entity, cache, dt, bodyA, bodyB);
-    }
+    con.prepare(registry, entity, cache, dt, bodyA, bodyB);
 
     // Assign masses and deltas to new rows.
     for (auto i = row_start_index; i < cache.num_rows; ++i) {
@@ -171,20 +162,19 @@ static void prepare_constraints(entt::registry &registry, scalar dt, bool mt) {
                                    delta_linvel, delta_angvel>();
     auto origin_view = registry.view<origin>();
     auto cache_view = registry.view<constraint_row_prep_cache>(exclude_sleeping_disabled);
-    auto manifold_view = registry.view<contact_manifold>();
     auto procedural_view = registry.view<procedural_tag>();
     auto static_view = registry.view<static_tag>();
     auto con_view_tuple = get_tuple_of_views(registry, constraints_tuple);
 
     auto for_loop_body = [&registry, body_view, cache_view, origin_view,
-                          manifold_view, procedural_view, static_view, con_view_tuple, dt](entt::entity entity) {
+                          procedural_view, static_view, con_view_tuple, dt](entt::entity entity) {
         auto &prep_cache = cache_view.get<constraint_row_prep_cache>(entity);
         prep_cache.clear();
 
         std::apply([&](auto &&... con_view) {
             ((con_view.contains(entity) ?
                 invoke_prepare_constraint(registry, entity, std::get<0>(con_view.get(entity)), prep_cache,
-                                          dt, body_view, origin_view, manifold_view, procedural_view, static_view) : void(0)), ...);
+                                          dt, body_view, origin_view, procedural_view, static_view) : void(0)), ...);
         }, con_view_tuple);
     };
 

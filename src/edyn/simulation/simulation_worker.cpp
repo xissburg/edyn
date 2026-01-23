@@ -498,17 +498,6 @@ void simulation_worker::mark_transient_replaced() {
     for (auto [entity, transient] : transient_view.each()) {
         m_op_builder->replace_type_ids(entity, transient.ids.begin(), transient.ids.end());
     }
-
-    auto contact_storages = get_contact_storage_array(m_registry);
-
-    for (auto i = 0u; i < contact_storages.size(); ++i) {
-        auto cp_storage = contact_storages[i];
-        auto cp_view = entt::basic_view{*cp_storage} | transient_view;
-
-        for (auto [entity, cp, transient] : cp_view.each()) {
-            m_op_builder->replace_type_ids_storage(contact_point_storage_names[i], entity, transient.ids.begin(), transient.ids.end());
-        }
-    }
 }
 
 void simulation_worker::on_set_paused(message<msg::set_paused> &msg) {

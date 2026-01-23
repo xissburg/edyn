@@ -16,6 +16,7 @@
 #include "edyn/dynamics/material_mixing.hpp"
 #include "edyn/math/triangle.hpp"
 #include "edyn/util/island_util.hpp"
+#include "edyn/util/transient_util.hpp"
 #include <limits>
 
 namespace edyn {
@@ -24,7 +25,6 @@ void update_contact_distances(entt::registry &registry) {
     auto manifold_view = registry.view<contact_manifold>(exclude_sleeping_disabled);
     auto tr_view = registry.view<position, orientation>();
     auto origin_view = registry.view<origin>();
-    auto contact_storages = get_contact_storage_array(registry);
 
     for (auto [entity, manifold] : manifold_view.each()) {
         auto [posA, ornA] = tr_view.get(manifold.body[0]);
@@ -32,7 +32,7 @@ void update_contact_distances(entt::registry &registry) {
         auto originA = origin_view.contains(manifold.body[0]) ? origin_view.get<origin>(manifold.body[0]) : static_cast<vector3>(posA);
         auto originB = origin_view.contains(manifold.body[1]) ? origin_view.get<origin>(manifold.body[1]) : static_cast<vector3>(posB);
 
-        contact_point_for_each(contact_storages, entity,
+        contact_point_for_each(registry, entity,
             [&, &ornA = ornA, &ornB = ornB](contact_point &cp) {
                 auto pivotA_world = to_world_space(cp.pivotA, originA, ornA);
                 auto pivotB_world = to_world_space(cp.pivotB, originB, ornB);
@@ -303,52 +303,70 @@ static void assign_material_properties(entt::registry &registry, contact_manifol
 void create_contact_point(entt::registry &registry,
                           entt::entity manifold_entity,
                           contact_manifold& manifold,
-                          const collision_result::collision_point& rp) {
-    auto contact_storages = get_contact_storage_array(registry);
-
+                          const collision_result::collision_point& rp,
+                          bool transient) {
     EDYN_ASSERT(length_sqr(rp.normal) > EDYN_EPSILON);
 
-    auto pt_id  = 0u;
+    auto cp = contact_point{};
+    cp.pivotA = rp.pivotA;
+    cp.pivotB = rp.pivotB;
+    cp.normal = rp.normal;
+    cp.normal_attachment = rp.normal_attachment;
+    cp.distance = rp.distance;
+    cp.featureA = rp.featureA;
+    cp.featureB = rp.featureB;
 
-    for (pt_id = 0u; pt_id < contact_storages.size(); ++pt_id) {
-        auto &cp_storage = *contact_storages[pt_id];
-        if (cp_storage.contains(manifold_entity)) continue;
+    cp.normal_impulse = 0;
+    cp.spin_friction_impulse = 0;
+    cp.normal_restitution_impulse = 0;
 
-        auto cp = contact_point{};
-        cp.pivotA = rp.pivotA;
-        cp.pivotB = rp.pivotB;
-        cp.normal = rp.normal;
-        cp.normal_attachment = rp.normal_attachment;
-        cp.distance = rp.distance;
-        cp.featureA = rp.featureA;
-        cp.featureB = rp.featureB;
-
-        cp.normal_impulse = 0;
-        cp.spin_friction_impulse = 0;
-        cp.normal_restitution_impulse = 0;
-
-        for (int i = 0; i < 2; ++i) {
-            cp.friction_impulse[i] = 0;
-            cp.rolling_friction_impulse[i] = 0;
-            cp.friction_restitution_impulse[i] = 0;
-        }
-
-        if (rp.normal_attachment != contact_normal_attachment::none) {
-            auto idx = rp.normal_attachment == contact_normal_attachment::normal_on_A ? 0 : 1;
-            auto &orn = registry.get<orientation>(manifold.body[idx]);
-            cp.local_normal = rotate(conjugate(orn), rp.normal);
-        } else {
-            cp.local_normal = vector3_zero;
-        }
-
-        // Assign material properties to contact point.
-        if (registry.all_of<material>(manifold.body[0]) && registry.all_of<material>(manifold.body[1])) {
-            assign_material_properties(registry, manifold, cp);
-        }
-
-        cp_storage.emplace(manifold_entity, std::move(cp));
-        break;
+    for (int i = 0; i < 2; ++i) {
+        cp.friction_impulse[i] = 0;
+        cp.rolling_friction_impulse[i] = 0;
+        cp.friction_restitution_impulse[i] = 0;
     }
+
+    if (rp.normal_attachment != contact_normal_attachment::none) {
+        auto idx = rp.normal_attachment == contact_normal_attachment::normal_on_A ? 0 : 1;
+        auto &orn = registry.get<orientation>(manifold.body[idx]);
+        cp.local_normal = rotate(conjugate(orn), rp.normal);
+    } else {
+        cp.local_normal = vector3_zero;
+    }
+
+    // Assign material properties to contact point.
+    if (registry.all_of<material>(manifold.body[0]) && registry.all_of<material>(manifold.body[1])) {
+        assign_material_properties(registry, manifold, cp);
+    }
+
+    auto contact_entity = registry.create();
+
+    if (manifold.contact_entity == entt::null) {
+        manifold.contact_entity = contact_entity;
+        cp.prev = manifold_entity;
+    } else {
+        auto last_entity = manifold.contact_entity;
+        auto *last_cp = &registry.get<contact_point>(last_entity);
+
+        while (last_cp->next != entt::null) {
+            last_entity = last_cp->next;
+            last_cp = &registry.get<contact_point>(last_entity);
+        }
+
+        cp.prev = last_entity;
+        last_cp->next = contact_entity;
+    }
+
+    cp.parent = manifold_entity;
+
+    registry.emplace<contact_point>(contact_entity, std::move(cp));
+    ++manifold.num_points;
+
+    if (transient) {
+        mark_transient<contact_point>(registry, contact_entity);
+    }
+
+    make_constraint<contact_constraint>(registry, contact_entity, manifold.body[0], manifold.body[1]);
 }
 
 bool should_remove_point(const contact_point &cp,
@@ -369,8 +387,27 @@ bool should_remove_point(const contact_point &cp,
     return normal_dist > threshold || tangential_dist_sqr > threshold_sqr;
 }
 
-void destroy_contact_point(entt::registry &registry, entt::entity manifold_entity, contact_manifold::contact_id_type pt_id) {
-    get_contact_storage_array(registry)[pt_id]->erase(manifold_entity);
+void destroy_contact_point(entt::registry &registry, entt::entity contact_entity) {
+    auto &cp = registry.get<contact_point>(contact_entity);
+
+    if (registry.all_of<contact_manifold>(cp.prev)) {
+        auto manifold_entity = cp.prev;
+        auto &manifold = registry.get<contact_manifold>(manifold_entity);
+        manifold.contact_entity = cp.next;
+
+        if (manifold.contact_entity != entt::null) {
+            registry.get<contact_point>(manifold.contact_entity).prev = manifold_entity;
+        }
+    } else {
+        auto &prev_cp = registry.get<contact_point>(cp.prev);
+        prev_cp.next = cp.next;
+
+        if (prev_cp.next != entt::null) {
+            registry.get<contact_point>(prev_cp.next).prev = cp.prev;
+        }
+    }
+
+    registry.destroy(contact_entity);
 }
 
 void detect_collision(std::array<entt::entity, 2> body, collision_result &result,
