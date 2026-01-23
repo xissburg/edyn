@@ -15,6 +15,7 @@
 #include "edyn/shapes/shapes.hpp"
 #include "edyn/simulation/island_manager.hpp"
 #include "edyn/simulation/stepper_sequential.hpp"
+#include "edyn/util/collision_util.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/util/island_util.hpp"
 #include "edyn/util/rigidbody.hpp"
@@ -304,6 +305,7 @@ void set_rigidbody_friction(entt::registry &registry, entt::entity entity, scala
 
     auto material_view = registry.view<material>();
     auto manifold_view = registry.view<contact_manifold>();
+    auto contact_storages = get_contact_point_storage_array(registry);
 
     auto &material = registry.patch<edyn::material>(entity, [friction](auto &mat) {
         mat.friction = friction;
@@ -344,9 +346,10 @@ void set_rigidbody_friction(entt::registry &registry, entt::entity entity, scala
 
         auto combined_friction = material_mix_friction(friction, other_material.friction);
 
-        manifold.each_point([combined_friction](contact_point &cp) {
-            cp.friction = combined_friction;
-        });
+        contact_point_for_each(contact_storages, edge_entity,
+            [combined_friction](contact_point &cp) {
+                cp.friction = combined_friction;
+            });
 
         // Force changes to be propagated to simulation worker.
         registry.patch<contact_manifold>(edge_entity);

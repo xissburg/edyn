@@ -3,15 +3,26 @@
 
 #include <array>
 #include <cstdint>
+#include <entt/core/fwd.hpp>
 #include <optional>
 #include <entt/entity/fwd.hpp>
 #include <entt/entity/entity.hpp>
+#include "edyn/config/constants.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/collision/contact_normal_attachment.hpp"
 #include "edyn/collision/collision_feature.hpp"
 
 namespace edyn {
+
+using namespace entt::literals;
+
+static constexpr std::array<entt::hashed_string, max_contacts> contact_point_storage_names = {
+    "contacts_0"_hs,
+    "contacts_1"_hs,
+    "contacts_2"_hs,
+    "contacts_3"_hs
+};
 
 struct contact_point {
     vector3 pivotA; // A's pivot in object space.

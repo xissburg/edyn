@@ -4,16 +4,17 @@
 #include <algorithm>
 #include <entt/entity/fwd.hpp>
 #include <entt/entity/entity.hpp>
+#include <utility>
 #include "edyn/comp/aabb.hpp"
 #include "edyn/comp/material.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/origin.hpp"
 #include "edyn/comp/angvel.hpp"
+#include "edyn/config/constants.hpp"
 #include "edyn/shapes/shapes.hpp"
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/collision/contact_manifold.hpp"
-#include "edyn/collision/contact_manifold_events.hpp"
 #include "edyn/collision/collision_result.hpp"
 
 namespace edyn {
@@ -27,6 +28,10 @@ using orientation_view_t = entt::basic_view<entt::get_t<entt::registry::storage_
 using material_view_t = entt::basic_view<entt::get_t<entt::registry::storage_for_type<material>>, entt::exclude_t<>>;
 using mesh_shape_view_t = entt::basic_view<entt::get_t<entt::registry::storage_for_type<mesh_shape>>, entt::exclude_t<>>;
 using paged_mesh_shape_view_t = entt::basic_view<entt::get_t<entt::registry::storage_for_type<paged_mesh_shape>>, entt::exclude_t<>>;
+
+using contact_point_storage_t = entt::basic_registry<>::storage_for_type<contact_point>;
+using contact_point_storage_array_t = std::array<contact_point_storage_t *, max_contacts>;
+using contact_point_storage_array_const_t = std::array<const contact_point_storage_t *, max_contacts>;
 
 /**
  * Merges a `collision_point` onto a `contact_point`. It needs the material and
@@ -75,9 +80,7 @@ void create_contact_point(entt::registry &registry,
 /**
  * Removes a contact point from a manifold if it's separating.
  */
-bool maybe_remove_point(contact_manifold &manifold,
-                        contact_manifold_events &events,
-                        size_t pt_idx,
+bool should_remove_point(const contact_point &cp,
                         const vector3 &posA, const quaternion &ornA,
                         const vector3 &posB, const quaternion &ornB);
 
@@ -102,6 +105,77 @@ void detect_collision(std::array<entt::entity, 2> body, collision_result &,
                       const detect_collision_body_view_t &, const origin_view_t &,
                       const tuple_of_shape_views_t &);
 
+
+inline auto get_contact_point_storage_array(entt::registry &registry) {
+    contact_point_storage_array_t contact_storages;
+
+    for (auto i = 0u; i < max_contacts; ++i) {
+        contact_storages[i] = &registry.storage<contact_point>(contact_point_storage_names[i]);
+    }
+
+    return contact_storages;
+}
+
+inline auto get_contact_point_storage_array(const entt::registry &registry) {
+    contact_point_storage_array_const_t contact_storages;
+
+    for (auto i = 0u; i < max_contacts; ++i) {
+        contact_storages[i] = registry.storage<contact_point>(contact_point_storage_names[i]);
+    }
+
+    return contact_storages;
+}
+
+inline auto get_num_contact_points(const contact_point_storage_array_t &storages, entt::entity entity) {
+    unsigned count = 0;
+    for (auto *st : storages) {
+        if (st->contains(entity)) {
+            ++count;
+        }
+    }
+    return count;
+}
+
+inline auto get_num_contact_points(const contact_point_storage_array_const_t &storages, entt::entity entity) {
+    unsigned count = 0;
+    for (auto *st : storages) {
+        if (st->contains(entity)) {
+            ++count;
+        }
+    }
+    return count;
+}
+
+template<typename Func>
+void contact_point_for_each(contact_point_storage_array_t &storages, entt::entity entity, Func func) {
+    for (auto *st : storages) {
+        if (st->contains(entity)) {
+            func(st->get(entity));
+        }
+    }
+}
+
+template<typename Func>
+void contact_point_for_each(const contact_point_storage_array_const_t &storages, entt::entity entity, Func func) {
+    for (auto *st : storages) {
+        if (st->contains(entity)) {
+            func(st->get(entity));
+        }
+    }
+}
+
+template<typename Func>
+void contact_point_for_each(entt::registry &registry, entt::entity entity, Func func) {
+    auto contact_storages = get_contact_point_storage_array(registry);
+    contact_point_for_each(contact_storages, entity, func);
+}
+
+template<typename Func>
+void contact_point_for_each(const entt::registry &registry, entt::entity entity, Func func) {
+    auto contact_storages = get_contact_point_storage_array(registry);
+    contact_point_for_each(contact_storages, entity, func);
+}
+
 /**
  * Processes a collision result and inserts/replaces points into the manifold.
  * It also removes points in the manifold that are separating. `new_point_func`
@@ -113,7 +187,7 @@ template<typename TransformView, typename VelView, typename RollingView,
          typename NewPointFunc, typename DestroyPointFunc>
 void process_collision(entt::entity manifold_entity,
                        contact_manifold &manifold,
-                       contact_manifold_events &events,
+                       const contact_point_storage_array_t &contact_storages,
                        const collision_result &result,
                        TransformView &tr_view,
                        VelView &vel_view,
@@ -139,14 +213,20 @@ void process_collision(entt::entity manifold_entity,
     auto merged_indices = std::array<bool, max_contacts>{};
     std::fill(merged_indices.begin(), merged_indices.end(), false);
 
-    for (auto i = manifold.num_points; i > 0; --i) {
-        auto pt_idx = i - 1;
+    size_t num_points = get_num_contact_points(contact_storages, manifold_entity);
+    std::array<bool, max_contacts> points_removed;
+    std::fill(points_removed.begin(), points_removed.end(), false);
+
+    for (auto pt_idx = 0u; pt_idx < contact_storages.size(); ++pt_idx) {
+        auto &cp_storage = *contact_storages[pt_idx];
+
+        if (!cp_storage.contains(manifold_entity)) continue;
+
         // Find a point in the result that's closest to the current point and
         // replace it. If there isn't any, check if the point is separating and
         // remove it if so. Increment lifetime if the point survives or gets
         // replaced by a matching result point.
-        auto pt_id = manifold.ids[pt_idx];
-        auto &cp = manifold.point[pt_id];
+        auto &cp = cp_storage.get(manifold_entity);
         ++cp.lifetime;
 
         auto nearest_idx = find_nearest_contact(cp, result);
@@ -165,8 +245,10 @@ void process_collision(entt::entity manifold_entity,
         if (nearest_idx < result.num_points && !merged_indices[nearest_idx]) {
             merge_point(manifold.body, result.point[nearest_idx], cp, orn_view, material_view, mesh_shape_view, paged_mesh_shape_view);
             merged_indices[nearest_idx] = true;
-        } else if (maybe_remove_point(manifold, events, pt_idx, originA, ornA, originB, ornB)) {
-            destroy_point_func(pt_id);
+        } else if (should_remove_point(cp, originA, ornA, originB, ornB)) {
+            --num_points;
+            points_removed[pt_idx] = true;
+            destroy_point_func(pt_idx);
         }
     }
 
@@ -187,14 +269,16 @@ void process_collision(entt::entity manifold_entity,
 
     // Start with current manifold points.
     auto local_points = std::array<local_contact_point, max_contacts>{};
-    auto num_points = size_t{manifold.num_points};
 
     if (num_points > 0) {
-        for (size_t i = 0; i < num_points; ++i) {
-            auto pt_id = manifold.ids[i];
-            auto &cp = manifold.point[pt_id];
-            local_points[i].point = {cp.pivotA, cp.pivotB, cp.normal, cp.distance};
-            local_points[i].pt_id = pt_id;
+        auto pt_idx = 0u;
+        for (auto i = 0u; i < contact_storages.size(); ++i) {
+            auto cp_storage = contact_storages[i];
+            if (!cp_storage->contains(manifold_entity) || points_removed[i]) continue;
+            auto &cp = cp_storage->get(manifold_entity);
+            local_points[pt_idx].point = {cp.pivotA, cp.pivotB, cp.normal, cp.distance};
+            local_points[pt_idx].pt_id = i;
+            ++pt_idx;
         }
     } else {
         ++num_points;
@@ -260,7 +344,7 @@ void process_collision(entt::entity manifold_entity,
             if (local_pt.pt_id == contact_manifold::invalid_id) {
                 new_point_func(local_pt.point);
             } else {
-                merge_point(manifold.body, local_pt.point, manifold.point[local_pt.pt_id],
+                merge_point(manifold.body, local_pt.point, contact_storages[local_pt.pt_id]->get(manifold_entity),
                             orn_view, material_view, mesh_shape_view, paged_mesh_shape_view);
             }
             break;
@@ -270,20 +354,6 @@ void process_collision(entt::entity manifold_entity,
             // There is a chance the replaced point is actually one of the new
             // and thus there's no real point to be destroyed.
             if (local_pt.pt_id != contact_manifold::invalid_id) {
-                for (size_t i = 0; i < manifold.num_points; ++i) {
-                    if (manifold.ids[i] == local_pt.pt_id) {
-                        // Assign last to i-th and set last to null.
-                        size_t last_idx = manifold.num_points - 1;
-                        manifold.ids[i] = manifold.ids[last_idx];
-                        manifold.ids[last_idx] = contact_manifold::invalid_id;
-                        --manifold.num_points;
-
-                        // Register contact destroyed event.
-                        events.contacts_destroyed[events.num_contacts_destroyed++] = local_pt.pt_id;
-                        break;
-                    }
-                }
-
                 destroy_point_func(local_pt.pt_id);
             }
             new_point_func(local_pt.point);

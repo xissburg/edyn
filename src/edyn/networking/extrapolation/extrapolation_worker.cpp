@@ -32,6 +32,7 @@
 #include "edyn/sys/update_rotated_meshes.hpp"
 #include "edyn/parallel/job_dispatcher.hpp"
 #include "edyn/math/transform.hpp"
+#include "edyn/util/collision_util.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/util/island_util.hpp"
 #include <entt/entity/registry.hpp>
@@ -428,11 +429,13 @@ void extrapolation_worker::finish_extrapolation(const extrapolation_request &req
     // All manifolds that are not sleeping have been involved in the
     // extrapolation.
     auto manifold_view = m_registry.view<contact_manifold>(entt::exclude_t<sleeping_tag>{});
-    manifold_view.each([&](contact_manifold &manifold) {
-        if (manifold.num_points > 0) {
+    auto contact_storages = get_contact_point_storage_array(m_registry);
+
+    for (auto [manifold_entity, manifold] : manifold_view.each()) {
+        if (get_num_contact_points(contact_storages, manifold_entity) > 0) {
             result.manifolds.push_back(manifold);
         }
-    });
+    }
 
     // Put all islands to sleep at the end.
     m_island_manager.put_all_to_sleep();

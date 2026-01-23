@@ -21,12 +21,7 @@ struct contact_constraint : public constraint_base {
         constraint_row_prep_cache &cache, scalar dt,
         const constraint_body &bodyA, const constraint_body &bodyB);
 
-    void solve_position(position_solver &, contact_manifold &);
-
-    void store_applied_impulse(scalar impulse, unsigned row_index, contact_manifold &);
-    void store_friction_impulse(scalar impulse0, scalar impulse1, unsigned row_index, contact_manifold &);
-    void store_rolling_impulse(scalar impulse0, scalar impulse1, unsigned row_index, contact_manifold &);
-    void store_spinning_impulse(scalar impulse, unsigned row_index, contact_manifold &);
+    void solve_position(entt::registry &, entt::entity, position_solver &);
 };
 
 template<typename Archive>

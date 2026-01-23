@@ -23,6 +23,7 @@
 #include "edyn/simulation/stepper_async.hpp"
 #include "edyn/simulation/stepper_sequential.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
+#include "edyn/util/collision_util.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/util/paged_mesh_load_reporting.hpp"
 #include "edyn/util/rigidbody.hpp"
@@ -132,6 +133,8 @@ void attach(entt::registry &registry, const init_config &config) {
     std::apply([&registry](auto ... c) {
         (registry.storage<decltype(c)>(), ...);
     }, shared_components_t{});
+
+    get_contact_point_storage_array(registry);
 }
 
 template<typename... Ts>

@@ -6,6 +6,7 @@
 #include <atomic>
 #include <entt/signal/sigh.hpp>
 #include <entt/entity/fwd.hpp>
+#include "edyn/collision/contact_point.hpp"
 #include "edyn/collision/raycast.hpp"
 #include "edyn/collision/raycast_service.hpp"
 #include "edyn/collision/contact_manifold.hpp"
@@ -47,6 +48,16 @@ public:
 
     void on_construct_shared_entity(entt::registry &registry, entt::entity entity);
     void on_destroy_shared_entity(entt::registry &registry, entt::entity entity);
+
+    template<unsigned StorageIndex>
+    void on_construct_contact_point(entt::registry &registry, entt::entity entity) {
+        m_op_builder->emplace_storage<contact_point>(contact_point_storage_names[StorageIndex], entity);
+    }
+
+    template<unsigned StorageIndex>
+    void on_destroy_contact_point(entt::registry &registry, entt::entity entity) {
+        m_op_builder->remove_storage<contact_point>(contact_point_storage_names[StorageIndex], entity);
+    }
 
     void on_update_entities(message<msg::update_entities> &msg);
     void on_set_paused(message<msg::set_paused> &msg);

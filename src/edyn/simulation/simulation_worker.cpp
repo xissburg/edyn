@@ -2,6 +2,7 @@
 #include "edyn/collision/broadphase.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_manifold_map.hpp"
+#include "edyn/collision/contact_point.hpp"
 #include "edyn/collision/narrowphase.hpp"
 #include "edyn/comp/angvel.hpp"
 #include "edyn/comp/linvel.hpp"
@@ -37,6 +38,7 @@
 #include "edyn/math/transform.hpp"
 #include "edyn/time/time.hpp"
 #include "edyn/util/aabb_util.hpp"
+#include "edyn/util/collision_util.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/util/island_util.hpp"
 #include "edyn/util/rigidbody.hpp"
@@ -113,6 +115,16 @@ void simulation_worker::init() {
     m_connections.push_back(m_registry.on_destroy<graph_node>().connect<&simulation_worker::on_destroy_shared_entity>(*this));
     m_connections.push_back(m_registry.on_destroy<graph_edge>().connect<&simulation_worker::on_destroy_shared_entity>(*this));
     m_connections.push_back(m_registry.on_destroy<island_tag>().connect<&simulation_worker::on_destroy_shared_entity>(*this));
+
+    auto contact_storages = get_contact_point_storage_array(m_registry);
+    m_connections.push_back(contact_storages[0]->on_construct().connect<&simulation_worker::on_construct_contact_point<0>>(*this));
+    m_connections.push_back(contact_storages[0]->on_destroy()  .connect<&simulation_worker::on_destroy_contact_point  <0>>(*this));
+    m_connections.push_back(contact_storages[1]->on_construct().connect<&simulation_worker::on_construct_contact_point<1>>(*this));
+    m_connections.push_back(contact_storages[1]->on_destroy()  .connect<&simulation_worker::on_destroy_contact_point  <1>>(*this));
+    m_connections.push_back(contact_storages[2]->on_construct().connect<&simulation_worker::on_construct_contact_point<2>>(*this));
+    m_connections.push_back(contact_storages[2]->on_destroy()  .connect<&simulation_worker::on_destroy_contact_point  <2>>(*this));
+    m_connections.push_back(contact_storages[3]->on_construct().connect<&simulation_worker::on_construct_contact_point<3>>(*this));
+    m_connections.push_back(contact_storages[3]->on_destroy()  .connect<&simulation_worker::on_destroy_contact_point  <3>>(*this));
 
     m_message_queue.sink<msg::update_entities>().connect<&simulation_worker::on_update_entities>(*this);
     m_message_queue.sink<msg::set_paused>().connect<&simulation_worker::on_set_paused>(*this);
@@ -497,8 +509,17 @@ void simulation_worker::mark_transforms_replaced() {
     m_op_builder->replace<angvel>(body_view.begin(), body_view.end());
 
     if (m_registry.ctx().get<edyn::settings>().async_settings->sync_contact_points) {
+        auto contact_storages = get_contact_point_storage_array(m_registry);
         auto manifold_view = m_registry.view<contact_manifold>(entt::exclude_t<sleeping_tag>{});
-        m_op_builder->replace<contact_manifold>(manifold_view.begin(), manifold_view.end());
+
+        for (auto i = 0u; i < contact_storages.size(); ++i) {
+            auto cp_storage = contact_storages[i];
+            auto cp_view = entt::basic_view{*cp_storage} | manifold_view;
+
+            if (cp_view.size_hint() > 0) {
+                m_op_builder->replace_storage<contact_point>(contact_point_storage_names[i], cp_view.begin(), cp_view.end());
+            }
+        }
     }
 }
 

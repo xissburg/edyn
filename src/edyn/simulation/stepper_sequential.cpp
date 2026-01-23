@@ -1,5 +1,4 @@
 #include "edyn/simulation/stepper_sequential.hpp"
-#include "edyn/collision/contact_event_emitter.hpp"
 #include "edyn/context/profile.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/collision/broadphase.hpp"
@@ -55,7 +54,6 @@ void stepper_sequential::update(double time) {
 
     auto &bphase = m_registry->ctx().get<broadphase>();
     auto &nphase = m_registry->ctx().get<narrowphase>();
-    auto &emitter = m_registry->ctx().get<contact_event_emitter>();
 
     auto effective_steps = num_steps;
     auto step_dt = fixed_dt;
@@ -92,8 +90,6 @@ void stepper_sequential::update(double time) {
 
         m_solver.update(m_multithreaded);
 
-        emitter.consume_events();
-
         if (settings.clear_actions_func) {
             (*settings.clear_actions_func)(*m_registry);
         }
@@ -129,7 +125,6 @@ void stepper_sequential::step_simulation(double time) {
 
     auto &bphase = m_registry->ctx().get<broadphase>();
     auto &nphase = m_registry->ctx().get<narrowphase>();
-    auto &emitter = m_registry->ctx().get<contact_event_emitter>();
     auto &settings = m_registry->ctx().get<edyn::settings>();
 
     if (settings.pre_step_callback) {
@@ -141,7 +136,6 @@ void stepper_sequential::step_simulation(double time) {
     m_island_manager.update(m_last_time);
     nphase.update(m_multithreaded);
     m_solver.update(m_multithreaded);
-    emitter.consume_events();
 
     if (settings.clear_actions_func) {
         (*settings.clear_actions_func)(*m_registry);

@@ -1,6 +1,5 @@
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/collision/contact_manifold.hpp"
-#include "edyn/collision/contact_manifold_events.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/material.hpp"
 #include "edyn/comp/tag.hpp"
@@ -13,6 +12,7 @@
 #include "edyn/core/entity_graph.hpp"
 #include "edyn/constraints/constraint_row.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
+#include "edyn/util/collision_util.hpp"
 
 namespace edyn {
 
@@ -68,7 +68,6 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
                            scalar separation_threshold) {
     EDYN_ASSERT(registry.valid(body0) && registry.valid(body1));
     registry.emplace<contact_manifold>(manifold_entity, body0, body1, separation_threshold);
-    registry.emplace<contact_manifold_events>(manifold_entity);
 
     auto material_view = registry.view<material>();
 
@@ -100,10 +99,10 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
     make_constraint<contact_constraint>(registry, manifold_entity, body0, body1);
 }
 
-void swap_manifold(contact_manifold &manifold) {
+void swap_manifold(contact_manifold &manifold, entt::entity entity, contact_point_storage_array_t &&contact_storages) {
     std::swap(manifold.body[0], manifold.body[1]);
 
-    manifold.each_point([](contact_point &cp) {
+    contact_point_for_each(contact_storages, entity, [&](contact_point &cp) {
         std::swap(cp.pivotA, cp.pivotB);
         std::swap(cp.featureA, cp.featureB);
         cp.normal *= -1; // Point towards new A.

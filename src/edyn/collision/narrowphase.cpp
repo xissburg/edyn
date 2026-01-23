@@ -5,6 +5,7 @@
 #include "edyn/context/task.hpp"
 #include "edyn/context/task_util.hpp"
 #include "edyn/comp/material.hpp"
+#include "edyn/util/collision_util.hpp"
 #include "edyn/util/entt_util.hpp"
 #include "edyn/util/island_util.hpp"
 #include <entt/signal/delegate.hpp>
@@ -15,14 +16,7 @@ narrowphase::narrowphase(entt::registry &reg)
     : m_registry(&reg)
 {}
 
-void narrowphase::clear_contact_manifold_events() {
-    m_registry->view<contact_manifold_events>().each([](auto &events) {
-        events = {};
-    });
-}
-
 void narrowphase::update(bool mt) {
-    clear_contact_manifold_events();
     update_contact_distances(*m_registry);
 
     auto manifold_view = m_registry->view<contact_manifold>(exclude_sleeping_disabled);
@@ -39,7 +33,6 @@ void narrowphase::update(bool mt) {
 void narrowphase::detect_collision_parallel_range(unsigned start, unsigned end) {
     auto &registry = *m_registry;
     auto manifold_view = registry.view<contact_manifold>();
-    auto events_view = registry.view<contact_manifold_events>();
     auto body_view = registry.view<AABB, shape_index, position, orientation>();
     auto tr_view = registry.view<position, orientation>();
     auto vel_view = registry.view<angvel>();
@@ -50,6 +43,7 @@ void narrowphase::detect_collision_parallel_range(unsigned start, unsigned end) 
     auto mesh_shape_view = registry.view<mesh_shape>();
     auto paged_mesh_shape_view = registry.view<paged_mesh_shape>();
     auto shapes_views_tuple = get_tuple_of_shape_views(registry);
+    auto contact_storages = get_contact_point_storage_array(registry);
     auto dt = registry.ctx().get<settings>().fixed_dt;
     auto first = manifold_view.begin();
     std::advance(first, start);
@@ -57,13 +51,12 @@ void narrowphase::detect_collision_parallel_range(unsigned start, unsigned end) 
     for (auto index = start; index < end; ++index, ++first) {
         auto entity = *first;
         auto [manifold] = manifold_view.get(entity);
-        auto [events] = events_view.get(entity);
         collision_result result;
         auto &construction_info = m_cp_construction_infos[index];
         auto &destruction_info = m_cp_destruction_infos[index];
 
         detect_collision(manifold.body, result, body_view, origin_view, shapes_views_tuple);
-        process_collision(entity, manifold, events, result, tr_view, vel_view,
+        process_collision(entity, manifold, contact_storages, result, tr_view, vel_view,
                         rolling_view, origin_view, orn_view, material_view,
                         mesh_shape_view, paged_mesh_shape_view, dt,
                         [&construction_info](const collision_result::collision_point &rp) {

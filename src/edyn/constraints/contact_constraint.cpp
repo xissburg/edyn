@@ -7,6 +7,7 @@
 #include "edyn/math/constants.hpp"
 #include "edyn/math/transform.hpp"
 #include "edyn/context/settings.hpp"
+#include "edyn/util/collision_util.hpp"
 #include <entt/entity/registry.hpp>
 
 namespace edyn {
@@ -17,11 +18,11 @@ void contact_constraint::prepare(
     const constraint_body &bodyA, const constraint_body &bodyB) {
 
     auto &settings = registry.ctx().get<edyn::settings>();
+    auto contact_storages = get_contact_point_storage_array(registry);
+    auto num_points = get_num_contact_points(contact_storages, entity);
 
     // Create constraint rows for each contact point.
-    for (unsigned pt_idx = 0; pt_idx < manifold.num_points; ++pt_idx) {
-        auto &cp = manifold.get_point(pt_idx);
-
+    contact_point_for_each(registry, entity, [&](const contact_point &cp) {
         EDYN_ASSERT(length_sqr(cp.normal) > EDYN_EPSILON);
         auto normal = cp.normal;
         auto pivotA = to_world_space(cp.pivotA, bodyA.origin, bodyA.orn);
@@ -51,8 +52,8 @@ void contact_constraint::prepare(
                 auto normal_relvel = dot(relvel, normal);
                 // Divide stiffness by number of points for correct force
                 // distribution. All points have the same stiffness.
-                auto spring_force = -cp.distance * cp.stiffness / manifold.num_points;
-                auto damper_force = -normal_relvel * cp.damping / manifold.num_points;
+                auto spring_force = -cp.distance * cp.stiffness / num_points;
+                auto damper_force = -normal_relvel * cp.damping / num_points;
                 normal_row.upper_limit = std::max(spring_force + damper_force, scalar(0)) * dt;
                 normal_options.error = -large_scalar;
             } else {
@@ -121,19 +122,17 @@ void contact_constraint::prepare(
             spin_row.eff_mass = scalar(1) / J_invM_JT;
             spin_row.rhs = -(dot(spin_row.J[0], bodyA.angvel) + dot(spin_row.J[1], bodyB.angvel));
         }
-    }
+    });
 }
 
-void contact_constraint::solve_position(position_solver &solver, contact_manifold &manifold) {
+void contact_constraint::solve_position(entt::registry &registry, entt::entity entity, position_solver &solver) {
     // Solve position constraints by applying linear and angular corrections
     // iteratively. Based on Box2D's solver:
     // https://github.com/erincatto/box2d/blob/cd2c28dba83e4f359d08aeb7b70afd9e35e39eda/src/dynamics/b2_contact_solver.cpp#L676
-    for (unsigned pt_idx = 0; pt_idx < manifold.num_points; ++pt_idx) {
-        auto &cp = manifold.get_point(pt_idx);
-
+    contact_point_for_each(registry, entity, [&](contact_point &cp) {
         // Ignore soft contacts.
         if (cp.stiffness < large_scalar) {
-            continue;
+            return;
         }
 
         auto originA = solver.get_originA(), originB = solver.get_originB();
@@ -160,38 +159,12 @@ void contact_constraint::solve_position(position_solver &solver, contact_manifol
         auto rB = pivotB - posB;
 
         if (cp.distance > -EDYN_EPSILON) {
-            continue;
+            return;
         }
 
         auto error = -cp.distance;
         solver.solve({normal, cross(rA, normal), -normal, -cross(rB, normal)}, error);
-    }
-}
-
-void contact_constraint::store_applied_impulse(scalar impulse, unsigned row_index, contact_manifold &manifold) {
-    EDYN_ASSERT(row_index < manifold.num_points);
-    auto &cp = manifold.get_point(row_index);
-    cp.normal_impulse = impulse;
-}
-
-void contact_constraint::store_friction_impulse(scalar impulse0, scalar impulse1, unsigned row_index, contact_manifold &manifold) {
-    EDYN_ASSERT(row_index < manifold.num_points);
-    auto &cp = manifold.get_point(row_index);
-    cp.friction_impulse[0] = impulse0;
-    cp.friction_impulse[1] = impulse1;
-}
-
-void contact_constraint::store_rolling_impulse(scalar impulse0, scalar impulse1, unsigned row_index, contact_manifold &manifold) {
-    EDYN_ASSERT(row_index < manifold.num_points);
-    auto &cp = manifold.get_point(row_index);
-    cp.rolling_friction_impulse[0] = impulse0;
-    cp.rolling_friction_impulse[1] = impulse1;
-}
-
-void contact_constraint::store_spinning_impulse(scalar impulse, unsigned row_index, contact_manifold &manifold) {
-    EDYN_ASSERT(row_index < manifold.num_points);
-    auto &cp = manifold.get_point(row_index);
-    cp.spin_friction_impulse = impulse;
+    });
 }
 
 }

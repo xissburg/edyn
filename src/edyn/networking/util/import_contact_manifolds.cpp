@@ -1,6 +1,7 @@
 #include "edyn/networking/util/import_contact_manifolds.hpp"
 #include "edyn/collision/contact_manifold_map.hpp"
 #include "edyn/comp/tag.hpp"
+#include "edyn/util/collision_util.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/replication/entity_map.hpp"
@@ -33,7 +34,7 @@ void replace_manifold(entt::registry &registry, contact_manifold &manifold,
     if (manifold.body[0] != original_manifold.body[0]) {
         EDYN_ASSERT(manifold.body[1] == original_manifold.body[0]);
         EDYN_ASSERT(manifold.body[0] == original_manifold.body[1]);
-        swap_manifold(manifold);
+        swap_manifold(manifold, manifold_entity, get_contact_point_storage_array(registry));
     }
 
     registry.replace<contact_manifold>(manifold_entity, manifold);

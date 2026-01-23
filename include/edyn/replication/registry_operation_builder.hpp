@@ -1,6 +1,7 @@
 #ifndef EDYN_REPLICATION_REGISTRY_OPERATION_BUILDER_HPP
 #define EDYN_REPLICATION_REGISTRY_OPERATION_BUILDER_HPP
 
+#include <entt/core/fwd.hpp>
 #include <type_traits>
 #include <vector>
 #include <memory>
@@ -100,6 +101,18 @@ public:
         }
     }
 
+    template<typename Component>
+    void emplace_storage(entt::hashed_string name, entt::entity entity) {
+        auto *op = make_op<operation_emplace_storage<Component>>();
+        op->name = name;
+        op->entity = entity;
+
+        if constexpr(!std::is_empty_v<Component>) {
+            auto &storage = registry->storage<Component>(name);
+            op->component = storage.get(entity);
+        }
+    }
+
     template<typename Component, typename It>
     void replace(It first, It last) {
         auto view = registry->view<Component>();
@@ -110,6 +123,21 @@ public:
 
             if constexpr(!std::is_empty_v<Component>) {
                 op->component = view.template get<Component>(op->entity);
+            }
+        }
+    }
+
+    template<typename Component, typename It>
+    void replace_storage(entt::hashed_string name, It first, It last) {
+        auto &storage = registry->storage<Component>(name);
+
+        for (; first != last; ++first) {
+            auto *op = make_op<operation_replace_storage<Component>>();
+            op->name = name;
+            op->entity = *first;
+
+            if constexpr(!std::is_empty_v<Component>) {
+                op->component = storage.get(op->entity);
             }
         }
     }
@@ -154,6 +182,13 @@ public:
     template<typename Component>
     void remove(entt::entity entity) {
         auto *op = make_op<operation_remove<Component>>();
+        op->entity = entity;
+    }
+
+    template<typename Component>
+    void remove_storage(entt::hashed_string name, entt::entity entity) {
+        auto *op = make_op<operation_remove_storage<Component>>();
+        op->name = name;
         op->entity = entity;
     }
 

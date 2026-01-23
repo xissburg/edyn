@@ -32,7 +32,6 @@ class narrowphase {
     void detect_collision_parallel();
     void detect_collision_parallel_range(unsigned start, unsigned end);
     void finish_detect_collision();
-    void clear_contact_manifold_events();
 
 public:
     narrowphase(entt::registry &);
@@ -55,7 +54,6 @@ private:
 template<typename Iterator>
 void narrowphase::update_contact_manifolds(Iterator begin, Iterator end) {
     auto manifold_view = m_registry->view<contact_manifold>();
-    auto events_view = m_registry->view<contact_manifold_events>();
     auto body_view = m_registry->view<AABB, shape_index, position, orientation>();
     auto tr_view = m_registry->view<position, orientation>();
     auto origin_view = m_registry->view<origin>();
@@ -66,16 +64,16 @@ void narrowphase::update_contact_manifolds(Iterator begin, Iterator end) {
     auto mesh_shape_view = m_registry->view<mesh_shape>();
     auto paged_mesh_shape_view = m_registry->view<paged_mesh_shape>();
     auto views_tuple = get_tuple_of_shape_views(*m_registry);
+    auto contact_storages = get_contact_point_storage_array(*m_registry);
     auto dt = m_registry->ctx().get<settings>().fixed_dt;
 
     for (auto it = begin; it != end; ++it) {
         entt::entity manifold_entity = *it;
         auto &manifold = manifold_view.template get<contact_manifold>(manifold_entity);
-        auto &events = events_view.get<contact_manifold_events>(manifold_entity);
         collision_result result;
         detect_collision(manifold.body, result, body_view, origin_view, views_tuple);
 
-        process_collision(manifold_entity, manifold, events, result, tr_view, vel_view,
+        process_collision(manifold_entity, manifold, contact_storages, result, tr_view, vel_view,
                           rolling_view, origin_view, orn_view, material_view,
                           mesh_shape_view, paged_mesh_shape_view, dt,
                           [&](const collision_result::collision_point &rp) {

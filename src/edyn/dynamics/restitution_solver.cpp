@@ -8,6 +8,7 @@
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_point.hpp"
 #include "edyn/math/matrix3x3.hpp"
+#include "edyn/util/collision_util.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
@@ -30,12 +31,10 @@
 namespace edyn {
 
 template<typename BodyView, typename OriginView, typename StaticView>
-scalar get_manifold_min_relvel(const contact_manifold &manifold, const BodyView &body_view,
-                               const OriginView &origin_view, const StaticView &static_view) {
-    if (manifold.num_points == 0) {
-        return EDYN_SCALAR_MAX;
-    }
-
+scalar get_manifold_min_relvel(const contact_manifold &manifold, entt::entity entity,
+                               const BodyView &body_view,
+                               const OriginView &origin_view, const StaticView &static_view,
+                               const contact_point_storage_array_const_t &contact_storages) {
     auto [posA, ornA] = body_view.template get<position, orientation>(manifold.body[0]);
     auto [posB, ornB] = body_view.template get<position, orientation>(manifold.body[1]);
 
@@ -63,19 +62,19 @@ scalar get_manifold_min_relvel(const contact_manifold &manifold, const BodyView 
 
     auto min_relvel = EDYN_SCALAR_MAX;
 
-    for (size_t pt_idx = 0; pt_idx < manifold.num_points; ++pt_idx) {
-        auto &cp = manifold.get_point(pt_idx);
-        auto normal = cp.normal;
-        auto pivotA = to_world_space(cp.pivotA, originA, ornA);
-        auto pivotB = to_world_space(cp.pivotB, originB, ornB);
-        auto rA = pivotA - posA;
-        auto rB = pivotB - posB;
-        auto vA = linvelA + cross(angvelA, rA);
-        auto vB = linvelB + cross(angvelB, rB);
-        auto relvel = vA - vB;
-        auto normal_relvel = dot(relvel, normal);
-        min_relvel = std::min(normal_relvel, min_relvel);
-    }
+    contact_point_for_each(contact_storages, entity,
+        [&, &posA=posA, &posB=posB, &ornA=ornA, &ornB=ornB](const contact_point &cp) {
+            auto normal = cp.normal;
+            auto pivotA = to_world_space(cp.pivotA, originA, ornA);
+            auto pivotB = to_world_space(cp.pivotB, originB, ornB);
+            auto rA = pivotA - posA;
+            auto rB = pivotB - posB;
+            auto vA = linvelA + cross(angvelA, rA);
+            auto vB = linvelB + cross(angvelB, rB);
+            auto relvel = vA - vB;
+            auto normal_relvel = dot(relvel, normal);
+            min_relvel = std::min(normal_relvel, min_relvel);
+        });
 
     return min_relvel;
 }
@@ -93,6 +92,7 @@ bool solve_restitution_iteration(entt::registry &registry, entt::entity island_e
     auto static_view = registry.view<static_tag>();
     auto restitution_view = registry.view<contact_manifold_with_restitution>();
     auto manifold_view = registry.view<contact_manifold>();
+    auto contact_storages = get_contact_point_storage_array(registry);
 
     // Solve manifolds in small groups, these groups being all manifolds connected
     // to one rigid body, usually a fast moving one. Ignore manifolds which are
@@ -114,7 +114,8 @@ bool solve_restitution_iteration(entt::registry &registry, entt::entity island_e
         }
 
         auto &manifold = manifold_view.get<contact_manifold>(entity);
-        auto local_min_relvel = get_manifold_min_relvel(manifold, body_view, origin_view, static_view);
+        auto local_min_relvel = get_manifold_min_relvel(manifold, entity, body_view, origin_view, static_view,
+                                                        get_contact_point_storage_array(std::as_const(registry)));
 
         if (local_min_relvel < min_relvel) {
             min_relvel = local_min_relvel;
@@ -220,9 +221,7 @@ bool solve_restitution_iteration(entt::registry &registry, entt::entity island_e
 
             // Create constraint rows for non-penetration constraints for each
             // contact point.
-            for (size_t pt_idx = 0; pt_idx < manifold.num_points; ++pt_idx) {
-                auto &cp = manifold.get_point(pt_idx);
-
+            contact_point_for_each(contact_storages, manifold_entity, [&, &posA=posA, &posB=posB, &ornA=ornA, &ornB=ornB](contact_point &cp) {
                 auto normal = cp.normal;
                 auto pivotA = to_world_space(cp.pivotA, originA, ornA);
                 auto pivotB = to_world_space(cp.pivotB, originB, ornB);
@@ -238,6 +237,7 @@ bool solve_restitution_iteration(entt::registry &registry, entt::entity island_e
                 normal_row.dvB = dvB; normal_row.dwB = dwB;
                 normal_row.lower_limit = 0;
                 normal_row.upper_limit = large_scalar;
+                normal_row.impulse = 0;
 
                 auto normal_options = constraint_row_options{};
                 normal_options.restitution = cp.restitution;
@@ -256,8 +256,9 @@ bool solve_restitution_iteration(entt::registry &registry, entt::entity island_e
                     individual_row.J = {tangents[i], cross(rA, tangents[i]), -tangents[i], -cross(rB, tangents[i])};
                     individual_row.eff_mass = get_effective_mass(individual_row.J, inv_mA, inv_IA, inv_mB, inv_IB);
                     individual_row.rhs = -get_relative_speed(individual_row.J, linvelA, angvelA, linvelB, angvelB);
+                    individual_row.impulse = 0;
                 }
-            }
+            });
         }
 
         // Solve rows.
@@ -279,10 +280,7 @@ bool solve_restitution_iteration(entt::registry &registry, entt::entity island_e
         size_t row_idx = 0;
 
         for (auto manifold_entity : manifold_entities) {
-            auto &manifold = manifold_view.get<contact_manifold>(manifold_entity);
-
-            for (size_t pt_idx = 0; pt_idx < manifold.num_points; ++pt_idx) {
-                auto &cp = manifold.get_point(pt_idx);
+            contact_point_for_each(contact_storages, manifold_entity, [&](contact_point &cp) {
                 auto &normal_row = normal_rows[row_idx];
                 cp.normal_restitution_impulse = normal_row.impulse;
 
@@ -293,7 +291,7 @@ bool solve_restitution_iteration(entt::registry &registry, entt::entity island_e
                 }
 
                 ++row_idx;
-            }
+            });
         }
 
         // Apply delta velocities.
@@ -353,6 +351,7 @@ bool solve_restitution_iteration(entt::registry &registry, entt::entity island_e
     }
 
     std::vector<entt::entity> manifold_entities;
+    auto contact_storages_const = get_contact_point_storage_array(std::as_const(registry));
 
     graph.traverse(start_node_index, [&](auto node_index) {
         // Ignore non-procedural entities.
@@ -366,7 +365,7 @@ bool solve_restitution_iteration(entt::registry &registry, entt::entity island_e
             auto &manifold = manifold_view.get<contact_manifold>(edge_entity);
 
             // Ignore manifolds which are not penetrating fast enough.
-            auto local_min_relvel = get_manifold_min_relvel(manifold, body_view, origin_view, static_view);
+            auto local_min_relvel = get_manifold_min_relvel(manifold, edge_entity, body_view, origin_view, static_view, contact_storages_const);
 
             if (local_min_relvel < relvel_threshold) {
                 manifold_entities.push_back(edge_entity);

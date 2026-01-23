@@ -181,7 +181,7 @@ void update_impulse(entt::registry &registry, const std::vector<entt::entity> &e
                     row_cache &cache, size_t &con_idx, size_t &row_idx, size_t &friction_row_idx,
                     size_t &rolling_row_idx, size_t &spinning_row_idx) {
     auto con_view = registry.view<C>();
-    auto manifold_view = registry.view<contact_manifold>();
+    auto contact_storages = get_contact_point_storage_array(registry);
     std::vector<scalar> applied_impulses;
 
     for (auto entity : entities) {
@@ -189,26 +189,38 @@ void update_impulse(entt::registry &registry, const std::vector<entt::entity> &e
         auto num_rows = cache.con_num_rows[con_idx];
 
         if constexpr(std::is_same_v<C, contact_constraint>) {
-            auto [manifold] = manifold_view.get(entity);
+            auto storage_index = 0u;
+            const auto next_contact = [&]() {
+                auto *cp_storage = contact_storages[storage_index];
+
+                while (!cp_storage->contains(entity)) {
+                    cp_storage = contact_storages[++storage_index];
+                }
+
+                ++storage_index;
+                return &cp_storage->get(entity);
+            };
 
             for (size_t i = 0; i < num_rows; ++i) {
                 auto flags = cache.flags[row_idx];
-
-                con.store_applied_impulse(cache.rows[row_idx++].impulse, i, manifold);
+                auto &cp = *next_contact();
+                cp.normal_impulse = cache.rows[row_idx++].impulse;
 
                 if (flags & constraint_row_flag_friction) {
                     auto &friction_row = cache.friction[friction_row_idx++];
-                    con.store_friction_impulse(friction_row.row[0].impulse, friction_row.row[1].impulse, i, manifold);
+                    cp.friction_impulse[0] = friction_row.row[0].impulse;
+                    cp.friction_impulse[1] = friction_row.row[1].impulse;
                 }
 
                 if (flags & constraint_row_flag_rolling_friction) {
                     auto &roll_row = cache.rolling[rolling_row_idx++];
-                    con.store_rolling_impulse(roll_row.row[0].impulse, roll_row.row[1].impulse, i, manifold);
+                    cp.rolling_friction_impulse[0] = roll_row.row[0].impulse;
+                    cp.rolling_friction_impulse[1] = roll_row.row[1].impulse;
                 }
 
                 if (flags & constraint_row_flag_spinning_friction) {
                     auto &spin_row = cache.spinning[spinning_row_idx++];
-                    con.store_spinning_impulse(spin_row.impulse, i, manifold);
+                    cp.spin_friction_impulse = spin_row.impulse;
                 }
             }
         } else {
@@ -278,7 +290,6 @@ scalar solve_position_constraints_each(entt::registry &registry, const std::vect
 
     if constexpr(has_solve_position<C>::value) {
         auto con_view = registry.view<C>();
-        auto manifold_view = registry.view<contact_manifold>();
         auto solver = position_solver{};
 
         // Masses and inertias to be used for non-procedural entities.
@@ -331,8 +342,7 @@ scalar solve_position_constraints_each(entt::registry &registry, const std::vect
             }
 
             if constexpr(std::is_same_v<std::decay_t<C>, contact_constraint>) {
-                auto [manifold] = manifold_view.get(entity);
-                con.solve_position(solver, manifold);
+                con.solve_position(registry, entity, solver);
             } else {
                 con.solve_position(solver);
             }

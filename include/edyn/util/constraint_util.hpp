@@ -2,12 +2,15 @@
 #define EDYN_UTIL_CONSTRAINT_UTIL_HPP
 
 #include <entt/entity/registry.hpp>
+#include "edyn/collision/contact_point.hpp"
 #include "edyn/comp/graph_edge.hpp"
 #include "edyn/comp/graph_node.hpp"
+#include "edyn/config/constants.hpp"
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/core/entity_pair.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/collision/contact_manifold.hpp"
+#include "edyn/util/collision_util.hpp"
 
 namespace edyn {
 
@@ -105,7 +108,7 @@ void make_contact_manifold(entt::entity contact_entity, entt::registry &,
                            entt::entity body0, entt::entity body1,
                            scalar separation_threshold);
 
-void swap_manifold(contact_manifold &manifold);
+void swap_manifold(contact_manifold &manifold, entt::entity entity, contact_point_storage_array_t &&contact_storages);
 
 scalar get_effective_mass(const constraint_row &);
 
@@ -138,17 +141,15 @@ void create_graph_edge_for_constraints(entt::registry &registry, entt::entity en
 template<typename Constraint, typename It>
 void clear_applied_impulses_single(entt::registry &registry, It first, It last) {
     auto con_view = registry.view<Constraint>();
-    auto manifold_view = registry.view<contact_manifold>();
     std::vector<scalar> impulses(16, scalar{0});
+    auto contact_storages = get_contact_point_storage_array(registry);
 
     for (; first != last; ++first) {
         auto entity = *first;
         if (!con_view.contains(entity)) continue;
-        auto &con = con_view.template get<Constraint>(entity);
 
         if constexpr(std::is_same_v<Constraint, contact_constraint>) {
-            auto [manifold] = manifold_view.get(entity);
-            manifold.each_point([](contact_point &cp) {
+            contact_point_for_each(contact_storages, entity, [&](contact_point &cp) {
                 cp.normal_impulse = 0;
                 cp.spin_friction_impulse = 0;
                 cp.normal_restitution_impulse = 0;
@@ -160,6 +161,7 @@ void clear_applied_impulses_single(entt::registry &registry, It first, It last) 
                 }
             });
         } else {
+            auto &con = con_view.template get<Constraint>(entity);
             con.store_applied_impulses(impulses);
         }
     }
