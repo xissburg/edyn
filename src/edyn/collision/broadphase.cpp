@@ -119,17 +119,18 @@ void broadphase::move_aabbs() {
 
 void broadphase::destroy_separated_manifolds() {
     auto aabb_view = m_registry->view<AABB>();
-    auto manifold_view = m_registry->view<contact_manifold>(exclude_sleeping_disabled);
-    auto cp_view = m_registry->view<contact_point>();
+    auto manifold_view = m_registry->view<contact_manifold, contact_manifold_state>(exclude_sleeping_disabled);
+    auto cp_view = m_registry->view<contact_point_list>();
 
     // Destroy manifolds of pairs whose AABBs are not intersecting anymore.
-    manifold_view.each([&](entt::entity entity, contact_manifold &manifold) {
+    for (auto [entity, manifold, manifold_state] : manifold_view.each()) {
         auto [b0] = aabb_view.get(manifold.body[0]);
         auto [b1] = aabb_view.get(manifold.body[1]);
         const auto separation_offset = vector3_one * -manifold.separation_threshold;
 
         if (!intersect(b0.inset(separation_offset), b1)) {
-            auto contact_entity = manifold.contact_entity;
+            auto contact_entity = manifold_state.contact_entity;
+            manifold_state.contact_entity = entt::null;
 
             while (contact_entity != entt::null) {
                 auto next = std::get<0>(cp_view.get(contact_entity)).next;
@@ -139,7 +140,7 @@ void broadphase::destroy_separated_manifolds() {
 
             m_registry->destroy(entity);
         }
-    });
+    }
 }
 
 void broadphase::collide_tree(const dynamic_tree &tree, entt::entity entity,

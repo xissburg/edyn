@@ -1,5 +1,4 @@
 #include "edyn/dynamics/solver.hpp"
-#include "edyn/collision/contact_manifold.hpp"
 #include "edyn/comp/graph_edge.hpp"
 #include "edyn/comp/inertia.hpp"
 #include "edyn/comp/island.hpp"

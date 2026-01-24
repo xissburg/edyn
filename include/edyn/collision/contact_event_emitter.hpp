@@ -10,9 +10,10 @@ namespace edyn {
 class contact_event_emitter {
 public:
     contact_event_emitter(entt::registry &);
-    ~contact_event_emitter();
 
-    void consume_events();
+    // Cannot be copied because `entt::scoped_connection` deletes its copy ctor.
+    contact_event_emitter(const contact_event_emitter &) = delete;
+    contact_event_emitter(contact_event_emitter &&) = default;
 
     auto contact_started_sink() {
         return entt::sink{m_contact_started_signal};
@@ -22,22 +23,14 @@ public:
         return entt::sink{m_contact_ended_signal};
     }
 
-    auto contact_point_created_sink() {
-        return entt::sink{m_contact_point_created_signal};
-    }
-
-    auto contact_point_destroyed_sink() {
-        return entt::sink{m_contact_point_destroyed_signal};
-    }
-
+    void on_construct_contact_manifold(entt::registry &, entt::entity);
+    void on_update_contact_manifold(entt::registry &, entt::entity);
     void on_destroy_contact_manifold(entt::registry &, entt::entity);
 
 private:
-    entt::registry *m_registry;
     entt::sigh<void(entt::entity)> m_contact_started_signal;
     entt::sigh<void(entt::entity)> m_contact_ended_signal;
-    entt::sigh<void(entt::entity, contact_manifold::contact_id_type)> m_contact_point_created_signal;
-    entt::sigh<void(entt::entity, contact_manifold::contact_id_type)> m_contact_point_destroyed_signal;
+    std::vector<entt::scoped_connection> m_connections;
 };
 
 }

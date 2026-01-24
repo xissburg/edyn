@@ -13,8 +13,8 @@
 #include "edyn/core/entity_graph.hpp"
 #include "edyn/constraints/constraint_row.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
-#include "edyn/util/collision_util.hpp"
 #include "edyn/util/transient_util.hpp"
+#include "edyn/util/contact_manifold_util.hpp"
 
 namespace edyn {
 
@@ -70,6 +70,7 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
                            scalar separation_threshold) {
     EDYN_ASSERT(registry.valid(body0) && registry.valid(body1));
     registry.emplace<contact_manifold>(manifold_entity, body0, body1, separation_threshold);
+    registry.emplace<contact_manifold_state>(manifold_entity);
 
     auto material_view = registry.view<material>();
 
@@ -105,18 +106,20 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
 }
 
 void swap_manifold(entt::registry &registry, entt::entity manifold_entity) {
-    auto &manifold = registry.get<contact_manifold>(manifold_entity);
+    auto [manifold, manifold_state] = registry.get<contact_manifold, contact_manifold_state>(manifold_entity);
     std::swap(manifold.body[0], manifold.body[1]);
+    auto cp_view = registry.view<contact_point, contact_point_geometry, contact_point_list>();
 
-    contact_point_for_each(registry, manifold_entity, [&](contact_point &cp) {
+    contact_manifold_each_point(cp_view, manifold_state.contact_entity, [&](entt::entity contact_entity) {
+        auto [cp, cp_geom] = cp_view.get<contact_point, contact_point_geometry>(contact_entity);
         std::swap(cp.pivotA, cp.pivotB);
-        std::swap(cp.featureA, cp.featureB);
+        std::swap(cp_geom.featureA, cp_geom.featureB);
         cp.normal *= -1; // Point towards new A.
 
-        if (cp.normal_attachment == contact_normal_attachment::normal_on_A) {
-            cp.normal_attachment = contact_normal_attachment::normal_on_B;
-        } else if (cp.normal_attachment == contact_normal_attachment::normal_on_B) {
-            cp.normal_attachment = contact_normal_attachment::normal_on_A;
+        if (cp_geom.normal_attachment == contact_normal_attachment::normal_on_A) {
+            cp_geom.normal_attachment = contact_normal_attachment::normal_on_B;
+        } else if (cp_geom.normal_attachment == contact_normal_attachment::normal_on_B) {
+            cp_geom.normal_attachment = contact_normal_attachment::normal_on_A;
         }
     });
 }

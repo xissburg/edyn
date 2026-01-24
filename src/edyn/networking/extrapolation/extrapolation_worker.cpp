@@ -428,11 +428,11 @@ void extrapolation_worker::finish_extrapolation(const extrapolation_request &req
 
     // All manifolds that are not sleeping have been involved in the
     // extrapolation.
-    auto manifold_view = m_registry.view<contact_manifold>(entt::exclude_t<sleeping_tag>{});
+    auto manifold_view = m_registry.view<contact_manifold, contact_manifold_state>(entt::exclude_t<sleeping_tag>{});
 
     // TODO: Must export contact point storage.
-    for (auto [manifold_entity, manifold] : manifold_view.each()) {
-        if (manifold.num_points > 0) {
+    for (auto [manifold_entity, manifold, manifold_state] : manifold_view.each()) {
+        if (manifold_state.num_points > 0) {
             result.manifolds.push_back(manifold);
         }
     }

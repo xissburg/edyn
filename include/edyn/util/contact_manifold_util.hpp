@@ -1,7 +1,9 @@
 #ifndef EDYN_UTIL_CONTACT_MANIFOLD_UTIL_HPP
 #define EDYN_UTIL_CONTACT_MANIFOLD_UTIL_HPP
 
+#include "edyn/collision/contact_point.hpp"
 #include "edyn/core/entity_pair.hpp"
+#include <entt/entity/entity.hpp>
 #include <entt/entity/fwd.hpp>
 
 namespace edyn {
@@ -30,6 +32,33 @@ entt::entity get_manifold_entity(const entt::registry &registry, entt::entity fi
 
 /*! @copydoc get_manifold_entity */
 entt::entity get_manifold_entity(const entt::registry &registry, entity_pair entities);
+
+template<typename ContactView, typename Func>
+void contact_manifold_each_point(ContactView cp_view, entt::entity contact_list_head_entity, Func func) {
+    if (contact_list_head_entity == entt::null) return;
+
+    auto *cp = &cp_view.template get<contact_point_list>(contact_list_head_entity);
+    func(contact_list_head_entity);
+
+    while (cp->next != entt::null) {
+        auto contact_entity = cp->next;
+        cp = &cp_view.template get<contact_point_list>(contact_entity);
+        func(contact_entity);
+    }
+}
+
+template<typename Func>
+void contact_manifold_each_point(entt::registry &registry, entt::entity contact_list_head_entity, Func func) {
+    if (contact_list_head_entity != entt::null) {
+        auto cp_view = registry.view<contact_point_list>();
+        contact_manifold_each_point(cp_view, contact_list_head_entity, func);
+    }
+}
+
+template<typename Func>
+void contact_manifold_each_point(const entt::registry &registry, entt::entity contact_list_head_entity, Func func) {
+    contact_manifold_each_point(const_cast<entt::registry &>(registry), contact_list_head_entity, func);
+}
 
 }
 

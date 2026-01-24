@@ -10,7 +10,7 @@
 #include "edyn/core/entity_pair.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/collision/contact_manifold.hpp"
-#include "edyn/util/collision_util.hpp"
+#include "edyn/util/contact_manifold_util.hpp"
 
 namespace edyn {
 
@@ -141,6 +141,8 @@ void create_graph_edge_for_constraints(entt::registry &registry, entt::entity en
 template<typename Constraint, typename It>
 void clear_applied_impulses_single(entt::registry &registry, It first, It last) {
     auto con_view = registry.view<Constraint>();
+    auto manifold_view = registry.view<contact_manifold_state>();
+    auto cp_view = registry.view<contact_point_impulse, contact_point_list>();
     std::vector<scalar> impulses(16, scalar{0});
 
     for (; first != last; ++first) {
@@ -148,15 +150,20 @@ void clear_applied_impulses_single(entt::registry &registry, It first, It last) 
         if (!con_view.contains(entity)) continue;
 
         if constexpr(std::is_same_v<Constraint, contact_constraint>) {
-            contact_point_for_each(registry, entity, [&](contact_point &cp) {
-                cp.normal_impulse = 0;
-                cp.spin_friction_impulse = 0;
-                cp.normal_restitution_impulse = 0;
+            auto [manifold_state] = manifold_view.get(entity);
+            contact_manifold_each_point(cp_view, manifold_state.contact_entity, [&](entt::entity contact_entity) {
+                auto &cp_imp = cp_view.get<contact_point_impulse>(contact_entity);
+                cp_imp.normal_impulse = 0;
+                cp_imp.friction_impulse = {0, 0};
+                cp_imp.normal_restitution_impulse = 0;
+                cp_imp.friction_restitution_impulse = {0, 0};
 
-                for (int i = 0; i < 2; ++i) {
-                    cp.friction_impulse[i] = 0;
-                    cp.rolling_friction_impulse[i] = 0;
-                    cp.friction_restitution_impulse[i] = 0;
+                if (auto *spin_imp = registry.try_get<contact_point_spin_friction_impulse>(contact_entity)) {
+                    spin_imp->spin_friction_impulse = 0;
+                }
+
+                if (auto *roll_imp = registry.try_get<contact_point_roll_friction_impulse>(contact_entity)) {
+                    roll_imp->rolling_friction_impulse = {0, 0};
                 }
             });
         } else {

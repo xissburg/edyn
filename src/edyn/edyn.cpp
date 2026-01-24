@@ -41,6 +41,9 @@ static void init_meta() {
     entt::meta_factory<contact_manifold>()
         .data<&contact_manifold::body, entt::as_ref_t>("body"_hs);
 
+    entt::meta_factory<contact_manifold_state>()
+        .data<&contact_manifold_state::contact_entity, entt::as_ref_t>("contact_entity"_hs);
+
     entt::meta_factory<collision_exclusion>()
         .data<&collision_exclusion::entity, entt::as_ref_t>("entity"_hs);
 
@@ -63,12 +66,9 @@ static void init_meta() {
         .data<&child_list::parent, entt::as_ref_t>("parent"_hs)
         .data<&child_list::next, entt::as_ref_t>("next"_hs);
 
-    entt::meta_factory<contact_manifold>()
-        .data<&contact_manifold::contact_entity, entt::as_ref_t>("contact_entity"_hs);
-
-    entt::meta_factory<contact_point>()
-        .data<&contact_point::prev, entt::as_ref_t>("prev"_hs)
-        .data<&contact_point::next, entt::as_ref_t>("next"_hs);
+    entt::meta_factory<contact_point_list>()
+        .data<&contact_point_list::parent, entt::as_ref_t>("parent"_hs)
+        .data<&contact_point_list::next, entt::as_ref_t>("next"_hs);
 }
 
 void attach(entt::registry &registry, const init_config &config) {

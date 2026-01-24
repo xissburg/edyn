@@ -25,7 +25,6 @@
 #include "edyn/networking/comp/discontinuity.hpp"
 #include "edyn/shapes/shapes.hpp"
 #include "edyn/collision/contact_manifold.hpp"
-#include "edyn/collision/contact_manifold_events.hpp"
 #include "edyn/collision/contact_point.hpp"
 
 namespace edyn {
@@ -51,9 +50,15 @@ using shared_components_t = decltype(std::tuple_cat(std::tuple<
     position,
     orientation,
     contact_point,
+    contact_point_list,
+    contact_point_geometry,
+    contact_point_material,
+    contact_point_impulse,
+    contact_point_spin_friction_impulse,
+    contact_point_roll_friction_impulse,
     contact_manifold,
+    contact_manifold_state,
     contact_manifold_with_restitution,
-    contact_manifold_events,
     center_of_mass,
     origin,
     dynamic_tag,

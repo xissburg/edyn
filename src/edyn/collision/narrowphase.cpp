@@ -32,11 +32,11 @@ void narrowphase::update(bool mt) {
 
 void narrowphase::detect_collision_parallel_range(unsigned start, unsigned end) {
     auto &registry = *m_registry;
-    auto manifold_view = registry.view<contact_manifold>();
+    auto manifold_view = registry.view<contact_manifold, contact_manifold_state>();
     auto body_view = registry.view<AABB, shape_index, position, orientation>();
     auto tr_view = registry.view<position, orientation>();
     auto vel_view = registry.view<angvel>();
-    auto cp_view = m_registry->view<contact_point>();
+    auto cp_view = m_registry->view<contact_point, contact_point_list, contact_point_geometry, contact_point_material>();
     auto rolling_view = registry.view<rolling_tag>();
     auto origin_view = registry.view<origin>();
     auto material_view = registry.view<material>();
@@ -50,13 +50,13 @@ void narrowphase::detect_collision_parallel_range(unsigned start, unsigned end) 
 
     for (auto index = start; index < end; ++index, ++first) {
         auto entity = *first;
-        auto [manifold] = manifold_view.get(entity);
+        auto [manifold, manifold_state] = manifold_view.get(entity);
         collision_result result;
         auto &construction_info = m_cp_construction_infos[index];
         auto &destruction_info = m_cp_destruction_infos[index];
 
         detect_collision(manifold.body, result, body_view, origin_view, shapes_views_tuple);
-        process_collision(entity, manifold, result, tr_view, vel_view, cp_view,
+        process_collision(entity, manifold, manifold_state, result, tr_view, vel_view, cp_view,
                         rolling_view, origin_view, orn_view, material_view,
                         mesh_shape_view, paged_mesh_shape_view, dt,
                         [&construction_info](const collision_result::collision_point &rp) {
@@ -69,20 +69,21 @@ void narrowphase::detect_collision_parallel_range(unsigned start, unsigned end) 
 
 void narrowphase::detect_collision_parallel() {
     // Resize result collection vectors to allocate one slot for each iteration.
-    auto manifold_view = m_registry->view<contact_manifold>();
-    m_cp_construction_infos.resize(manifold_view.size());
-    m_cp_destruction_infos.resize(manifold_view.size());
+    auto num_manifolds = m_registry->view<contact_manifold>().size();
+    m_cp_construction_infos.resize(num_manifolds);
+    m_cp_destruction_infos.resize(num_manifolds);
 
     auto task = task_delegate_t(entt::connect_arg_t<&narrowphase::detect_collision_parallel_range>{}, *this);
-    enqueue_task_wait(*m_registry, task, manifold_view.size());
+    enqueue_task_wait(*m_registry, task, num_manifolds);
 }
 
 void narrowphase::finish_detect_collision() {
-    auto manifold_view = m_registry->view<contact_manifold>();
+    auto num_manifolds = m_registry->view<contact_manifold>().size();
+    auto manifold_view = m_registry->view<contact_manifold, contact_manifold_state>();
     auto it = manifold_view.begin();
 
     // Destroy contact points.
-    for (size_t i = 0; i < manifold_view.size(); ++i, ++it) {
+    for (size_t i = 0; i < num_manifolds; ++i, ++it) {
         auto &info_result = m_cp_destruction_infos[i];
 
         for (auto contact_entity : info_result.contact_entities) {
@@ -94,15 +95,15 @@ void narrowphase::finish_detect_collision() {
     it = manifold_view.begin();
 
     auto &async_settings = m_registry->ctx().get<const settings>().async_settings;
-    const auto transient = async_settings->sync_contact_points;
+    const auto &transient = async_settings->contact_points_transient;
 
-    for (size_t i = 0; i < manifold_view.size(); ++i, ++it) {
+    for (size_t i = 0; i < num_manifolds; ++i, ++it) {
         auto entity = *it;
-        auto &manifold = manifold_view.get<contact_manifold>(entity);
+        auto [manifold, manifold_state] = manifold_view.get(entity);
         auto &info_result = m_cp_construction_infos[i];
 
         for (size_t j = 0; j < info_result.count; ++j) {
-            create_contact_point(*m_registry, entity, manifold, info_result.point[j], transient);
+            create_contact_point(*m_registry, entity, manifold, manifold_state, info_result.point[j], transient);
         }
     }
 
