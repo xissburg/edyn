@@ -533,8 +533,8 @@ void simulation_worker::on_step_simulation(message<msg::step_simulation> &) {
 
     m_poly_initializer.init_new_shapes();
     bphase.update(true);
-    m_island_manager.update(m_last_time);
     nphase.update(true);
+    m_island_manager.update(m_last_time);
     m_solver.update(true);
 
     if (settings.clear_actions_func) {

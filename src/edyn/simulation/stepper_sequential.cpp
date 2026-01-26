@@ -133,8 +133,8 @@ void stepper_sequential::step_simulation(double time) {
 
     m_poly_initializer.init_new_shapes();
     bphase.update(m_multithreaded);
-    m_island_manager.update(m_last_time);
     nphase.update(m_multithreaded);
+    m_island_manager.update(m_last_time);
     m_solver.update(m_multithreaded);
 
     if (settings.clear_actions_func) {
