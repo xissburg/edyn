@@ -34,6 +34,8 @@ entt::entity get_manifold_entity(const entt::registry &registry, entt::entity fi
 /*! @copydoc get_manifold_entity */
 entt::entity get_manifold_entity(const entt::registry &registry, entity_pair entities);
 
+void clear_contact_manifold(entt::registry &registry, entt::entity manifold_entity);
+
 template<typename ContactView, typename Func>
 void contact_point_for_each(ContactView cp_view, entt::entity contact_entity, Func func) {
     while (contact_entity != entt::null) {

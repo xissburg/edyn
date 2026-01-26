@@ -59,6 +59,7 @@ using shared_components_t = decltype(std::tuple_cat(std::tuple<
     contact_manifold,
     contact_manifold_state,
     contact_manifold_with_restitution,
+    clear_contact_manifold_tag,
     center_of_mass,
     origin,
     dynamic_tag,

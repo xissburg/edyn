@@ -26,6 +26,8 @@ struct contact_manifold_state {
     entt::entity contact_entity {entt::null};
 };
 
+struct clear_contact_manifold_tag {};
+
 /**
  * Tag assigned to contact manifolds with non-zero restitution.
  */

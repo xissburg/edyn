@@ -6,6 +6,7 @@
 #include "edyn/context/task_util.hpp"
 #include "edyn/comp/material.hpp"
 #include "edyn/util/collision_util.hpp"
+#include "edyn/util/contact_manifold_util.hpp"
 #include "edyn/util/entt_util.hpp"
 #include "edyn/util/island_util.hpp"
 #include <entt/signal/delegate.hpp>
@@ -14,9 +15,15 @@ namespace edyn {
 
 narrowphase::narrowphase(entt::registry &reg)
     : m_registry(&reg)
-{}
+{
+}
 
 void narrowphase::update(bool mt) {
+    for (auto entity : m_registry->view<clear_contact_manifold_tag>()) {
+        clear_contact_manifold(*m_registry, entity);
+    }
+    m_registry->clear<clear_contact_manifold_tag>();
+
     update_contact_distances(*m_registry);
 
     auto manifold_view = m_registry->view<contact_manifold>(exclude_sleeping_disabled);

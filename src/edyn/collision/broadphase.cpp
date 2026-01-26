@@ -13,6 +13,7 @@
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/context/task_util.hpp"
+#include "edyn/util/contact_manifold_util.hpp"
 #include "edyn/util/entt_util.hpp"
 #include "edyn/util/island_util.hpp"
 #include <entt/entity/registry.hpp>
@@ -119,25 +120,16 @@ void broadphase::move_aabbs() {
 
 void broadphase::destroy_separated_manifolds() {
     auto aabb_view = m_registry->view<AABB>();
-    auto manifold_view = m_registry->view<contact_manifold, contact_manifold_state>(exclude_sleeping_disabled);
-    auto cp_view = m_registry->view<contact_point_list>();
+    auto manifold_view = m_registry->view<contact_manifold>(exclude_sleeping_disabled);
 
     // Destroy manifolds of pairs whose AABBs are not intersecting anymore.
-    for (auto [entity, manifold, manifold_state] : manifold_view.each()) {
+    for (auto [entity, manifold] : manifold_view.each()) {
         auto [b0] = aabb_view.get(manifold.body[0]);
         auto [b1] = aabb_view.get(manifold.body[1]);
         const auto separation_offset = vector3_one * -manifold.separation_threshold;
 
         if (!intersect(b0.inset(separation_offset), b1)) {
-            auto contact_entity = manifold_state.contact_entity;
-            manifold_state.contact_entity = entt::null;
-
-            while (contact_entity != entt::null) {
-                auto next = std::get<0>(cp_view.get(contact_entity)).next;
-                m_registry->destroy(contact_entity);
-                contact_entity = next;
-            }
-
+            clear_contact_manifold(*m_registry, entity);
             m_registry->destroy(entity);
         }
     }

@@ -486,10 +486,10 @@ void rigidbody_set_shape(entt::registry &registry, entt::entity entity, std::opt
 
     // Remove all contacts associated with this body since all existing contact
     // points are now most likely invalid.
-    auto manifold_view = registry.view<contact_manifold>();
+    auto manifold_view = registry.view<contact_manifold_state>();
     visit_edges(registry, entity, [&](entt::entity edge_entity) {
-        if (manifold_view.contains(edge_entity)) {
-            registry.destroy(edge_entity);
+        if (manifold_view.contains(edge_entity) && !registry.all_of<clear_contact_manifold_tag>(edge_entity)) {
+            registry.emplace<clear_contact_manifold_tag>(edge_entity);
         }
     });
 }
