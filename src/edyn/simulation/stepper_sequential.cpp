@@ -82,11 +82,11 @@ void stepper_sequential::update(double time) {
         bphase.update(m_multithreaded);
         EDYN_PROFILE_MEASURE_ACCUM(task_time, profile, broadphase);
 
-        m_island_manager.update(step_time);
-        EDYN_PROFILE_MEASURE_ACCUM(task_time, profile, islands);
-
         nphase.update(m_multithreaded);
         EDYN_PROFILE_MEASURE_ACCUM(task_time, profile, narrowphase);
+
+        m_island_manager.update(step_time);
+        EDYN_PROFILE_MEASURE_ACCUM(task_time, profile, islands);
 
         m_solver.update(m_multithreaded);
 

@@ -351,8 +351,10 @@ void simulation_worker::update() {
 
 #ifndef EDYN_DISABLE_PROFILING
     auto &profile = m_registry.ctx().get<profile_timers>();
+    auto &counters = m_registry.ctx().get<profile_counters>();
     if (!m_paused) {
         profile = {};
+        counters = {};
     }
 #endif
 
@@ -409,11 +411,11 @@ void simulation_worker::update() {
         bphase.update(true);
         EDYN_PROFILE_MEASURE_ACCUM(task_time, profile, broadphase);
 
-        m_island_manager.update(m_sim_time);
-        EDYN_PROFILE_MEASURE_ACCUM(task_time, profile, islands);
-
         nphase.update(true);
         EDYN_PROFILE_MEASURE_ACCUM(task_time, profile, narrowphase);
+
+        m_island_manager.update(m_sim_time);
+        EDYN_PROFILE_MEASURE_ACCUM(task_time, profile, islands);
 
         m_solver.update(true);
 
@@ -428,6 +430,10 @@ void simulation_worker::update() {
         }
 
         mark_transient_replaced();
+#ifndef EDYN_DISABLE_PROFILING
+        counters.op_count += m_op_builder->size();
+        counters.op_size += m_op_builder->byte_size();
+#endif
         sync();
 
         EDYN_PROFILE_MEASURE_ACCUM(step_time, profile, step);
@@ -443,6 +449,8 @@ void simulation_worker::update() {
         EDYN_PROFILE_MEASURE_AVG(profile, solve_islands, effective_steps);
         EDYN_PROFILE_MEASURE_AVG(profile, apply_results, effective_steps);
         EDYN_PROFILE_MEASURE_AVG(profile, step,          effective_steps);
+        counters.op_count /= effective_steps;
+        counters.op_size /= effective_steps;
     }
 
     sync_profiling();

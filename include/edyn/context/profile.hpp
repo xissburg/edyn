@@ -22,6 +22,8 @@ struct profile_counters {
     unsigned constraints;
     unsigned constraint_rows;
     unsigned islands;
+    unsigned op_count;
+    unsigned op_size;
 };
 
 struct profile_network {

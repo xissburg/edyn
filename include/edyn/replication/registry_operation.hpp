@@ -343,6 +343,20 @@ public:
     bool empty() const {
         return operations.empty();
     }
+
+    auto size() const {
+        return operations.size();
+    }
+
+    auto byte_size() const {
+        auto s = 0u;
+
+        for (auto &block : data_blocks) {
+            s += block.size();
+        }
+
+        return s;
+    }
 };
 
 }

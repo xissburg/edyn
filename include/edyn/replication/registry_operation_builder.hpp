@@ -170,6 +170,14 @@ public:
         return operation.empty();
     }
 
+    auto size() const {
+        return operation.size();
+    }
+
+    auto byte_size() const {
+        return operation.byte_size();
+    }
+
     registry_operation && finish() {
         m_data_index = 0;
         return std::move(operation);
