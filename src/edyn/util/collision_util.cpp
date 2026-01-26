@@ -5,6 +5,7 @@
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/transient.hpp"
 #include "edyn/config/constants.hpp"
+#include "edyn/constraints/null_constraint.hpp"
 #include "edyn/math/quaternion.hpp"
 #include "edyn/math/transform.hpp"
 #include "edyn/math/vector3.hpp"
@@ -367,6 +368,10 @@ void create_contact_point(entt::registry &registry,
 
         registry.emplace<contact_point_impulse>(contact_entity);
         make_constraint<contact_constraint>(registry, contact_entity, manifold.body[0], manifold.body[1]);
+    } else {
+        // Create a null constraint to ensure an edge will exist in the
+        // entity graph for this contact point.
+        make_constraint<null_constraint>(registry, contact_entity, manifold.body[0], manifold.body[1]);
     }
 
     registry.emplace<contact_point_geometry>(contact_entity, std::move(cp_geom));
