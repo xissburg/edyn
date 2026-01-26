@@ -129,6 +129,7 @@ void process_collision(entt::registry &registry, entt::entity manifold_entity,
 
     entt::sparse_set points_removed;
     auto num_points = size_t{manifold_state.num_points};
+    EDYN_ASSERT(manifold_state.num_points <= max_contacts);
 
     contact_point_for_each(cp_view, manifold_state.contact_entity, [&, &ornA=ornA, &ornB=ornB](entt::entity contact_entity) {
         // Find a point in the result that's closest to the current point and

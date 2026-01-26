@@ -325,6 +325,7 @@ void create_contact_point(entt::registry &registry,
                           const collision_result::collision_point& rp,
                           const std::optional<transient> &transient_contact) {
     EDYN_ASSERT(length_sqr(rp.normal) > EDYN_EPSILON);
+    EDYN_ASSERT(manifold_state.num_points <= max_contacts);
 
     auto cp = contact_point{};
     cp.pivotA = rp.pivotA;
