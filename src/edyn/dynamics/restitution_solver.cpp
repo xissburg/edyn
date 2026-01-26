@@ -63,7 +63,7 @@ scalar get_manifold_min_relvel(const contact_manifold &manifold,
 
     auto min_relvel = EDYN_SCALAR_MAX;
 
-    contact_manifold_each_point(cp_view, manifold_state.contact_entity,
+    contact_point_for_each(cp_view, manifold_state.contact_entity,
         [&, &posA=posA, &posB=posB, &ornA=ornA, &ornB=ornB](entt::entity contact_entity) {
             auto &cp = cp_view.template get<contact_point>(contact_entity);
             auto normal = cp.normal;
@@ -222,7 +222,7 @@ bool solve_restitution_iteration(entt::registry &registry, entt::entity island_e
 
             // Create constraint rows for non-penetration constraints for each
             // contact point.
-            contact_manifold_each_point(cp_view, manifold_state.contact_entity, [&, &posA=posA, &posB=posB, &ornA=ornA, &ornB=ornB](entt::entity contact_entity) {
+            contact_point_for_each(cp_view, manifold_state.contact_entity, [&, &posA=posA, &posB=posB, &ornA=ornA, &ornB=ornB](entt::entity contact_entity) {
                 auto [cp, cp_mat] = cp_view.get<contact_point, contact_point_material>(contact_entity);
                 auto normal = cp.normal;
                 auto pivotA = to_world_space(cp.pivotA, originA, ornA);
@@ -284,7 +284,7 @@ bool solve_restitution_iteration(entt::registry &registry, entt::entity island_e
         for (auto manifold_entity : manifold_entities) {
             auto &manifold_state = manifold_view.get<contact_manifold_state>(manifold_entity);
 
-            contact_manifold_each_point(cp_view, manifold_state.contact_entity, [&](entt::entity contact_entity) {
+            contact_point_for_each(cp_view, manifold_state.contact_entity, [&](entt::entity contact_entity) {
                 auto &cp_imp = cp_view.get<contact_point_impulse>(contact_entity);
                 auto &normal_row = normal_rows[row_idx];
                 cp_imp.normal_restitution_impulse = normal_row.impulse;

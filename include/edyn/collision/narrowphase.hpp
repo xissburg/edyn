@@ -52,36 +52,23 @@ private:
 
 template<typename Iterator>
 void narrowphase::update_contact_manifolds(Iterator begin, Iterator end) {
-    auto manifold_view = m_registry->view<contact_manifold, contact_manifold_state>();
-    auto body_view = m_registry->view<AABB, shape_index, position, orientation>();
-    auto tr_view = m_registry->view<position, orientation>();
-    auto origin_view = m_registry->view<origin>();
-    auto vel_view = m_registry->view<angvel>();
-    auto cp_view = m_registry->view<contact_point, contact_point_list, contact_point_geometry, contact_point_material>();
-    auto rolling_view = m_registry->view<rolling_tag>();
-    auto material_view = m_registry->view<material>();
-    auto orn_view = m_registry->view<orientation>();
-    auto mesh_shape_view = m_registry->view<mesh_shape>();
-    auto paged_mesh_shape_view = m_registry->view<paged_mesh_shape>();
-    auto views_tuple = get_tuple_of_shape_views(*m_registry);
-    auto dt = m_registry->ctx().get<settings>().fixed_dt;
+    auto &registry = *m_registry;
+    auto manifold_view = registry.view<contact_manifold, contact_manifold_state>();
+    auto dt = registry.ctx().get<settings>().fixed_dt;
 
-    auto &async_settings = m_registry->ctx().get<const settings>().async_settings;
+    auto &async_settings = registry.ctx().get<const settings>().async_settings;
     const auto &transient = async_settings->contact_points_transient;
 
     for (auto it = begin; it != end; ++it) {
         entt::entity manifold_entity = *it;
         auto [manifold, manifold_state] = manifold_view.get(manifold_entity);
         collision_result result;
-        detect_collision(manifold.body, result, body_view, origin_view, views_tuple);
-
-        process_collision(manifold_entity, manifold, manifold_state, result, tr_view, vel_view, cp_view,
-                          rolling_view, origin_view, orn_view, material_view,
-                          mesh_shape_view, paged_mesh_shape_view, dt,
+        detect_collision(registry, manifold.body, result);
+        process_collision(registry, manifold_entity, result, dt,
                           [&, &manifold=manifold, &manifold_state=manifold_state](const collision_result::collision_point &rp) {
-            create_contact_point(*m_registry, manifold_entity, manifold, manifold_state, rp, transient);
+            create_contact_point(registry, manifold_entity, manifold, manifold_state, rp, transient);
         }, [&](entt::entity contact_entity) {
-            destroy_contact_point(*m_registry, contact_entity);
+            destroy_contact_point(registry, contact_entity);
         });
     }
 }

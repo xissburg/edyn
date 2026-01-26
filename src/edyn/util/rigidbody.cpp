@@ -352,7 +352,7 @@ void set_rigidbody_friction(entt::registry &registry, entt::entity entity, scala
 
         auto combined_friction = material_mix_friction(friction, other_material.friction);
 
-        contact_manifold_each_point(registry, manifold_state.contact_entity, [&](entt::entity contact_entity) {
+        contact_point_for_each(registry, manifold_state.contact_entity, [&](entt::entity contact_entity) {
             registry.patch<contact_point_material>(contact_entity,
                 [combined_friction](contact_point_material &cp_mat) {
                     cp_mat.friction = combined_friction;

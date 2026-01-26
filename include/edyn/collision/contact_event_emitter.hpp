@@ -8,6 +8,9 @@
 namespace edyn {
 
 class contact_event_emitter {
+    void on_construct_contact_manifold(entt::registry &, entt::entity);
+    void on_update_contact_manifold(entt::registry &, entt::entity);
+    void on_destroy_contact_manifold(entt::registry &, entt::entity);
 public:
     contact_event_emitter(entt::registry &);
 
@@ -22,10 +25,6 @@ public:
     auto contact_ended_sink() {
         return entt::sink{m_contact_ended_signal};
     }
-
-    void on_construct_contact_manifold(entt::registry &, entt::entity);
-    void on_update_contact_manifold(entt::registry &, entt::entity);
-    void on_destroy_contact_manifold(entt::registry &, entt::entity);
 
 private:
     entt::sigh<void(entt::entity)> m_contact_started_signal;

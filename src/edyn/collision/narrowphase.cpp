@@ -32,38 +32,25 @@ void narrowphase::update(bool mt) {
 
 void narrowphase::detect_collision_parallel_range(unsigned start, unsigned end) {
     auto &registry = *m_registry;
-    auto manifold_view = registry.view<contact_manifold, contact_manifold_state>();
-    auto body_view = registry.view<AABB, shape_index, position, orientation>();
-    auto tr_view = registry.view<position, orientation>();
-    auto vel_view = registry.view<angvel>();
-    auto cp_view = m_registry->view<contact_point, contact_point_list, contact_point_geometry, contact_point_material>();
-    auto rolling_view = registry.view<rolling_tag>();
-    auto origin_view = registry.view<origin>();
-    auto material_view = registry.view<material>();
-    auto orn_view = registry.view<orientation>();
-    auto mesh_shape_view = registry.view<mesh_shape>();
-    auto paged_mesh_shape_view = registry.view<paged_mesh_shape>();
-    auto shapes_views_tuple = get_tuple_of_shape_views(registry);
     auto dt = registry.ctx().get<settings>().fixed_dt;
+    auto manifold_view = registry.view<contact_manifold>();
     auto first = manifold_view.begin();
     std::advance(first, start);
 
     for (auto index = start; index < end; ++index, ++first) {
         auto entity = *first;
-        auto [manifold, manifold_state] = manifold_view.get(entity);
+        auto [manifold] = manifold_view.get(entity);
         collision_result result;
         auto &construction_info = m_cp_construction_infos[index];
         auto &destruction_info = m_cp_destruction_infos[index];
 
-        detect_collision(manifold.body, result, body_view, origin_view, shapes_views_tuple);
-        process_collision(entity, manifold, manifold_state, result, tr_view, vel_view, cp_view,
-                        rolling_view, origin_view, orn_view, material_view,
-                        mesh_shape_view, paged_mesh_shape_view, dt,
-                        [&construction_info](const collision_result::collision_point &rp) {
-            construction_info.point[construction_info.count++] = rp;
-        }, [&destruction_info](entt::entity contact_entity) {
-            destruction_info.contact_entities.push_back(contact_entity);
-        });
+        detect_collision(registry, manifold.body, result);
+        process_collision(registry, entity, result, dt,
+            [&construction_info](const collision_result::collision_point &rp) {
+                construction_info.point[construction_info.count++] = rp;
+            }, [&destruction_info](entt::entity contact_entity) {
+                destruction_info.contact_entities.push_back(contact_entity);
+            });
     }
 }
 

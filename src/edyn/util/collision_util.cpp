@@ -35,7 +35,7 @@ void update_contact_distances(entt::registry &registry) {
         auto originA = origin_view.contains(manifold.body[0]) ? origin_view.get<origin>(manifold.body[0]) : static_cast<vector3>(posA);
         auto originB = origin_view.contains(manifold.body[1]) ? origin_view.get<origin>(manifold.body[1]) : static_cast<vector3>(posB);
 
-        contact_manifold_each_point(cp_view, manifold_state.contact_entity,
+        contact_point_for_each(cp_view, manifold_state.contact_entity,
             [&, &ornA = ornA, &ornB = ornB](entt::entity contact_entity) {
                 auto [cp, cp_geom] = cp_view.get<contact_point, contact_point_geometry>(contact_entity);
                 auto pivotA_world = to_world_space(cp.pivotA, originA, ornA);
@@ -100,13 +100,15 @@ static scalar get_paged_mesh_restitution(const paged_mesh_shape &shape,
 }
 
 static bool try_assign_per_vertex_friction(
+    entt::registry &registry,
     std::array<entt::entity, 2> body,
     const contact_point &cp,
     contact_point_material &cp_mat,
-    const contact_point_geometry &cp_geom,
-    const material_view_t &material_view,
-    const mesh_shape_view_t &mesh_shape_view,
-    const paged_mesh_shape_view_t &paged_mesh_shape_view) {
+    const contact_point_geometry &cp_geom) {
+
+    auto mesh_shape_view = registry.view<mesh_shape>();
+    auto paged_mesh_shape_view = registry.view<paged_mesh_shape>();
+    auto material_view = registry.view<material>();
 
     if (mesh_shape_view.contains(body[0])) {
         auto [shapeA] = mesh_shape_view.get(body[0]);
@@ -150,13 +152,15 @@ static bool try_assign_per_vertex_friction(
 }
 
 static bool try_assign_per_vertex_restitution(
+    entt::registry &registry,
     std::array<entt::entity, 2> body,
     const contact_point &cp,
     contact_point_material &cp_mat,
-    const contact_point_geometry &cp_geom,
-    const material_view_t &material_view,
-    const mesh_shape_view_t &mesh_shape_view,
-    const paged_mesh_shape_view_t &paged_mesh_shape_view) {
+    const contact_point_geometry &cp_geom) {
+
+    auto mesh_shape_view = registry.view<mesh_shape>();
+    auto paged_mesh_shape_view = registry.view<paged_mesh_shape>();
+    auto material_view = registry.view<material>();
 
     if (mesh_shape_view.contains(body[0])) {
         auto [shapeA] = mesh_shape_view.get(body[0]);
@@ -199,15 +203,12 @@ static bool try_assign_per_vertex_restitution(
     return false;
 }
 
-void merge_point(std::array<entt::entity, 2> body,
+void merge_point(entt::registry &registry,
+                 std::array<entt::entity, 2> body,
                  const collision_result::collision_point &rp,
                  contact_point &cp,
-                 contact_point_material &cp_mat,
-                 contact_point_geometry &cp_geom,
-                 const orientation_view_t &orn_view,
-                 const material_view_t &material_view,
-                 const mesh_shape_view_t &mesh_shape_view,
-                 const paged_mesh_shape_view_t &paged_mesh_shape_view) {
+                 contact_point_material *cp_mat,
+                 contact_point_geometry &cp_geom) {
     cp.pivotA = rp.pivotA;
     cp.pivotB = rp.pivotB;
     cp.normal = rp.normal;
@@ -218,14 +219,16 @@ void merge_point(std::array<entt::entity, 2> body,
 
     if (rp.normal_attachment != contact_normal_attachment::none) {
         auto idx = rp.normal_attachment == contact_normal_attachment::normal_on_A ? 0 : 1;
-        auto [orn] = orn_view.get(body[idx]);
+        auto &orn = registry.get<orientation>(body[idx]);
         cp_geom.local_normal = rotate(conjugate(orn), rp.normal);
     } else {
         cp_geom.local_normal = vector3_zero;
     }
 
-    try_assign_per_vertex_friction(body, cp, cp_mat, cp_geom, material_view, mesh_shape_view, paged_mesh_shape_view);
-    try_assign_per_vertex_restitution(body, cp, cp_mat, cp_geom, material_view, mesh_shape_view, paged_mesh_shape_view);
+    if (cp_mat) {
+        try_assign_per_vertex_friction(registry, body, cp, *cp_mat, cp_geom);
+        try_assign_per_vertex_restitution(registry, body, cp, *cp_mat, cp_geom);
+    }
 }
 
 size_t find_nearest_contact(const contact_point &cp,
@@ -296,14 +299,11 @@ static void assign_material_properties(entt::registry &registry,
         cp_mat.stiffness = material->stiffness;
         cp_mat.damping = material->damping;
     } else {
-        auto mesh_shape_view = registry.view<mesh_shape>();
-        auto paged_mesh_shape_view = registry.view<paged_mesh_shape>();
-
-        if (!try_assign_per_vertex_friction(manifold.body, cp, cp_mat, cp_geom, material_view, mesh_shape_view, paged_mesh_shape_view)) {
+        if (!try_assign_per_vertex_friction(registry, manifold.body, cp, cp_mat, cp_geom)) {
             cp_mat.friction = material_mix_friction(materialA.friction, materialB.friction);
         }
 
-        if (!try_assign_per_vertex_restitution(manifold.body, cp, cp_mat, cp_geom, material_view, mesh_shape_view, paged_mesh_shape_view)) {
+        if (!try_assign_per_vertex_restitution(registry, manifold.body, cp, cp_mat, cp_geom)) {
             cp_mat.restitution = material_mix_restitution(materialA.restitution, materialB.restitution);
         }
 
@@ -364,21 +364,22 @@ void create_contact_point(entt::registry &registry,
         if (cp_mat.roll_friction > 0) {
             registry.emplace<contact_point_roll_friction_impulse>(contact_entity);
         }
+
+        registry.emplace<contact_point_impulse>(contact_entity);
+        make_constraint<contact_constraint>(registry, contact_entity, manifold.body[0], manifold.body[1]);
     }
 
-    registry.emplace<contact_point_impulse>(contact_entity);
     registry.emplace<contact_point_geometry>(contact_entity, std::move(cp_geom));
     registry.emplace<contact_point_list>(contact_entity, std::move(cp_list));
     registry.emplace<contact_point>(contact_entity, std::move(cp));
 
     ++manifold_state.num_points;
-    registry.patch<contact_manifold_state>(manifold_entity);
 
     if (transient_contact) {
         registry.emplace<transient>(contact_entity, *transient_contact);
     }
 
-    make_constraint<contact_constraint>(registry, contact_entity, manifold.body[0], manifold.body[1]);
+    registry.patch<contact_manifold_state>(manifold_entity);
 }
 
 bool should_remove_point(const contact_point &cp,
@@ -424,9 +425,8 @@ void destroy_contact_point(entt::registry &registry, entt::entity contact_entity
     registry.destroy(contact_entity);
 }
 
-void detect_collision(std::array<entt::entity, 2> body, collision_result &result,
-                      const detect_collision_body_view_t &body_view, const origin_view_t &origin_view,
-                      const tuple_of_shape_views_t &views_tuple) {
+void detect_collision(entt::registry &registry, std::array<entt::entity, 2> body, collision_result &result) {
+    auto body_view = registry.view<AABB, shape_index, position, orientation>();
     auto &aabbA = body_view.get<AABB>(body[0]);
     auto &aabbB = body_view.get<AABB>(body[1]);
     const auto offset = vector3_one * -contact_breaking_threshold;
@@ -436,22 +436,24 @@ void detect_collision(std::array<entt::entity, 2> body, collision_result &result
     // than `manifold.separation_threshold` which is greater than the
     // contact breaking threshold.
     if (intersect(aabbA.inset(offset), aabbB)) {
+        auto origin_view = registry.view<origin>();
         auto &ornA = body_view.get<orientation>(body[0]);
         auto &ornB = body_view.get<orientation>(body[1]);
 
         auto originA = origin_view.contains(body[0]) ?
-            static_cast<vector3>(origin_view.get<origin>(body[0])) :
-            static_cast<vector3>(body_view.get<position>(body[0]));
+        static_cast<vector3>(origin_view.get<origin>(body[0])) :
+        static_cast<vector3>(body_view.get<position>(body[0]));
         auto originB = origin_view.contains(body[1]) ?
-            static_cast<vector3>(origin_view.get<origin>(body[1])) :
-            static_cast<vector3>(body_view.get<position>(body[1]));
+        static_cast<vector3>(origin_view.get<origin>(body[1])) :
+        static_cast<vector3>(body_view.get<position>(body[1]));
 
+        auto shapes_views_tuple = get_tuple_of_shape_views(registry);
         auto shape_indexA = body_view.get<shape_index>(body[0]);
         auto shape_indexB = body_view.get<shape_index>(body[1]);
         auto ctx = collision_context{originA, ornA, aabbA, originB, ornB, aabbB, collision_threshold};
 
-        visit_shape(shape_indexA, body[0], views_tuple, [&](auto &&shA) {
-            visit_shape(shape_indexB, body[1], views_tuple, [&](auto &&shB) {
+        visit_shape(shape_indexA, body[0], shapes_views_tuple, [&](auto &&shA) {
+            visit_shape(shape_indexB, body[1], shapes_views_tuple, [&](auto &&shB) {
                 collide(shA, shB, ctx, result);
             });
         });

@@ -71,14 +71,14 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
     EDYN_ASSERT(registry.valid(body0) && registry.valid(body1));
     registry.emplace<contact_manifold>(manifold_entity, body0, body1, separation_threshold);
     registry.emplace<contact_manifold_state>(manifold_entity);
+    // Create a null constraint to ensure an edge will exist in the entity graph
+    // for this manifold.
+    make_constraint<null_constraint>(registry, manifold_entity, body0, body1);
 
     auto material_view = registry.view<material>();
 
     // Only create contact constraint if bodies have material.
     if (!material_view.contains(body0) || !material_view.contains(body1)) {
-        // If not, emplace a null constraint to ensure an edge will exist in
-        // the entity graph.
-        make_constraint<null_constraint>(registry, manifold_entity, body0, body1);
         return;
     }
 
@@ -97,12 +97,6 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
     if (restitution > EDYN_EPSILON) {
         registry.emplace<contact_manifold_with_restitution>(manifold_entity);
     }
-
-    auto node_index0 = registry.get<graph_node>(body0).node_index;
-    auto node_index1 = registry.get<graph_node>(body1).node_index;
-    auto edge_index = registry.ctx().get<entity_graph>().insert_edge(manifold_entity, node_index0, node_index1);
-    registry.emplace<graph_edge>(manifold_entity, edge_index);
-    registry.emplace<island_resident>(manifold_entity);
 }
 
 void swap_manifold(entt::registry &registry, entt::entity manifold_entity) {
@@ -110,7 +104,7 @@ void swap_manifold(entt::registry &registry, entt::entity manifold_entity) {
     std::swap(manifold.body[0], manifold.body[1]);
     auto cp_view = registry.view<contact_point, contact_point_geometry, contact_point_list>();
 
-    contact_manifold_each_point(cp_view, manifold_state.contact_entity, [&](entt::entity contact_entity) {
+    contact_point_for_each(cp_view, manifold_state.contact_entity, [&](entt::entity contact_entity) {
         auto [cp, cp_geom] = cp_view.get<contact_point, contact_point_geometry>(contact_entity);
         std::swap(cp.pivotA, cp.pivotB);
         std::swap(cp_geom.featureA, cp_geom.featureB);

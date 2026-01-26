@@ -151,7 +151,7 @@ void clear_applied_impulses_single(entt::registry &registry, It first, It last) 
 
         if constexpr(std::is_same_v<Constraint, contact_constraint>) {
             auto [manifold_state] = manifold_view.get(entity);
-            contact_manifold_each_point(cp_view, manifold_state.contact_entity, [&](entt::entity contact_entity) {
+            contact_point_for_each(cp_view, manifold_state.contact_entity, [&](entt::entity contact_entity) {
                 auto &cp_imp = cp_view.get<contact_point_impulse>(contact_entity);
                 cp_imp.normal_impulse = 0;
                 cp_imp.friction_impulse = {0, 0};
