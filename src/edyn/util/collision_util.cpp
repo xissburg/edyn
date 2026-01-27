@@ -25,24 +25,21 @@
 namespace edyn {
 
 void update_contact_distances(entt::registry &registry) {
-    auto manifold_view = registry.view<contact_manifold, contact_manifold_state>(exclude_sleeping_disabled);
+    auto manifold_view = registry.view<const contact_manifold>(exclude_sleeping_disabled);
     auto tr_view = registry.view<position, orientation>();
     auto origin_view = registry.view<origin>();
-    auto cp_view = registry.view<contact_point, contact_point_geometry, contact_point_list>();
+    auto cp_view = registry.view<contact_point, contact_point_geometry, const contact_point_list>();
 
-    for (auto [entity, manifold, manifold_state] : manifold_view.each()) {
+    for (auto [entity, cp, cp_geom, cp_list] : cp_view.each()) {
+        auto [manifold] = manifold_view.get(cp_list.parent);
         auto [posA, ornA] = tr_view.get(manifold.body[0]);
         auto [posB, ornB] = tr_view.get(manifold.body[1]);
         auto originA = origin_view.contains(manifold.body[0]) ? origin_view.get<origin>(manifold.body[0]) : static_cast<vector3>(posA);
         auto originB = origin_view.contains(manifold.body[1]) ? origin_view.get<origin>(manifold.body[1]) : static_cast<vector3>(posB);
 
-        contact_point_for_each(cp_view, manifold_state.contact_entity,
-            [&, &ornA = ornA, &ornB = ornB](entt::entity contact_entity) {
-                auto [cp, cp_geom] = cp_view.get<contact_point, contact_point_geometry>(contact_entity);
-                auto pivotA_world = to_world_space(cp.pivotA, originA, ornA);
-                auto pivotB_world = to_world_space(cp.pivotB, originB, ornB);
-                cp_geom.distance = dot(cp.normal, pivotA_world - pivotB_world);
-            });
+        auto pivotA_world = to_world_space(cp.pivotA, originA, ornA);
+        auto pivotB_world = to_world_space(cp.pivotB, originB, ornB);
+        cp_geom.distance = dot(cp.normal, pivotA_world - pivotB_world);
     }
 }
 

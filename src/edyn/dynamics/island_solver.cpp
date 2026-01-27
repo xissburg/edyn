@@ -181,7 +181,7 @@ void update_impulse(entt::registry &registry, const std::vector<entt::entity> &e
                     row_cache &cache, size_t &con_idx, size_t &row_idx, size_t &friction_row_idx,
                     size_t &rolling_row_idx, size_t &spinning_row_idx) {
     auto con_view = registry.view<C>();
-    auto cp_view = registry.view<contact_point_impulse, contact_point_list>();
+    auto cp_imp_view = registry.view<contact_point_impulse>();
     std::vector<scalar> applied_impulses;
 
     for (auto entity : entities) {
@@ -189,7 +189,7 @@ void update_impulse(entt::registry &registry, const std::vector<entt::entity> &e
         auto num_rows = cache.con_num_rows[con_idx];
 
         if constexpr(std::is_same_v<C, contact_constraint>) {
-            auto &cp_imp = cp_view.get<contact_point_impulse>(entity);
+            auto [cp_imp] = cp_imp_view.get(entity);
             cp_imp.normal_impulse = cache.rows[row_idx].impulse;
 
             auto flags = cache.flags[row_idx];
