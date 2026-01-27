@@ -18,11 +18,10 @@ void contact_constraint::prepare(
     const constraint_body &bodyA, const constraint_body &bodyB) {
 
     auto &settings = registry.ctx().get<edyn::settings>();
-    auto [cp, cp_list, cp_imp, cp_mat, cp_geom] = registry.get<contact_point,
-                                                               contact_point_list,
-                                                               contact_point_impulse,
-                                                               contact_point_material,
-                                                               contact_point_geometry>(entity);
+    auto [cp, cp_imp, cp_mat, cp_geom] = registry.get<contact_point,
+                                                      contact_point_impulse,
+                                                      contact_point_material,
+                                                      contact_point_geometry>(entity);
 
     // Create constraint rows for each contact point.
     EDYN_ASSERT(length_sqr(cp.normal) > EDYN_EPSILON);
@@ -54,6 +53,7 @@ void contact_constraint::prepare(
             auto normal_relvel = dot(relvel, normal);
             // Divide stiffness by number of points for correct force
             // distribution. All points have the same stiffness.
+            auto &cp_list = registry.get<contact_point_list>(entity);
             auto &manifold_state = registry.get<contact_manifold_state>(cp_list.parent);
             auto spring_force = -cp_geom.distance * cp_mat.stiffness / manifold_state.num_points;
             auto damper_force = -normal_relvel * cp_mat.damping / manifold_state.num_points;
