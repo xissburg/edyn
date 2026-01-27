@@ -13,65 +13,55 @@
 namespace edyn {
 
 void contact_constraint::prepare(
-    const entt::registry &registry, entt::entity entity,
     constraint_row_prep_cache &cache, scalar dt,
     const constraint_body &bodyA, const constraint_body &bodyB) {
 
-    auto &settings = registry.ctx().get<edyn::settings>();
-    auto [cp, cp_imp, cp_mat, cp_geom] = registry.get<contact_point,
-                                                      contact_point_impulse,
-                                                      contact_point_material,
-                                                      contact_point_geometry>(entity);
-
     // Create constraint rows for each contact point.
-    EDYN_ASSERT(length_sqr(cp.normal) > EDYN_EPSILON);
-    auto normal = cp.normal;
-    auto pivotA = to_world_space(cp.pivotA, bodyA.origin, bodyA.orn);
-    auto pivotB = to_world_space(cp.pivotB, bodyB.origin, bodyB.orn);
-    auto rA = pivotA - bodyA.pos;
-    auto rB = pivotB - bodyB.pos;
+    EDYN_ASSERT(length_sqr(normal) > EDYN_EPSILON);
+    auto pivotA_world = to_world_space(pivotA, bodyA.origin, bodyA.orn);
+    auto pivotB_world = to_world_space(pivotB, bodyB.origin, bodyB.orn);
+    auto rA = pivotA_world - bodyA.pos;
+    auto rB = pivotB_world - bodyB.pos;
 
     // Create normal row, i.e. non-penetration constraint.
     auto &normal_row = cache.add_row();
     normal_row.J = {normal, cross(rA, normal), -normal, -cross(rB, normal)};
-    normal_row.impulse = cp_imp.normal_impulse;
+    normal_row.impulse = applied_normal_impulse;
     normal_row.lower_limit = 0;
 
     auto &normal_options = cache.get_options();
 
     // Do not use the traditional restitution path if the restitution solver
     // is being used.
-    if (settings.num_restitution_iterations == 0) {
-        normal_options.restitution = cp_mat.restitution;
-    }
+    /* if (settings.num_restitution_iterations == 0) {
+        normal_options.restitution = material.restitution;
+    } */
 
-    if (cp_geom.distance < 0) {
-        if (cp_mat.stiffness < large_scalar) {
+    if (distance < 0) {
+        if (stiffness < large_scalar) {
             auto vA = bodyA.linvel + cross(bodyA.angvel, rA);
             auto vB = bodyB.linvel + cross(bodyB.angvel, rB);
             auto relvel = vA - vB;
             auto normal_relvel = dot(relvel, normal);
             // Divide stiffness by number of points for correct force
             // distribution. All points have the same stiffness.
-            auto &cp_list = registry.get<contact_point_list>(entity);
-            auto &manifold_state = registry.get<contact_manifold_state>(cp_list.parent);
-            auto spring_force = -cp_geom.distance * cp_mat.stiffness / manifold_state.num_points;
-            auto damper_force = -normal_relvel * cp_mat.damping / manifold_state.num_points;
+            auto spring_force = -distance * stiffness / num_points;
+            auto damper_force = -normal_relvel * damping / num_points;
             normal_row.upper_limit = std::max(spring_force + damper_force, scalar(0)) * dt;
             normal_options.error = -large_scalar;
         } else {
             normal_row.upper_limit = large_scalar;
         }
-    } else if (cp_mat.stiffness >= large_scalar) {
+    } else if (stiffness >= large_scalar) {
         // It is not penetrating thus apply an impulse that will prevent
         // penetration after the following physics update.
-        normal_options.error = cp_geom.distance / dt;
+        normal_options.error = distance / dt;
         normal_row.upper_limit = large_scalar;
     }
 
     // Create special friction rows.
     auto &friction_row = cache.add_friction_row();
-    friction_row.friction_coefficient = cp_mat.friction;
+    friction_row.friction_coefficient = friction;
 
     vector3 tangents[2];
     plane_space(normal, tangents[0], tangents[1]);
@@ -79,14 +69,15 @@ void contact_constraint::prepare(
     for (auto i = 0; i < 2; ++i) {
         auto &row_i = friction_row.row[i];
         row_i.J = {tangents[i], cross(rA, tangents[i]), -tangents[i], -cross(rB, tangents[i])};
-        row_i.impulse = cp_imp.friction_impulse[i];
+        row_i.impulse = applied_friction_impulse[i];
         row_i.eff_mass = get_effective_mass(row_i.J, bodyA.inv_m, bodyA.inv_I, bodyB.inv_m, bodyB.inv_I);
         row_i.rhs = -get_relative_speed(row_i.J, bodyA.linvel, bodyA.angvel, bodyB.linvel, bodyB.angvel);
     }
 
-    if (cp_mat.roll_friction > 0) {
+    // TODO: create a subclass which supports rolling and spin friction.
+    /* if (material.roll_friction > 0) {
         auto &roll_row = cache.add_rolling_row();
-        roll_row.friction_coefficient = cp_mat.roll_friction;
+        roll_row.friction_coefficient = material.roll_friction;
 
         auto roll_dir_view = registry.view<roll_direction>();
 
@@ -115,11 +106,11 @@ void contact_constraint::prepare(
         }
     }
 
-    if (cp_mat.spin_friction > 0) {
+    if (material.spin_friction > 0) {
         auto &spin_imp = registry.get<contact_point_spin_friction_impulse>(entity);
 
         auto &spin_row = cache.add_spinning_row();
-        spin_row.friction_coefficient = cp_mat.spin_friction;
+        spin_row.friction_coefficient = material.spin_friction;
         spin_row.J = {normal, -normal};
         spin_row.impulse = spin_imp.spin_friction_impulse;
 
@@ -128,51 +119,68 @@ void contact_constraint::prepare(
         EDYN_ASSERT(J_invM_JT > EDYN_EPSILON);
         spin_row.eff_mass = scalar(1) / J_invM_JT;
         spin_row.rhs = -(dot(spin_row.J[0], bodyA.angvel) + dot(spin_row.J[1], bodyB.angvel));
-    }
+    } */
 }
 
-void contact_constraint::solve_position(entt::registry &registry, entt::entity entity, position_solver &solver) {
+void contact_constraint::solve_position(position_solver &solver) {
     // Solve position constraints by applying linear and angular corrections
     // iteratively. Based on Box2D's solver:
     // https://github.com/erincatto/box2d/blob/cd2c28dba83e4f359d08aeb7b70afd9e35e39eda/src/dynamics/b2_contact_solver.cpp#L676
-    auto &cp_mat = registry.get<contact_point_material>(entity);
 
     // Ignore soft contacts.
-    if (cp_mat.stiffness < large_scalar) {
+    if (stiffness < large_scalar) {
         return;
     }
 
-    auto [cp, cp_geom] = registry.get<contact_point, contact_point_geometry>(entity);
-
     auto originA = solver.get_originA(), originB = solver.get_originB();
     auto &ornA = *solver.ornA, &ornB = *solver.ornB;
-    auto pivotA = to_world_space(cp.pivotA, originA, ornA);
-    auto pivotB = to_world_space(cp.pivotB, originB, ornB);
+    auto pivotA_world = to_world_space(pivotA, originA, ornA);
+    auto pivotB_world = to_world_space(pivotB, originB, ornB);
 
-    switch (cp_geom.normal_attachment) {
+    switch (normal_attachment) {
     case contact_normal_attachment::normal_on_A:
-        cp.normal = rotate(ornA, cp_geom.local_normal);
+        normal = rotate(ornA, local_normal);
         break;
     case contact_normal_attachment::normal_on_B:
-        cp.normal = rotate(ornB, cp_geom.local_normal);
+        normal = rotate(ornB, local_normal);
         break;
     case contact_normal_attachment::none:
         break;
     }
 
-    auto normal = cp.normal;
-    cp_geom.distance = dot(pivotA - pivotB, normal);
+    distance = dot(pivotA_world - pivotB_world, normal);
 
     auto &posA = *solver.posA, &posB = *solver.posB;
-    auto rA = pivotA - posA;
-    auto rB = pivotB - posB;
+    auto rA = pivotA_world - posA;
+    auto rB = pivotB_world - posB;
 
-    if (cp_geom.distance > -EDYN_EPSILON) {
+    if (distance > -EDYN_EPSILON) {
         return;
     }
 
-    auto error = -cp_geom.distance;
+    auto error = -distance;
     solver.solve({normal, cross(rA, normal), -normal, -cross(rB, normal)}, error);
+}
+
+void contact_constraint::store_applied_impulses(const std::vector<scalar> &impulses) {
+    unsigned row_idx = 0;
+
+    applied_normal_impulse = impulses[row_idx++];
+    applied_friction_impulse[0] = impulses[row_idx++];
+    applied_friction_impulse[1] = impulses[row_idx++];
+
+    /* if (flags & constraint_row_flag_rolling_friction) {
+        auto &roll_row = cache.rolling[rolling_row_idx++];
+        auto &roll_imp = registry.get<contact_point_roll_friction_impulse>(entity);
+        roll_imp.rolling_friction_impulse[0] = roll_row.row[0].impulse;
+        roll_imp.rolling_friction_impulse[1] = roll_row.row[1].impulse;
+    }
+
+    if (flags & constraint_row_flag_spinning_friction) {
+        auto &spin_row = cache.spinning[spinning_row_idx++];
+        auto &spin_imp = registry.get<contact_point_spin_friction_impulse>(entity);
+        spin_imp.spin_friction_impulse = spin_row.impulse;
+    } */
 }
 
 }

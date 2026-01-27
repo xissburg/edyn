@@ -2,7 +2,6 @@
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/constraints/constraint_row_friction.hpp"
-#include "edyn/constraints/contact_constraint.hpp"
 #include "edyn/constraints/constraint_row.hpp"
 #include "edyn/constraints/constraint_row_options.hpp"
 #include "edyn/collision/contact_manifold.hpp"

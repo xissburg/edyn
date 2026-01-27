@@ -84,10 +84,8 @@ struct hinge_constraint : public constraint_base {
      */
     void reset_angle(const quaternion &ornA, const quaternion &ornB);
 
-    void prepare(
-        const entt::registry &, entt::entity,
-        constraint_row_prep_cache &cache, scalar dt,
-        const constraint_body &bodyA, const constraint_body &bodyB);
+    void prepare(constraint_row_prep_cache &cache, scalar dt,
+                 const constraint_body &bodyA, const constraint_body &bodyB);
 
     void solve_position(position_solver &solver);
 

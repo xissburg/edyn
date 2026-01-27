@@ -43,7 +43,6 @@ void cvjoint_constraint::update_angle(scalar new_angle) {
 }
 
 void cvjoint_constraint::prepare(
-    const entt::registry &, entt::entity,
     constraint_row_prep_cache &cache, scalar dt,
     const constraint_body &bodyA, const constraint_body &bodyB) {
 
