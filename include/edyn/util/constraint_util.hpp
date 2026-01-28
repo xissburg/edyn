@@ -2,7 +2,6 @@
 #define EDYN_UTIL_CONSTRAINT_UTIL_HPP
 
 #include <entt/entity/registry.hpp>
-#include "edyn/collision/contact_point.hpp"
 #include "edyn/comp/graph_edge.hpp"
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/config/constants.hpp"
@@ -141,28 +140,11 @@ void create_graph_edge_for_constraints(entt::registry &registry, entt::entity en
 template<typename Constraint, typename It>
 void clear_applied_impulses_single(entt::registry &registry, It first, It last) {
     auto con_view = registry.view<Constraint>();
-    auto cp_view = registry.view<contact_point_impulse, contact_point_list>();
     std::vector<scalar> impulses(16, scalar{0});
 
     for (; first != last; ++first) {
         auto entity = *first;
-        if (!con_view.contains(entity)) continue;
-
-        if constexpr(std::is_same_v<Constraint, contact_constraint>) {
-            auto &cp_imp = cp_view.get<contact_point_impulse>(entity);
-            cp_imp.normal_impulse = 0;
-            cp_imp.friction_impulse = {0, 0};
-            cp_imp.normal_restitution_impulse = 0;
-            cp_imp.friction_restitution_impulse = {0, 0};
-
-            if (auto *spin_imp = registry.try_get<contact_point_spin_friction_impulse>(entity)) {
-                spin_imp->spin_friction_impulse = 0;
-            }
-
-            if (auto *roll_imp = registry.try_get<contact_point_roll_friction_impulse>(entity)) {
-                roll_imp->rolling_friction_impulse = {0, 0};
-            }
-        } else {
+        if (con_view.contains(entity)) {
             auto &con = con_view.template get<Constraint>(entity);
             con.store_applied_impulses(impulses);
         }

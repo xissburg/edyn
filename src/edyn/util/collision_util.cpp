@@ -6,6 +6,7 @@
 #include "edyn/comp/transient.hpp"
 #include "edyn/config/constants.hpp"
 #include "edyn/constraints/null_constraint.hpp"
+#include "edyn/math/constants.hpp"
 #include "edyn/math/quaternion.hpp"
 #include "edyn/math/transform.hpp"
 #include "edyn/math/vector3.hpp"
@@ -365,7 +366,14 @@ void create_contact_point(entt::registry &registry,
         }
 
         registry.emplace<contact_point_impulse>(contact_entity);
-        make_constraint<contact_constraint>(registry, contact_entity, manifold.body[0], manifold.body[1]);
+        bool needs_extras = cp_mat.stiffness < large_scalar || cp_mat.damping < large_scalar ||
+                            cp_mat.spin_friction > 0 || cp_mat.roll_friction > 0;
+
+        if (needs_extras) {
+            make_constraint<contact_extras_constraint>(registry, contact_entity, manifold.body[0], manifold.body[1]);
+        } else {
+            make_constraint<contact_constraint>(registry, contact_entity, manifold.body[0], manifold.body[1]);
+        }
     } else {
         // Create a null constraint to ensure an edge will exist in the
         // entity graph for this contact point.

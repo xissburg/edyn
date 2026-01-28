@@ -58,11 +58,11 @@ struct contact_point_impulse {
 };
 
 struct contact_point_spin_friction_impulse {
-    scalar spin_friction_impulse; // Applied spin friction impulse.
+    scalar spin_friction_impulse {scalar(0)}; // Applied spin friction impulse.
 };
 
 struct contact_point_roll_friction_impulse {
-    std::array<scalar, 2> rolling_friction_impulse; // Applied rolling friction impulse.
+    std::array<scalar, 2> rolling_friction_impulse {scalar(0), scalar(0)}; // Applied rolling friction impulse.
 };
 
 template<typename Archive>

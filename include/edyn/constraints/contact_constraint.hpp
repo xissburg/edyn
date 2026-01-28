@@ -29,9 +29,6 @@ struct contact_constraint : public constraint_base {
     scalar friction;
     scalar restitution;
 
-    scalar stiffness {large_scalar};
-    scalar damping {large_scalar};
-
     scalar applied_normal_impulse {scalar(0)};
     std::array<scalar, 2> applied_friction_impulse {scalar(0), scalar(0)};
 

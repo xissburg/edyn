@@ -6,6 +6,7 @@
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/mass.hpp"
 #include "edyn/comp/origin.hpp"
+#include "edyn/comp/roll_direction.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
@@ -213,40 +214,110 @@ static void prepare_constraints(entt::registry &registry, scalar dt, bool mt) {
     }
 }
 
+void copy_contact_point_to_constraint(contact_constraint &con,
+                                      const contact_point &cp,
+                                      const contact_point_geometry &cp_geom,
+                                      const contact_point_material &cp_mat,
+                                      const contact_point_impulse &cp_imp,
+                                      unsigned num_points,
+                                      bool use_restitution_solver) {
+    con.pivotA = cp.pivotA;
+    con.pivotB = cp.pivotB;
+    con.normal = cp.normal;
+    con.num_points = num_points;
+
+    con.local_normal = cp_geom.local_normal;
+    con.normal_attachment = cp_geom.normal_attachment;
+    con.distance = cp_geom.distance;
+
+    con.friction = cp_mat.friction;
+    con.restitution = use_restitution_solver ? scalar{0} : cp_mat.restitution;
+
+    con.applied_normal_impulse = cp_imp.normal_impulse;
+    con.applied_friction_impulse = cp_imp.friction_impulse;
+}
+
+void copy_contact_point_to_constraint_extras(contact_extras_constraint &con,
+                                             const contact_point &cp,
+                                             const contact_point_geometry &cp_geom,
+                                             const contact_point_material &cp_mat,
+                                             const contact_point_impulse &cp_imp,
+                                             const contact_point_spin_friction_impulse &spin_imp,
+                                             const contact_point_roll_friction_impulse &roll_imp,
+                                             const roll_direction &roll_dirA,
+                                             const roll_direction &roll_dirB,
+                                             unsigned num_points,
+                                             bool use_restitution_solver) {
+    copy_contact_point_to_constraint(con, cp, cp_geom, cp_mat, cp_imp, num_points, use_restitution_solver);
+
+    con.stiffness = cp_mat.stiffness;
+    con.damping = cp_mat.damping;
+
+    con.spin_friction = cp_mat.spin_friction;
+    con.roll_friction = cp_mat.roll_friction;
+    con.roll_dir = {roll_dirA, roll_dirB};
+
+    con.spin_friction_impulse = spin_imp.spin_friction_impulse;
+    con.rolling_friction_impulse = roll_imp.rolling_friction_impulse;
+}
+
+static constexpr auto transfer_contact_max_sequential_size = 128u;
+
+template<typename ConstraintType>
 void transfer_contact_points_to_constraints(entt::registry &registry, bool mt) {
-    auto contact_view = registry.view<contact_constraint,
+    auto contact_view = registry.view<ConstraintType,
                                       const contact_point,
                                       const contact_point_geometry,
                                       const contact_point_material,
                                       const contact_point_impulse,
                                       const contact_point_list>(exclude_sleeping_disabled);
-    auto manifold_view = registry.view<const contact_manifold_state>();
+    auto spin_impulse_view = registry.view<contact_point_spin_friction_impulse>();
+    auto roll_impulse_view = registry.view<contact_point_roll_friction_impulse>();
+    auto roll_dir_view = registry.view<roll_direction>();
+    auto manifold_view = registry.view<const contact_manifold>();
+    auto manifold_state_view = registry.view<const contact_manifold_state>();
 
-    const auto for_loop_body = [&contact_view, &manifold_view](entt::entity entity) {
+    // Do not use the traditional restitution path if the restitution solver
+    // is being used. Assign zero restitution to constraint.
+    auto &settings = registry.ctx().get<edyn::settings>();
+    const bool use_restitution_solver = settings.num_restitution_iterations > 0;
+
+    const auto for_loop_body = [&](entt::entity entity) {
         auto [con, cp, cp_geom, cp_mat, cp_imp, cp_list] = contact_view.get(entity);
+        auto [manifold_state] = manifold_state_view.get(cp_list.parent);
 
-        con.pivotA = cp.pivotA;
-        con.pivotB = cp.pivotB;
-        con.normal = cp.normal;
-        con.num_points = std::get<0>(manifold_view.get(cp_list.parent)).num_points;
+        if constexpr(std::is_same_v<ConstraintType, contact_constraint>) {
+            copy_contact_point_to_constraint(con, cp, cp_geom, cp_mat, cp_imp,
+                                             manifold_state.num_points, use_restitution_solver);
+        } else if constexpr(std::is_same_v<ConstraintType, contact_extras_constraint>) {
+            auto spin_imp = contact_point_spin_friction_impulse{};
+            auto roll_imp = contact_point_roll_friction_impulse{};
+            roll_direction roll_dirs[] = {{vector3_zero}, {vector3_zero}};
+            auto [manifold] = manifold_view.get(cp_list.parent);
 
-        con.local_normal = cp_geom.local_normal;
-        con.normal_attachment = cp_geom.normal_attachment;
-        con.distance = cp_geom.distance;
+            if (spin_impulse_view.contains(entity)) {
+                spin_imp = std::get<0>(spin_impulse_view.get(entity));
+            }
 
-        con.friction = cp_mat.friction;
-        con.restitution = cp_mat.restitution;
-        con.stiffness = cp_mat.stiffness;
-        con.damping = cp_mat.damping;
+            if (roll_impulse_view.contains(entity)) {
+                roll_imp = std::get<0>(roll_impulse_view.get(entity));
+            }
 
-        con.applied_normal_impulse = cp_imp.normal_impulse;
-        con.applied_friction_impulse = cp_imp.friction_impulse;
+            for (int i = 0; i < 2; ++i) {
+                if (roll_dir_view.contains(manifold.body[i])) {
+                    roll_dirs[i] = std::get<0>(roll_dir_view.get(manifold.body[i]));
+                }
+            }
+
+            copy_contact_point_to_constraint_extras(con, cp, cp_geom, cp_mat, cp_imp,
+                                                    spin_imp, roll_imp, roll_dirs[0], roll_dirs[1],
+                                                    manifold_state.num_points, use_restitution_solver);
+        }
     };
 
-    auto num_constraints = calculate_view_size(registry.view<contact_constraint>(exclude_sleeping_disabled));
-    const size_t max_sequential_size = 64;
+    auto num_constraints = calculate_view_size(registry.view<ConstraintType>(exclude_sleeping_disabled));
 
-    if (mt && num_constraints > max_sequential_size) {
+    if (mt && num_constraints > transfer_contact_max_sequential_size) {
         auto task_func = make_view_for_each_task_func(contact_view, for_loop_body);
         auto task = task_delegate_t(entt::connect_arg_t<&decltype(task_func)::operator()>{}, task_func);
         enqueue_task_wait(registry, task, num_constraints);
@@ -257,23 +328,52 @@ void transfer_contact_points_to_constraints(entt::registry &registry, bool mt) {
     }
 }
 
+void copy_contact_constraint_to_point(const contact_constraint &con,
+                                      contact_point &cp,
+                                      contact_point_geometry &cp_geom,
+                                      contact_point_impulse &cp_imp) {
+    cp.normal = con.normal;
+    cp_geom.distance = con.distance;
+    cp_imp.normal_impulse = con.applied_normal_impulse;
+    cp_imp.friction_impulse = con.applied_friction_impulse;
+}
+
+void copy_contact_constraint_extras_to_point(const contact_extras_constraint &con,
+                                             contact_point &cp,
+                                             contact_point_geometry &cp_geom,
+                                             contact_point_impulse &cp_imp,
+                                             contact_point_spin_friction_impulse &spin_imp,
+                                             contact_point_roll_friction_impulse &roll_imp) {
+    copy_contact_constraint_to_point(con, cp, cp_geom, cp_imp);
+    spin_imp.spin_friction_impulse = con.spin_friction_impulse;
+    roll_imp.rolling_friction_impulse = con.rolling_friction_impulse;
+}
+
+template<typename ConstraintType>
 void transfer_contact_constraints_to_points(entt::registry &registry, bool mt) {
-    auto contact_view = registry.view<const contact_constraint,
+    auto contact_view = registry.view<const ConstraintType,
                                       contact_point,
                                       contact_point_geometry,
                                       contact_point_impulse>(exclude_sleeping_disabled);
-    const auto for_loop_body = [&contact_view](entt::entity entity) {
+    auto spin_impulse_view = registry.view<contact_point_spin_friction_impulse>();
+    auto roll_impulse_view = registry.view<contact_point_roll_friction_impulse>();
+
+    const auto for_loop_body = [&](entt::entity entity) {
         auto [con, cp, cp_geom, cp_imp] = contact_view.get(entity);
-        cp.normal = con.normal;
-        cp_geom.distance = con.distance;
-        cp_imp.normal_impulse = con.applied_normal_impulse;
-        cp_imp.friction_impulse = con.applied_friction_impulse;
+        if constexpr(std::is_same_v<ConstraintType, contact_constraint>) {
+            copy_contact_constraint_to_point(con, cp, cp_geom, cp_imp);
+        } else if constexpr(std::is_same_v<ConstraintType, contact_extras_constraint>) {
+            auto spin_imp_dummy = contact_point_spin_friction_impulse{};
+            auto roll_imp_dummy = contact_point_roll_friction_impulse{};
+            auto *spin_imp = spin_impulse_view.contains(entity) ? &std::get<0>(spin_impulse_view.get(entity)) : &spin_imp_dummy;
+            auto *roll_imp = roll_impulse_view.contains(entity) ? &std::get<0>(roll_impulse_view.get(entity)) : &roll_imp_dummy;
+            copy_contact_constraint_extras_to_point(con, cp, cp_geom, cp_imp, *spin_imp, *roll_imp);
+        }
     };
 
-    auto num_constraints = calculate_view_size(registry.view<contact_constraint>(exclude_sleeping_disabled));
-    const size_t max_sequential_size = 64;
+    auto num_constraints = calculate_view_size(registry.view<ConstraintType>(exclude_sleeping_disabled));
 
-    if (mt && num_constraints > max_sequential_size) {
+    if (mt && num_constraints > transfer_contact_max_sequential_size) {
         auto task_func = make_view_for_each_task_func(contact_view, for_loop_body);
         auto task = task_delegate_t(entt::connect_arg_t<&decltype(task_func)::operator()>{}, task_func);
         enqueue_task_wait(registry, task, num_constraints);
@@ -299,7 +399,9 @@ void solver::update(bool mt) {
 
     apply_gravity(registry, dt);
 
-    transfer_contact_points_to_constraints(registry, mt);
+    transfer_contact_points_to_constraints<contact_constraint>(registry, mt);
+    transfer_contact_points_to_constraints<contact_extras_constraint>(registry, mt);
+
     prepare_constraints(registry, dt, mt);
     EDYN_PROFILE_MEASURE_ACCUM(prof_time, profile, prepare_constraints);
 
@@ -325,7 +427,8 @@ void solver::update(bool mt) {
         }
     }
 
-    transfer_contact_constraints_to_points(registry, mt);
+    transfer_contact_constraints_to_points<contact_constraint>(registry, mt);
+    transfer_contact_constraints_to_points<contact_extras_constraint>(registry, mt);
 
 #ifndef EDYN_DISABLE_PROFILING
     auto &counters = registry.ctx().get<profile_counters>();

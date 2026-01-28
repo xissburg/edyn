@@ -127,6 +127,10 @@ struct constraint_row_prep_cache {
         return curr_row.spinning;
     }
 
+    auto & get_current_row() {
+        return rows[num_rows - 1].row;
+    }
+
     // Get preparation options for the current row.
     constraint_row_options & get_options() {
         EDYN_ASSERT(num_constraints > 0);
