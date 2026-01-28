@@ -316,12 +316,12 @@ static void assign_material_properties(entt::registry &registry,
     }
 }
 
-void create_contact_point(entt::registry &registry,
-                          entt::entity manifold_entity,
-                          contact_manifold &manifold,
-                          contact_manifold_state &manifold_state,
-                          const collision_result::collision_point& rp,
-                          const std::optional<transient> &transient_contact) {
+entt::entity create_contact_point(entt::registry &registry,
+                                  entt::entity manifold_entity,
+                                  contact_manifold &manifold,
+                                  contact_manifold_state &manifold_state,
+                                  const collision_result::collision_point& rp,
+                                  const std::optional<transient> &transient_contact) {
     EDYN_ASSERT(length_sqr(rp.normal) > EDYN_EPSILON);
     EDYN_ASSERT(manifold_state.num_points <= max_contacts);
 
@@ -391,6 +391,7 @@ void create_contact_point(entt::registry &registry,
     }
 
     registry.patch<contact_manifold_state>(manifold_entity);
+    return contact_entity;
 }
 
 bool should_remove_point(const contact_point &cp,

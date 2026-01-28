@@ -38,6 +38,12 @@ public:
     void update(bool mt);
 
     /**
+     * @brief Patch components of new contacts that might have changed after
+     * solving constraints for the first time, such as applied impulses.
+     */
+    void patch_new_contacts();
+
+    /**
      * @brief Detects and processes collisions for the given manifolds.
      */
     template<typename Iterator>
@@ -48,6 +54,7 @@ private:
     std::vector<contact_point_construction_info> m_cp_construction_infos;
     std::vector<contact_point_destruction_info> m_cp_destruction_infos;
     size_t m_max_sequential_size {4};
+    std::vector<entt::entity> m_new_contacts;
 };
 
 template<typename Iterator>
@@ -66,7 +73,8 @@ void narrowphase::update_contact_manifolds(Iterator begin, Iterator end) {
         detect_collision(registry, manifold.body, result);
         process_collision(registry, manifold_entity, result, dt,
                           [&, &manifold=manifold, &manifold_state=manifold_state](const collision_result::collision_point &rp) {
-            create_contact_point(registry, manifold_entity, manifold, manifold_state, rp, transient);
+            auto contact_entity = create_contact_point(registry, manifold_entity, manifold, manifold_state, rp, transient);
+            m_new_contacts.push_back(contact_entity);
         }, [&](entt::entity contact_entity) {
             destroy_contact_point(registry, contact_entity);
         });

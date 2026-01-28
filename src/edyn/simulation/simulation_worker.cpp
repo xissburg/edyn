@@ -419,6 +419,8 @@ void simulation_worker::update() {
 
         m_solver.update(true);
 
+        nphase.patch_new_contacts();
+
         m_sim_time += step_dt;
 
         if (settings.clear_actions_func) {

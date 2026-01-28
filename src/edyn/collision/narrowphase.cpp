@@ -24,6 +24,8 @@ void narrowphase::update(bool mt) {
     }
     m_registry->clear<clear_contact_manifold_tag>();
 
+    m_new_contacts.clear();
+
     update_contact_distances(*m_registry);
 
     auto manifold_view = m_registry->view<contact_manifold>(exclude_sleeping_disabled);
@@ -97,12 +99,32 @@ void narrowphase::finish_detect_collision() {
         auto &info_result = m_cp_construction_infos[i];
 
         for (size_t j = 0; j < info_result.count; ++j) {
-            create_contact_point(*m_registry, entity, manifold, manifold_state, info_result.point[j], transient);
+            auto contact_entity = create_contact_point(*m_registry, entity, manifold, manifold_state, info_result.point[j], transient);
+            m_new_contacts.push_back(contact_entity);
         }
     }
 
     m_cp_destruction_infos.clear();
     m_cp_construction_infos.clear();
+}
+
+void narrowphase::patch_new_contacts() {
+    auto &registry = *m_registry;
+
+    for (auto contact_entity : m_new_contacts) {
+        // Patch components that might have changed after solving constraints.
+        if (registry.all_of<contact_point_impulse>(contact_entity)) {
+            registry.patch<contact_point_impulse>(contact_entity);
+        }
+        if (registry.all_of<contact_point_spin_friction_impulse>(contact_entity)) {
+            registry.patch<contact_point_spin_friction_impulse>(contact_entity);
+        }
+        if (registry.all_of<contact_point_roll_friction_impulse>(contact_entity)) {
+            registry.patch<contact_point_roll_friction_impulse>(contact_entity);
+        }
+    }
+
+    m_new_contacts.clear();
 }
 
 }

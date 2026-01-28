@@ -69,12 +69,12 @@ size_t find_nearest_contact_rolling(const collision_result &result, const vector
                                     const vector3 &origin, const quaternion &orn,
                                     const vector3 &angvel, scalar dt);
 
-void create_contact_point(entt::registry &registry,
-                          entt::entity manifold_entity,
-                          contact_manifold &manifold,
-                          contact_manifold_state &manifold_state,
-                          const collision_result::collision_point& rp,
-                          const std::optional<transient> &transient_contact);
+entt::entity create_contact_point(entt::registry &registry,
+                                  entt::entity manifold_entity,
+                                  contact_manifold &manifold,
+                                  contact_manifold_state &manifold_state,
+                                  const collision_result::collision_point& rp,
+                                  const std::optional<transient> &transient_contact);
 
 bool should_remove_point(const contact_point &cp,
                         const vector3 &posA, const quaternion &ornA,
