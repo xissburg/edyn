@@ -1,7 +1,6 @@
 #include "edyn/constraints/contact_extras_constraint.hpp"
 #include "edyn/comp/roll_direction.hpp"
 #include "edyn/config/config.h"
-#include "edyn/constraints/contact_constraint.hpp"
 #include "edyn/dynamics/row_cache.hpp"
 #include "edyn/math/constants.hpp"
 #include "edyn/math/geom.hpp"

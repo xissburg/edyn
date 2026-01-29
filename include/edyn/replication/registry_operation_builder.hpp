@@ -251,7 +251,7 @@ public:
     registry_operation_builder_impl(entt::registry &registry)
         : registry_operation_builder(registry)
         , m_indices(detail::make_component_indices_map<Components...>())
-        {}
+    {}
 
     registry_operation_builder_impl(entt::registry &registry, [[maybe_unused]] std::tuple<Components...>)
         : registry_operation_builder(registry)

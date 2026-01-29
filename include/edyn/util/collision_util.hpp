@@ -80,7 +80,7 @@ bool should_remove_point(const contact_point &cp,
                         const vector3 &posA, const quaternion &ornA,
                         const vector3 &posB, const quaternion &ornB);
 
-void destroy_contact_point(entt::registry &registry, entt::entity manifold_entity);
+void destroy_contact_point(entt::registry &registry, entt::entity contact_entity);
 
 using detect_collision_body_view_t = entt::basic_view<
                                      entt::get_t<entt::registry::storage_for_type<AABB>, entt::registry::storage_for_type<shape_index>, entt::registry::storage_for_type<position>, entt::registry::storage_for_type<orientation>>,

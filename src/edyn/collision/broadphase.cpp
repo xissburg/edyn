@@ -1,5 +1,4 @@
 #include "edyn/collision/broadphase.hpp"
-#include "edyn/collision/contact_point.hpp"
 #include "edyn/collision/tree_node.hpp"
 #include "edyn/comp/aabb.hpp"
 #include "edyn/comp/collision_exclusion.hpp"
@@ -13,7 +12,6 @@
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/context/task_util.hpp"
-#include "edyn/util/contact_manifold_util.hpp"
 #include "edyn/util/entt_util.hpp"
 #include "edyn/util/island_util.hpp"
 #include <entt/entity/registry.hpp>

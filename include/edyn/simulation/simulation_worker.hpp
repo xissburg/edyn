@@ -6,10 +6,8 @@
 #include <atomic>
 #include <entt/signal/sigh.hpp>
 #include <entt/entity/fwd.hpp>
-#include "edyn/collision/contact_point.hpp"
 #include "edyn/collision/raycast.hpp"
 #include "edyn/collision/raycast_service.hpp"
-#include "edyn/collision/contact_manifold.hpp"
 #include "edyn/dynamics/solver.hpp"
 #include "edyn/parallel/message.hpp"
 #include "edyn/core/entity_graph.hpp"
