@@ -235,7 +235,7 @@ namespace detail {
     auto make_component_indices_map() {
         std::unordered_map<entt::id_type, unsigned> indices;
         auto index = 0u;
-        ((indices[entt::type_index<Components>::value()] = index++), ...);
+        ((indices[entt::type_id<Components>().hash()] = index++), ...);
         return indices;
     }
 }

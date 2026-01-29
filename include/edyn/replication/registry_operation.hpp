@@ -44,7 +44,7 @@ struct operation_base {
     template<typename... Ts>
     bool payload_type_any_of() const {
         const auto id = payload_type_id();
-        return ((entt::type_index<Ts>::value() == id) || ...);
+        return ((entt::type_id<Ts>().hash() == id) || ...);
     }
 
     template<typename... Ts>
@@ -68,7 +68,7 @@ struct operation_create : public operation_base {
     }
 
     entt::id_type payload_type_id() const override {
-        return entt::type_index<void>::value();
+        return entt::type_id<void>().hash();
     }
 
     registry_operation_type operation_type() const override {
@@ -99,7 +99,7 @@ struct operation_destroy : public operation_base {
     }
 
     entt::id_type payload_type_id() const override {
-        return entt::type_index<void>::value();
+        return entt::type_id<void>().hash();
     }
 
     registry_operation_type operation_type() const override {
@@ -128,7 +128,7 @@ struct operation_map_entity : public operation_base {
     }
 
     entt::id_type payload_type_id() const override {
-        return entt::type_index<entt::entity>::value();
+        return entt::type_id<entt::entity>().hash();
     }
 
     registry_operation_type operation_type() const override {
@@ -179,7 +179,7 @@ struct operation_emplace : public operation_base {
     }
 
     entt::id_type payload_type_id() const override {
-        return entt::type_index<Component>::value();
+        return entt::type_id<Component>().hash();
     }
 
     registry_operation_type operation_type() const override {
@@ -230,7 +230,7 @@ struct operation_replace : public operation_base {
     }
 
     entt::id_type payload_type_id() const override {
-        return entt::type_index<Component>::value();
+        return entt::type_id<Component>().hash();
     }
 
     registry_operation_type operation_type() const override {
@@ -265,7 +265,7 @@ struct operation_remove : public operation_base {
     }
 
     entt::id_type payload_type_id() const override {
-        return entt::type_index<Component>::value();
+        return entt::type_id<Component>().hash();
     }
 
     registry_operation_type operation_type() const override {
