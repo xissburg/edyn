@@ -10,6 +10,8 @@ namespace edyn {
  * @brief A special case of contact_constraint with extra features.
  */
 struct contact_extras_constraint : public contact_constraint {
+    unsigned num_points;
+
     scalar stiffness;
     scalar damping;
 
@@ -27,6 +29,12 @@ struct contact_extras_constraint : public contact_constraint {
 
     void store_applied_impulses(const std::vector<scalar> &impulses);
 };
+
+template<typename Archive>
+void serialize(Archive &archive, contact_extras_constraint &c) {
+    archive(c.body);
+    // The remaining members hold calculated values.
+}
 
 }
 

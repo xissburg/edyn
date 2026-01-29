@@ -20,7 +20,6 @@ struct contact_constraint : public constraint_base {
     vector3 pivotA;
     vector3 pivotB;
     vector3 normal;
-    unsigned num_points;
 
     vector3 local_normal; // Normal in object space.
     contact_normal_attachment normal_attachment;

@@ -219,12 +219,10 @@ void copy_contact_point_to_constraint(contact_constraint &con,
                                       const contact_point_geometry &cp_geom,
                                       const contact_point_material &cp_mat,
                                       const contact_point_impulse &cp_imp,
-                                      unsigned num_points,
                                       bool use_restitution_solver) {
     con.pivotA = cp.pivotA;
     con.pivotB = cp.pivotB;
     con.normal = cp.normal;
-    con.num_points = num_points;
 
     con.local_normal = cp_geom.local_normal;
     con.normal_attachment = cp_geom.normal_attachment;
@@ -248,7 +246,9 @@ void copy_contact_point_to_constraint_extras(contact_extras_constraint &con,
                                              const roll_direction &roll_dirB,
                                              unsigned num_points,
                                              bool use_restitution_solver) {
-    copy_contact_point_to_constraint(con, cp, cp_geom, cp_mat, cp_imp, num_points, use_restitution_solver);
+    copy_contact_point_to_constraint(con, cp, cp_geom, cp_mat, cp_imp, use_restitution_solver);
+
+    con.num_points = num_points;
 
     con.stiffness = cp_mat.stiffness;
     con.damping = cp_mat.damping;
@@ -284,11 +284,9 @@ void transfer_contact_points_to_constraints(entt::registry &registry, bool mt) {
 
     const auto for_loop_body = [&](entt::entity entity) {
         auto [con, cp, cp_geom, cp_mat, cp_imp, cp_list] = contact_view.get(entity);
-        auto [manifold_state] = manifold_state_view.get(cp_list.parent);
 
         if constexpr(std::is_same_v<ConstraintType, contact_constraint>) {
-            copy_contact_point_to_constraint(con, cp, cp_geom, cp_mat, cp_imp,
-                                             manifold_state.num_points, use_restitution_solver);
+            copy_contact_point_to_constraint(con, cp, cp_geom, cp_mat, cp_imp, use_restitution_solver);
         } else if constexpr(std::is_same_v<ConstraintType, contact_extras_constraint>) {
             auto spin_imp = contact_point_spin_friction_impulse{};
             auto roll_imp = contact_point_roll_friction_impulse{};
@@ -308,6 +306,8 @@ void transfer_contact_points_to_constraints(entt::registry &registry, bool mt) {
                     roll_dirs[i] = std::get<0>(roll_dir_view.get(manifold.body[i]));
                 }
             }
+
+            auto [manifold_state] = manifold_state_view.get(cp_list.parent);
 
             copy_contact_point_to_constraint_extras(con, cp, cp_geom, cp_mat, cp_imp,
                                                     spin_imp, roll_imp, roll_dirs[0], roll_dirs[1],

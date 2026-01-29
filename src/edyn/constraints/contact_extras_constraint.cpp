@@ -1,7 +1,9 @@
 #include "edyn/constraints/contact_extras_constraint.hpp"
 #include "edyn/comp/roll_direction.hpp"
 #include "edyn/config/config.h"
+#include "edyn/constraints/contact_constraint.hpp"
 #include "edyn/dynamics/row_cache.hpp"
+#include "edyn/math/constants.hpp"
 #include "edyn/math/geom.hpp"
 #include "edyn/math/transform.hpp"
 #include "edyn/util/constraint_util.hpp"
@@ -87,6 +89,9 @@ void contact_extras_constraint::prepare(constraint_row_prep_cache &cache, scalar
 
 void contact_extras_constraint::solve_position(position_solver &solver) {
     // Do not use position solver for soft contacts.
+    if (stiffness >= large_scalar) {
+        contact_constraint::solve_position(solver);
+    }
 }
 
 void contact_extras_constraint::store_applied_impulses(const std::vector<scalar> &impulses) {
