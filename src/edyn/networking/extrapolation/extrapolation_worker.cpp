@@ -1,6 +1,7 @@
 #include "edyn/networking/extrapolation/extrapolation_worker.hpp"
 #include "edyn/collision/broadphase.hpp"
 #include "edyn/collision/contact_manifold.hpp"
+#include "edyn/collision/contact_point.hpp"
 #include "edyn/collision/narrowphase.hpp"
 #include "edyn/collision/contact_manifold_map.hpp"
 #include "edyn/comp/linvel.hpp"
@@ -16,6 +17,7 @@
 #include "edyn/networking/extrapolation/extrapolation_context.hpp"
 #include "edyn/networking/extrapolation/extrapolation_operation.hpp"
 #include "edyn/networking/extrapolation/extrapolation_request.hpp"
+#include "edyn/networking/extrapolation/extrapolation_result.hpp"
 #include "edyn/networking/settings/client_network_settings.hpp"
 #include "edyn/networking/util/input_state_history.hpp"
 #include "edyn/parallel/message.hpp"
@@ -34,6 +36,7 @@
 #include "edyn/math/transform.hpp"
 #include "edyn/util/collision_util.hpp"
 #include "edyn/util/constraint_util.hpp"
+#include "edyn/util/contact_manifold_util.hpp"
 #include "edyn/util/island_util.hpp"
 #include <entt/entity/registry.hpp>
 
@@ -429,12 +432,24 @@ void extrapolation_worker::finish_extrapolation(const extrapolation_request &req
     // All manifolds that are not sleeping have been involved in the
     // extrapolation.
     auto manifold_view = m_registry.view<contact_manifold, contact_manifold_state>(entt::exclude_t<sleeping_tag>{});
+    auto cp_view = m_registry.view<contact_point, contact_point_geometry, contact_point_list, contact_point_impulse>(entt::exclude_t<sleeping_tag>{});
 
-    // TODO: Must export contact point storage.
     for (auto [manifold_entity, manifold, manifold_state] : manifold_view.each()) {
         if (manifold_state.num_points > 0) {
-            result.manifolds.push_back(manifold);
+            auto manifold_info = extrapolation_result::contact_manifold_info{};
+            manifold_info.body = manifold.body;
+            manifold_info.contact_entity = manifold_state.contact_entity;
+            result.manifolds.push_back(manifold_info);
         }
+    }
+
+    for (auto [contact_entity, cp, cp_geom, cp_list, cp_imp] : cp_view.each()) {
+        auto contact = extrapolation_result::contact_point_info{};
+        contact.pt = cp;
+        contact.geom = cp_geom;
+        contact.list = cp_list;
+        contact.imp = cp_imp;
+        result.contacts.emplace(contact_entity, std::move(contact));
     }
 
     // Put all islands to sleep at the end.
