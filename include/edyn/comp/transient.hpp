@@ -8,6 +8,11 @@
 
 namespace edyn {
 
+/**
+ * @brief Holds a list of component type ids that must be synchronized with the
+ * main registry after every step of the simulation.
+ * @remark Only relevant when running Edyn in asynchronous mode.
+ */
 struct transient {
     std::vector<entt::id_type> ids;
 };

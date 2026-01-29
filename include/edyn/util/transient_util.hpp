@@ -9,6 +9,13 @@
 
 namespace edyn {
 
+/**
+ * @brief Marks the given component types as transient, i.e. they will be
+ * synchronized with the main registry after every simulation step.
+ * @tparam Components Component types.
+ * @param registry Data source.
+ * @param entity The entity containing the given components.
+ */
 template<typename... Components>
 void mark_transient(entt::registry &registry, entt::entity entity) {
     if (registry.all_of<transient>(entity)) {
@@ -23,6 +30,11 @@ void mark_transient(entt::registry &registry, entt::entity entity) {
     }
 }
 
+/**
+ * @brief Marks the given component types as transient for every new contact point.
+ * @tparam Components Component types.
+ * @param registry Data source.
+ */
 template<typename... Components>
 void set_contact_point_transient(entt::registry &registry) {
     auto transient_contact = transient{};
