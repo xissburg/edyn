@@ -16,30 +16,21 @@ void contact_extras_constraint::prepare(constraint_row_prep_cache &cache, scalar
     auto &normal_row = cache.get_current_row();
     auto &normal_options = cache.get_options();
 
-    if (distance < 0) {
-        if (stiffness < large_scalar) {
-            auto pivotA_world = to_world_space(pivotA, bodyA.origin, bodyA.orn);
-            auto pivotB_world = to_world_space(pivotB, bodyB.origin, bodyB.orn);
-            auto rA = pivotA_world - bodyA.pos;
-            auto rB = pivotB_world - bodyB.pos;
-            auto vA = bodyA.linvel + cross(bodyA.angvel, rA);
-            auto vB = bodyB.linvel + cross(bodyB.angvel, rB);
-            auto relvel = vA - vB;
-            auto normal_relvel = dot(relvel, normal);
-            // Divide stiffness by number of points for correct force
-            // distribution. All points have the same stiffness.
-            auto spring_force = -distance * stiffness / num_points;
-            auto damper_force = -normal_relvel * damping / num_points;
-            normal_row.upper_limit = std::max(spring_force + damper_force, scalar(0)) * dt;
-            normal_options.error = -large_scalar;
-        } else {
-            normal_row.upper_limit = large_scalar;
-        }
-    } else if (stiffness >= large_scalar) {
-        // It is not penetrating thus apply an impulse that will prevent
-        // penetration after the following physics update.
-        normal_options.error = distance / dt;
-        normal_row.upper_limit = large_scalar;
+    if (distance < 0 && stiffness < large_scalar) {
+        auto pivotA_world = to_world_space(pivotA, bodyA.origin, bodyA.orn);
+        auto pivotB_world = to_world_space(pivotB, bodyB.origin, bodyB.orn);
+        auto rA = pivotA_world - bodyA.pos;
+        auto rB = pivotB_world - bodyB.pos;
+        auto vA = bodyA.linvel + cross(bodyA.angvel, rA);
+        auto vB = bodyB.linvel + cross(bodyB.angvel, rB);
+        auto relvel = vA - vB;
+        auto normal_relvel = dot(relvel, normal);
+        // Divide stiffness by number of points for correct force
+        // distribution. All points have the same stiffness.
+        auto spring_force = -distance * stiffness / num_points;
+        auto damper_force = -normal_relvel * damping / num_points;
+        normal_row.upper_limit = std::max(spring_force + damper_force, scalar(0)) * dt;
+        normal_options.error = -large_scalar;
     }
 
     if (roll_friction > 0) {
