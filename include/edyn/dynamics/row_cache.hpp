@@ -73,13 +73,13 @@ struct constraint_row_prep_cache {
 
     // All rows in this entity.
     std::array<element, max_rows> rows;
-    uint8_t num_rows;
+    uint8_t num_rows {0};
 
     // Number of rows per constraint in the same order they appear in the
     // `constraints_tuple`, since an entity can have multiple constraints
     // of different types.
     std::array<uint8_t, max_constraints> rows_per_constraint;
-    uint8_t num_constraints;
+    uint8_t num_constraints {0};
 
     // Index of constraint used when packing. Since packed rows are inserted by
     // constraint type as to solve them sorted by type, the rows in this cache
@@ -128,6 +128,7 @@ struct constraint_row_prep_cache {
     }
 
     auto & get_current_row() {
+        EDYN_ASSERT(num_rows > 0);
         return rows[num_rows - 1].row;
     }
 
