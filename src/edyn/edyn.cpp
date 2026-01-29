@@ -1,6 +1,5 @@
 #include "edyn/edyn.hpp"
 #include "edyn/collision/broadphase.hpp"
-#include "edyn/collision/contact_event_emitter.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_manifold_map.hpp"
 #include "edyn/collision/narrowphase.hpp"
@@ -111,7 +110,6 @@ void attach(entt::registry &registry, const init_config &config) {
     registry.ctx().emplace<entity_graph>();
     registry.ctx().emplace<material_mix_table>();
     registry.ctx().emplace<contact_manifold_map>(registry);
-    registry.ctx().emplace<contact_event_emitter>(registry);
     registry.ctx().emplace<registry_operation_context>();
     auto timestamp = config.timestamp ? *config.timestamp : (*settings.time_func)();
 
@@ -154,7 +152,6 @@ void detach(entt::registry &registry) {
     registry.ctx().erase<entity_graph>();
     registry.ctx().erase<material_mix_table>();
     registry.ctx().erase<contact_manifold_map>();
-    registry.ctx().erase<contact_event_emitter>();
     registry.ctx().erase<registry_operation_context>();
     registry.ctx().erase<broadphase>();
     registry.ctx().erase<narrowphase>();

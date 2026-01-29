@@ -18,7 +18,6 @@
 #include "util/exclude_collision.hpp"
 #include "util/gravity_util.hpp"
 #include "util/insert_material_mixing.hpp"
-#include "collision/contact_signal.hpp"
 #include "context/step_callback.hpp"
 #include "context/start_thread.hpp"
 #include "context/task.hpp"
