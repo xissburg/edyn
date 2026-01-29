@@ -103,8 +103,10 @@ void swap_manifold(entt::registry &registry, entt::entity manifold_entity) {
     auto [manifold, manifold_state] = registry.get<contact_manifold, contact_manifold_state>(manifold_entity);
     std::swap(manifold.body[0], manifold.body[1]);
     auto cp_view = registry.view<contact_point, contact_point_geometry, contact_point_list>();
+    auto con_view = registry.view<contact_constraint>();
+    auto con_ex_view = registry.view<contact_extras_constraint>();
 
-    contact_point_for_each(cp_view, manifold_state.contact_entity, [&](entt::entity contact_entity) {
+    contact_point_for_each(cp_view, manifold_state.contact_entity, [&, &manifold=manifold](entt::entity contact_entity) {
         auto [cp, cp_geom] = cp_view.get<contact_point, contact_point_geometry>(contact_entity);
         std::swap(cp.pivotA, cp.pivotB);
         std::swap(cp_geom.featureA, cp_geom.featureB);
@@ -114,6 +116,14 @@ void swap_manifold(entt::registry &registry, entt::entity manifold_entity) {
             cp_geom.normal_attachment = contact_normal_attachment::normal_on_B;
         } else if (cp_geom.normal_attachment == contact_normal_attachment::normal_on_B) {
             cp_geom.normal_attachment = contact_normal_attachment::normal_on_A;
+        }
+
+        if (con_view.contains(contact_entity)) {
+            auto [con] = con_view.get(contact_entity);
+            con.body = manifold.body;
+        } else if (con_ex_view.contains(contact_entity)) {
+            auto [con] = con_ex_view.get(contact_entity);
+            con.body = manifold.body;
         }
     });
 }
