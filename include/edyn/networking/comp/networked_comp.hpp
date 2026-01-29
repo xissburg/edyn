@@ -10,6 +10,7 @@
 #include "edyn/comp/position.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/center_of_mass.hpp"
+#include "edyn/comp/transient.hpp"
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/shape_index.hpp"
@@ -79,7 +80,8 @@ static const auto networked_components = std::tuple_cat(std::tuple<
     action_history,
     asset_ref,
     child_list,
-    parent_comp
+    parent_comp,
+    transient
 >{});
 
 using networked_components_t = std::decay_t<decltype(networked_components)>;
