@@ -41,10 +41,7 @@ void replace_manifold(entt::registry &registry,
         // Important remark: `make_contact_manifold` does not necessarily
         // create the `contact_manifold` with the bodies in the same order
         // that's passed in the arguments.
-        auto separation_threshold = contact_breaking_threshold * scalar(1.3);
-        manifold_entity = make_contact_manifold(registry,
-                                                manifold_info.body[0], manifold_info.body[1],
-                                                separation_threshold);
+        manifold_entity = make_contact_manifold(registry, manifold_info.body[0], manifold_info.body[1]);
     }
 
     auto &manifold = registry.get<contact_manifold>(manifold_entity);

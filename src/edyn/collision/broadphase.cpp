@@ -124,7 +124,7 @@ void broadphase::destroy_separated_manifolds() {
     for (auto [entity, manifold] : manifold_view.each()) {
         auto [b0] = aabb_view.get(manifold.body[0]);
         auto [b1] = aabb_view.get(manifold.body[1]);
-        const auto separation_offset = vector3_one * -manifold.separation_threshold;
+        const auto separation_offset = vector3_one * -m_separation_threshold;
 
         if (!intersect(b0.inset(separation_offset), b1)) {
             clear_contact_manifold(*m_registry, entity);
@@ -148,7 +148,7 @@ void broadphase::collide_tree(const dynamic_tree &tree, entt::entity entity,
             auto [other_aabb] = aabb_view.get(node.entity);
 
             if (intersect(offset_aabb, other_aabb)) {
-                make_contact_manifold(*m_registry, entity, node.entity, m_separation_threshold);
+                make_contact_manifold(*m_registry, entity, node.entity);
             }
         }
     });
@@ -223,7 +223,7 @@ void broadphase::finish_collide() {
     for (auto &pairs : m_pair_results) {
         for (auto &pair : pairs) {
             if (!manifold_map.contains(pair.first, pair.second)) {
-                make_contact_manifold(*m_registry, pair.first, pair.second, m_separation_threshold);
+                make_contact_manifold(*m_registry, pair.first, pair.second);
             }
         }
         pairs.clear();

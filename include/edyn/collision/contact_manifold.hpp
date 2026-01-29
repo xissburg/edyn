@@ -14,11 +14,6 @@ namespace edyn {
 struct contact_manifold {
     // Pair of rigid bodies which are touching.
     std::array<entt::entity, 2> body {entt::null, entt::null};
-
-    // If the AABB of one of the bodies inflated by this amount does not
-    // intersect the AABB of the other, the manifold will be destroyed.
-    // See `edyn::broadphase::destroy_separated_manifolds`.
-    scalar separation_threshold;
 };
 
 struct contact_manifold_state {
@@ -36,7 +31,6 @@ struct contact_manifold_with_restitution {};
 template<typename Archive>
 void serialize(Archive &archive, contact_manifold &manifold) {
     archive(manifold.body);
-    archive(manifold.separation_threshold);
 }
 
 template<typename Archive>

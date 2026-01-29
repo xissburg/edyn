@@ -58,18 +58,16 @@ void clear_constraint(entt::registry &registry, entt::entity entity) {
 }
 
 entt::entity make_contact_manifold(entt::registry &registry,
-                                   entt::entity body0, entt::entity body1,
-                                   scalar separation_threshold) {
+                                   entt::entity body0, entt::entity body1) {
     auto manifold_entity = registry.create();
-    make_contact_manifold(manifold_entity, registry, body0, body1, separation_threshold);
+    make_contact_manifold(manifold_entity, registry, body0, body1);
     return manifold_entity;
 }
 
 void make_contact_manifold(entt::entity manifold_entity, entt::registry &registry,
-                           entt::entity body0, entt::entity body1,
-                           scalar separation_threshold) {
+                           entt::entity body0, entt::entity body1) {
     EDYN_ASSERT(registry.valid(body0) && registry.valid(body1));
-    registry.emplace<contact_manifold>(manifold_entity, body0, body1, separation_threshold);
+    registry.emplace<contact_manifold>(manifold_entity, body0, body1);
     registry.emplace<contact_manifold_state>(manifold_entity);
     // Create a null constraint to ensure an edge will exist in the entity graph
     // for this manifold.

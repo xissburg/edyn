@@ -100,12 +100,10 @@ void visit_neighbors(entt::registry &registry, entt::entity entity, Func func) {
 }
 
 entt::entity make_contact_manifold(entt::registry &registry,
-                                   entt::entity body0, entt::entity body1,
-                                   scalar separation_threshold);
+                                   entt::entity body0, entt::entity body1);
 
 void make_contact_manifold(entt::entity contact_entity, entt::registry &,
-                           entt::entity body0, entt::entity body1,
-                           scalar separation_threshold);
+                           entt::entity body0, entt::entity body1);
 
 void swap_manifold(entt::registry &registry, entt::entity manifold_entity);
 
