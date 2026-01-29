@@ -533,8 +533,8 @@ void extrapolation_worker::extrapolate(const extrapolation_request &request) {
     while (should_step(request)) {
         begin_step();
         bphase.update(true);
-        m_island_manager.update(m_current_time);
         nphase.update(true);
+        m_island_manager.update(m_current_time);
         m_solver.update(true);
         finish_step();
     }

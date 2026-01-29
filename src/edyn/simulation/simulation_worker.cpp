@@ -401,7 +401,6 @@ void simulation_worker::update() {
     EDYN_PROFILE_BEGIN(step_time);
 
     for (unsigned i = 0; i < effective_steps; ++i) {
-
         if (settings.pre_step_callback) {
             (*settings.pre_step_callback)(m_registry);
         }
