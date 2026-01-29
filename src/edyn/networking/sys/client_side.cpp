@@ -223,13 +223,16 @@ void remove_entities_from_extrapolator(entt::registry &registry,
 static void process_created_entities(entt::registry &registry) {
     auto &ctx = registry.ctx().get<client_network_context>();
 
-    // Ignore contact manifolds and watch out for destroyed entities.
+    // Ignore contact manifolds and points and watch out for destroyed entities.
     auto manifold_view = registry.view<contact_manifold>();
+    auto contact_view = registry.view<contact_point>();
 
     ctx.created_entities.erase(
         std::remove_if(ctx.created_entities.begin(), ctx.created_entities.end(),
             [&](auto &entity) {
-                return !registry.valid(entity) || manifold_view.contains(entity);
+                return !registry.valid(entity) ||
+                       manifold_view.contains(entity) ||
+                       contact_view->contains(entity);
             }),
         ctx.created_entities.end());
 

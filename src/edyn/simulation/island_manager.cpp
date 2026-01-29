@@ -465,6 +465,7 @@ void island_manager::split_islands() {
 
         for (auto &other_island : islands) {
             auto island_entity_new = m_registry->create();
+            m_registry->emplace<island_tag>(island_entity_new);
             auto &island_new = m_registry->emplace<edyn::island>(island_entity_new, std::move(other_island));
             auto &aabb = m_registry->emplace<island_AABB>(island_entity_new);
             auto is_first_node = true;
@@ -509,8 +510,6 @@ void island_manager::split_islands() {
             }
 
             remove_sleeping_tag_from_island(*m_registry, island_entity_new, island_new);
-
-            m_registry->emplace<island_tag>(island_entity_new);
 
             // Inherit disabled status.
             if (disabled) {

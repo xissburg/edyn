@@ -1,6 +1,5 @@
 #include "edyn/edyn.hpp"
 #include "edyn/collision/broadphase.hpp"
-#include "edyn/collision/contact_event_emitter.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_manifold_map.hpp"
 #include "edyn/collision/narrowphase.hpp"
@@ -23,6 +22,7 @@
 #include "edyn/simulation/stepper_async.hpp"
 #include "edyn/simulation/stepper_sequential.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
+#include "edyn/util/collision_util.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/util/paged_mesh_load_reporting.hpp"
 #include "edyn/util/rigidbody.hpp"
@@ -39,6 +39,9 @@ static void init_meta() {
 
     entt::meta_factory<contact_manifold>()
         .data<&contact_manifold::body, entt::as_ref_t>("body"_hs);
+
+    entt::meta_factory<contact_manifold_state>()
+        .data<&contact_manifold_state::contact_entity, entt::as_ref_t>("contact_entity"_hs);
 
     entt::meta_factory<collision_exclusion>()
         .data<&collision_exclusion::entity, entt::as_ref_t>("entity"_hs);
@@ -61,6 +64,10 @@ static void init_meta() {
     entt::meta_factory<child_list>()
         .data<&child_list::parent, entt::as_ref_t>("parent"_hs)
         .data<&child_list::next, entt::as_ref_t>("next"_hs);
+
+    entt::meta_factory<contact_point_list>()
+        .data<&contact_point_list::parent, entt::as_ref_t>("parent"_hs)
+        .data<&contact_point_list::next, entt::as_ref_t>("next"_hs);
 }
 
 void attach(entt::registry &registry, const init_config &config) {
@@ -103,7 +110,6 @@ void attach(entt::registry &registry, const init_config &config) {
     registry.ctx().emplace<entity_graph>();
     registry.ctx().emplace<material_mix_table>();
     registry.ctx().emplace<contact_manifold_map>(registry);
-    registry.ctx().emplace<contact_event_emitter>(registry);
     registry.ctx().emplace<registry_operation_context>();
     auto timestamp = config.timestamp ? *config.timestamp : (*settings.time_func)();
 
@@ -146,7 +152,6 @@ void detach(entt::registry &registry) {
     registry.ctx().erase<entity_graph>();
     registry.ctx().erase<material_mix_table>();
     registry.ctx().erase<contact_manifold_map>();
-    registry.ctx().erase<contact_event_emitter>();
     registry.ctx().erase<registry_operation_context>();
     registry.ctx().erase<broadphase>();
     registry.ctx().erase<narrowphase>();

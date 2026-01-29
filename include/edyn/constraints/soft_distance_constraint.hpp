@@ -21,10 +21,8 @@ struct soft_distance_constraint : public constraint_base {
     scalar applied_spring_impulse {};
     scalar applied_damping_impulse {};
 
-    void prepare(
-        const entt::registry &, entt::entity,
-        constraint_row_prep_cache &cache, scalar dt,
-        const constraint_body &bodyA, const constraint_body &bodyB);
+    void prepare(constraint_row_prep_cache &cache, scalar dt,
+                 const constraint_body &bodyA, const constraint_body &bodyB);
 
     void store_applied_impulses(const std::vector<scalar> &impulses);
 };

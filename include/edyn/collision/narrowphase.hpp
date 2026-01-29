@@ -25,19 +25,23 @@ class narrowphase {
     };
 
     struct contact_point_destruction_info {
-        std::array<contact_manifold::contact_id_type, max_contacts> point_id;
-        size_t count {0};
+        std::vector<entt::entity> contact_entities;
     };
 
     void detect_collision_parallel();
     void detect_collision_parallel_range(unsigned start, unsigned end);
     void finish_detect_collision();
-    void clear_contact_manifold_events();
 
 public:
     narrowphase(entt::registry &);
 
     void update(bool mt);
+
+    /**
+     * @brief Patch components of new contacts that might have changed after
+     * solving constraints for the first time, such as applied impulses.
+     */
+    void patch_new_contacts();
 
     /**
      * @brief Detects and processes collisions for the given manifolds.
@@ -50,38 +54,29 @@ private:
     std::vector<contact_point_construction_info> m_cp_construction_infos;
     std::vector<contact_point_destruction_info> m_cp_destruction_infos;
     size_t m_max_sequential_size {4};
+    std::vector<entt::entity> m_new_contacts;
 };
 
 template<typename Iterator>
 void narrowphase::update_contact_manifolds(Iterator begin, Iterator end) {
-    auto manifold_view = m_registry->view<contact_manifold>();
-    auto events_view = m_registry->view<contact_manifold_events>();
-    auto body_view = m_registry->view<AABB, shape_index, position, orientation>();
-    auto tr_view = m_registry->view<position, orientation>();
-    auto origin_view = m_registry->view<origin>();
-    auto vel_view = m_registry->view<angvel>();
-    auto rolling_view = m_registry->view<rolling_tag>();
-    auto material_view = m_registry->view<material>();
-    auto orn_view = m_registry->view<orientation>();
-    auto mesh_shape_view = m_registry->view<mesh_shape>();
-    auto paged_mesh_shape_view = m_registry->view<paged_mesh_shape>();
-    auto views_tuple = get_tuple_of_shape_views(*m_registry);
-    auto dt = m_registry->ctx().get<settings>().fixed_dt;
+    auto &registry = *m_registry;
+    auto manifold_view = registry.view<contact_manifold, contact_manifold_state>();
+    auto dt = registry.ctx().get<settings>().fixed_dt;
+
+    auto &async_settings = registry.ctx().get<const settings>().async_settings;
+    const auto &transient = async_settings->contact_points_transient;
 
     for (auto it = begin; it != end; ++it) {
         entt::entity manifold_entity = *it;
-        auto &manifold = manifold_view.template get<contact_manifold>(manifold_entity);
-        auto &events = events_view.get<contact_manifold_events>(manifold_entity);
+        auto [manifold, manifold_state] = manifold_view.get(manifold_entity);
         collision_result result;
-        detect_collision(manifold.body, result, body_view, origin_view, views_tuple);
-
-        process_collision(manifold_entity, manifold, events, result, tr_view, vel_view,
-                          rolling_view, origin_view, orn_view, material_view,
-                          mesh_shape_view, paged_mesh_shape_view, dt,
-                          [&](const collision_result::collision_point &rp) {
-            create_contact_point(*m_registry, manifold_entity, manifold, rp);
-        }, [&](auto pt_id) {
-            destroy_contact_point(*m_registry, manifold_entity, pt_id);
+        detect_collision(registry, manifold.body, result);
+        process_collision(registry, manifold_entity, result, dt,
+                          [&, &manifold=manifold, &manifold_state=manifold_state](const collision_result::collision_point &rp) {
+            auto contact_entity = create_contact_point(registry, manifold_entity, manifold, manifold_state, rp, transient);
+            m_new_contacts.push_back(contact_entity);
+        }, [&](entt::entity contact_entity) {
+            destroy_contact_point(registry, contact_entity);
         });
     }
 }

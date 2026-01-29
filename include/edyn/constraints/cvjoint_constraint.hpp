@@ -105,10 +105,8 @@ struct cvjoint_constraint : public constraint_base {
                           const vector3 &twist_axisA, const vector3 &twist_axisB) const;
     void update_angle(scalar new_angle);
 
-    void prepare(
-        const entt::registry &, entt::entity,
-        constraint_row_prep_cache &cache, scalar dt,
-        const constraint_body &bodyA, const constraint_body &bodyB);
+    void prepare(constraint_row_prep_cache &cache, scalar dt,
+                 const constraint_body &bodyA, const constraint_body &bodyB);
 
     void solve_position(position_solver &solver);
 

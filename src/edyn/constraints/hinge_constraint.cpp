@@ -24,7 +24,6 @@ void hinge_constraint::reset_angle(const quaternion &ornA, const quaternion &orn
 }
 
 void hinge_constraint::prepare(
-    const entt::registry &, entt::entity,
     constraint_row_prep_cache &cache, scalar dt,
     const constraint_body &bodyA, const constraint_body &bodyB) {
 

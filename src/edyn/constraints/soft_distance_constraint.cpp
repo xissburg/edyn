@@ -6,7 +6,6 @@
 namespace edyn {
 
 void soft_distance_constraint::prepare(
-    const entt::registry &, entt::entity,
     constraint_row_prep_cache &cache, scalar dt,
     const constraint_body &bodyA, const constraint_body &bodyB) {
 

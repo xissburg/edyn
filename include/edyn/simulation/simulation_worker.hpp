@@ -8,7 +8,6 @@
 #include <entt/entity/fwd.hpp>
 #include "edyn/collision/raycast.hpp"
 #include "edyn/collision/raycast_service.hpp"
-#include "edyn/collision/contact_manifold.hpp"
 #include "edyn/dynamics/solver.hpp"
 #include "edyn/parallel/message.hpp"
 #include "edyn/core/entity_graph.hpp"
@@ -37,7 +36,7 @@ class simulation_worker final {
 
     void wake_up_affected_islands(const registry_operation &ops);
     void consume_raycast_results();
-    void mark_transforms_replaced();
+    void mark_transient_replaced();
 
 public:
     simulation_worker(const settings &settings,

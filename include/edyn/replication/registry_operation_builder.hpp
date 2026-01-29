@@ -1,11 +1,14 @@
 #ifndef EDYN_REPLICATION_REGISTRY_OPERATION_BUILDER_HPP
 #define EDYN_REPLICATION_REGISTRY_OPERATION_BUILDER_HPP
 
+#include <entt/core/fwd.hpp>
 #include <type_traits>
+#include <unordered_map>
 #include <vector>
 #include <memory>
 #include <entt/entity/registry.hpp>
 #include "edyn/replication/registry_operation.hpp"
+#include "edyn/util/tuple_util.hpp"
 #include "edyn/util/vector_util.hpp"
 
 namespace edyn {
@@ -167,6 +170,14 @@ public:
         return operation.empty();
     }
 
+    auto size() const {
+        return operation.size();
+    }
+
+    auto byte_size() const {
+        return operation.byte_size();
+    }
+
     registry_operation && finish() {
         m_data_index = 0;
         return std::move(operation);
@@ -219,16 +230,33 @@ protected:
     size_t m_data_index {};
 };
 
+namespace detail {
+    template<typename... Components>
+    auto make_component_indices_map() {
+        std::unordered_map<entt::id_type, unsigned> indices;
+        auto index = 0u;
+        ((indices[entt::type_id<Components>().hash()] = index++), ...);
+        return indices;
+    }
+}
+
 template<typename... Components>
 class registry_operation_builder_impl : public registry_operation_builder {
 public:
+    using TupleType = std::tuple<Components...>;
+    const TupleType components_tuple = {};
+
     registry_operation_builder_impl() = default;
 
     registry_operation_builder_impl(entt::registry &registry)
-        : registry_operation_builder(registry) {}
+        : registry_operation_builder(registry)
+        , m_indices(detail::make_component_indices_map<Components...>())
+    {}
 
     registry_operation_builder_impl(entt::registry &registry, [[maybe_unused]] std::tuple<Components...>)
-        : registry_operation_builder(registry) {}
+        : registry_operation_builder(registry)
+        , m_indices(detail::make_component_indices_map<Components...>())
+    {}
 
     void emplace_all(const std::vector<entt::entity> &entities) override {
         (emplace<Components>(entities.begin(), entities.end()), ...);
@@ -267,16 +295,28 @@ public:
     }
 
     void emplace_type_id(entt::entity entity, entt::id_type id) override {
-        ((entt::type_index<Components>::value() == id ? emplace<Components>(entity) : (void)0), ...);
+        visit_tuple(components_tuple, m_indices.at(id), [&](auto &&comp) {
+            using Component = std::decay_t<decltype(comp)>;
+            emplace<Component>(entity);
+        });
     }
 
     void replace_type_id(entt::entity entity, entt::id_type id) override {
-        ((entt::type_index<Components>::value() == id ? replace<Components>(entity) : (void)0), ...);
+        visit_tuple(components_tuple, m_indices.at(id), [&](auto &&comp) {
+            using Component = std::decay_t<decltype(comp)>;
+            replace<Component>(entity);
+        });
     }
 
     void remove_type_id(entt::entity entity, entt::id_type id) override {
-        ((entt::type_index<Components>::value() == id ? remove<Components>(entity) : (void)0), ...);
+        visit_tuple(components_tuple, m_indices.at(id), [&](auto &&comp) {
+            using Component = std::decay_t<decltype(comp)>;
+            remove<Component>(entity);
+        });
     }
+
+private:
+    std::unordered_map<entt::id_type, unsigned> m_indices;
 };
 
 }

@@ -197,11 +197,11 @@ public:
                  double timestamp, double time_delta) override {
         std::lock_guard lock(m_history->mutex);
         for (auto &pool : snap.pools) {
-            ((entt::type_index<Inputs>::value() == pool.ptr->get_type_id() ?
+            ((entt::type_id<Inputs>().hash() == pool.ptr->get_type_id() ?
                 add<Inputs>(snap.entities, pool, entities, timestamp) :
                 (void)0), ...);
 
-            if (entt::type_index<action_history>::value() == pool.ptr->get_type_id()) {
+            if (entt::type_id<action_history>().hash() == pool.ptr->get_type_id()) {
                 auto *typed_pool = static_cast<pool_snapshot_data_impl<action_history> *>(pool.ptr.get());
                 add_actions(snap.entities, *typed_pool, entities, time_delta);
             }

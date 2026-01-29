@@ -61,10 +61,8 @@ struct generic_constraint : public constraint_base {
     std::array<linear_dof, 3> linear_dofs;
     std::array<angular_dof, 3> angular_dofs;
 
-    void prepare(
-        const entt::registry &, entt::entity,
-        constraint_row_prep_cache &cache, scalar dt,
-        const constraint_body &bodyA, const constraint_body &bodyB);
+    void prepare(constraint_row_prep_cache &cache, scalar dt,
+                 const constraint_body &bodyA, const constraint_body &bodyB);
 
     void solve_position(position_solver &solver);
 

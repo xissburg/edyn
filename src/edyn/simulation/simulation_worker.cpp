@@ -2,10 +2,12 @@
 #include "edyn/collision/broadphase.hpp"
 #include "edyn/collision/contact_manifold.hpp"
 #include "edyn/collision/contact_manifold_map.hpp"
+#include "edyn/collision/contact_point.hpp"
 #include "edyn/collision/narrowphase.hpp"
 #include "edyn/comp/angvel.hpp"
 #include "edyn/comp/linvel.hpp"
 #include "edyn/comp/position.hpp"
+#include "edyn/comp/transient.hpp"
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/tag.hpp"
@@ -37,6 +39,7 @@
 #include "edyn/math/transform.hpp"
 #include "edyn/time/time.hpp"
 #include "edyn/util/aabb_util.hpp"
+#include "edyn/util/collision_util.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/util/island_util.hpp"
 #include "edyn/util/rigidbody.hpp"
@@ -348,8 +351,10 @@ void simulation_worker::update() {
 
 #ifndef EDYN_DISABLE_PROFILING
     auto &profile = m_registry.ctx().get<profile_timers>();
+    auto &counters = m_registry.ctx().get<profile_counters>();
     if (!m_paused) {
         profile = {};
+        counters = {};
     }
 #endif
 
@@ -396,7 +401,6 @@ void simulation_worker::update() {
     EDYN_PROFILE_BEGIN(step_time);
 
     for (unsigned i = 0; i < effective_steps; ++i) {
-
         if (settings.pre_step_callback) {
             (*settings.pre_step_callback)(m_registry);
         }
@@ -406,13 +410,15 @@ void simulation_worker::update() {
         bphase.update(true);
         EDYN_PROFILE_MEASURE_ACCUM(task_time, profile, broadphase);
 
-        m_island_manager.update(m_sim_time);
-        EDYN_PROFILE_MEASURE_ACCUM(task_time, profile, islands);
-
         nphase.update(true);
         EDYN_PROFILE_MEASURE_ACCUM(task_time, profile, narrowphase);
 
+        m_island_manager.update(m_sim_time);
+        EDYN_PROFILE_MEASURE_ACCUM(task_time, profile, islands);
+
         m_solver.update(true);
+
+        nphase.patch_new_contacts();
 
         m_sim_time += step_dt;
 
@@ -424,7 +430,11 @@ void simulation_worker::update() {
             (*settings.post_step_callback)(m_registry);
         }
 
-        mark_transforms_replaced();
+        mark_transient_replaced();
+#ifndef EDYN_DISABLE_PROFILING
+        counters.op_count += m_op_builder->size();
+        counters.op_size += m_op_builder->byte_size();
+#endif
         sync();
 
         EDYN_PROFILE_MEASURE_ACCUM(step_time, profile, step);
@@ -440,6 +450,8 @@ void simulation_worker::update() {
         EDYN_PROFILE_MEASURE_AVG(profile, solve_islands, effective_steps);
         EDYN_PROFILE_MEASURE_AVG(profile, apply_results, effective_steps);
         EDYN_PROFILE_MEASURE_AVG(profile, step,          effective_steps);
+        counters.op_count /= effective_steps;
+        counters.op_size /= effective_steps;
     }
 
     sync_profiling();
@@ -489,16 +501,11 @@ void simulation_worker::consume_raycast_results() {
     });
 }
 
-void simulation_worker::mark_transforms_replaced() {
-    auto body_view = m_registry.view<position, orientation, linvel, angvel, dynamic_tag>(exclude_sleeping_disabled);
-    m_op_builder->replace<position>(body_view.begin(), body_view.end());
-    m_op_builder->replace<orientation>(body_view.begin(), body_view.end());
-    m_op_builder->replace<linvel>(body_view.begin(), body_view.end());
-    m_op_builder->replace<angvel>(body_view.begin(), body_view.end());
+void simulation_worker::mark_transient_replaced() {
+    auto transient_view = m_registry.view<transient>(exclude_sleeping_disabled);
 
-    if (m_registry.ctx().get<edyn::settings>().async_settings->sync_contact_points) {
-        auto manifold_view = m_registry.view<contact_manifold>(entt::exclude_t<sleeping_tag>{});
-        m_op_builder->replace<contact_manifold>(manifold_view.begin(), manifold_view.end());
+    for (auto [entity, transient] : transient_view.each()) {
+        m_op_builder->replace_type_ids(entity, transient.ids.begin(), transient.ids.end());
     }
 }
 
@@ -527,8 +534,8 @@ void simulation_worker::on_step_simulation(message<msg::step_simulation> &) {
 
     m_poly_initializer.init_new_shapes();
     bphase.update(true);
-    m_island_manager.update(m_last_time);
     nphase.update(true);
+    m_island_manager.update(m_last_time);
     m_solver.update(true);
 
     if (settings.clear_actions_func) {
@@ -539,7 +546,7 @@ void simulation_worker::on_step_simulation(message<msg::step_simulation> &) {
         (*settings.post_step_callback)(m_registry);
     }
 
-    mark_transforms_replaced();
+    mark_transient_replaced();
     sync();
 }
 

@@ -52,7 +52,7 @@ public:
 
     template<typename Component>
     component_index_type get_component_index() const {
-        auto id = entt::type_index<Component>();
+        auto id = entt::type_id<Component>().hash();
         return m_component_indices.at(id);
     }
 
@@ -138,7 +138,7 @@ public:
         (observe_update<Components>(registry), ...);
 
         auto i = component_index_type{};
-        (m_component_indices.emplace(entt::type_index<Components>(), i++), ...);
+        (m_component_indices.emplace(entt::type_id<Components>().hash(), i++), ...);
     }
 
     template<typename It>

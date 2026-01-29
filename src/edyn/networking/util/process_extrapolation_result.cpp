@@ -42,7 +42,7 @@ void process_extrapolation_result(entt::registry &registry, entity_map &emap,
     result.ops.execute(registry, emap);
 
     accumulate_discontinuities(registry);
-    import_contact_manifolds(registry, emap, result.manifolds);
+    import_contact_manifolds(registry, emap, result.manifolds, result.contacts);
 
     // Wake up affected entities.
     auto remote_entities = get_entities_from_extrapolation_result(result);
@@ -70,7 +70,7 @@ void process_extrapolation_result(entt::registry &registry,
     result.ops.execute(registry);
 
     accumulate_discontinuities(registry);
-    import_contact_manifolds(registry, result.manifolds);
+    import_contact_manifolds(registry, result.manifolds, result.contacts);
 
     // Wake up affected entities.
     auto entities = get_entities_from_extrapolation_result(result);

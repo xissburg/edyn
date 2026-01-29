@@ -19,6 +19,20 @@ struct collision_result {
         contact_normal_attachment normal_attachment;
         std::optional<collision_feature> featureA;
         std::optional<collision_feature> featureB;
+
+        collision_point & swap() {
+            std::swap(pivotA, pivotB);
+            std::swap(featureA, featureB);
+            normal *= -1; // Point towards new A.
+
+            if (normal_attachment == contact_normal_attachment::normal_on_A) {
+                normal_attachment = contact_normal_attachment::normal_on_B;
+            } else if (normal_attachment == contact_normal_attachment::normal_on_B) {
+                normal_attachment = contact_normal_attachment::normal_on_A;
+            }
+
+            return *this;
+        }
     };
 
     size_t num_points {0};
@@ -26,16 +40,7 @@ struct collision_result {
 
     collision_result & swap() {
         for (size_t i = 0; i < num_points; ++i) {
-            auto &cp = point[i];
-            std::swap(cp.pivotA, cp.pivotB);
-            std::swap(cp.featureA, cp.featureB);
-            cp.normal *= -1; // Point towards new A.
-
-            if (cp.normal_attachment == contact_normal_attachment::normal_on_A) {
-                cp.normal_attachment = contact_normal_attachment::normal_on_B;
-            } else if (cp.normal_attachment == contact_normal_attachment::normal_on_B) {
-                cp.normal_attachment = contact_normal_attachment::normal_on_A;
-            }
+            point[i].swap();
         }
         return *this;
     }

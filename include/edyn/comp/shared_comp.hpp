@@ -12,6 +12,7 @@
 #include "edyn/comp/orientation.hpp"
 #include "edyn/comp/center_of_mass.hpp"
 #include "edyn/comp/origin.hpp"
+#include "edyn/comp/transient.hpp"
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/comp/tag.hpp"
 #include "edyn/comp/shape_index.hpp"
@@ -24,7 +25,6 @@
 #include "edyn/networking/comp/discontinuity.hpp"
 #include "edyn/shapes/shapes.hpp"
 #include "edyn/collision/contact_manifold.hpp"
-#include "edyn/collision/contact_manifold_events.hpp"
 #include "edyn/collision/contact_point.hpp"
 
 namespace edyn {
@@ -49,9 +49,17 @@ using shared_components_t = decltype(std::tuple_cat(std::tuple<
     material,
     position,
     orientation,
+    contact_point,
+    contact_point_list,
+    contact_point_geometry,
+    contact_point_material,
+    contact_point_impulse,
+    contact_point_spin_friction_impulse,
+    contact_point_roll_friction_impulse,
     contact_manifold,
+    contact_manifold_state,
     contact_manifold_with_restitution,
-    contact_manifold_events,
+    clear_contact_manifold_tag,
     center_of_mass,
     origin,
     dynamic_tag,
@@ -72,6 +80,7 @@ using shared_components_t = decltype(std::tuple_cat(std::tuple<
     discontinuity_accumulator,
     child_list,
     parent_comp,
+    transient,
     null_constraint
 >{}, constraints_tuple, shapes_tuple)); // Concatenate with all shapes and constraints at the end.
 

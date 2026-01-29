@@ -4,10 +4,12 @@
 #include <entt/entity/registry.hpp>
 #include "edyn/comp/graph_edge.hpp"
 #include "edyn/comp/graph_node.hpp"
+#include "edyn/config/constants.hpp"
 #include "edyn/constraints/constraint.hpp"
 #include "edyn/core/entity_pair.hpp"
 #include "edyn/math/vector3.hpp"
 #include "edyn/collision/contact_manifold.hpp"
+#include "edyn/util/contact_manifold_util.hpp"
 
 namespace edyn {
 
@@ -98,14 +100,12 @@ void visit_neighbors(entt::registry &registry, entt::entity entity, Func func) {
 }
 
 entt::entity make_contact_manifold(entt::registry &registry,
-                                   entt::entity body0, entt::entity body1,
-                                   scalar separation_threshold);
+                                   entt::entity body0, entt::entity body1);
 
 void make_contact_manifold(entt::entity contact_entity, entt::registry &,
-                           entt::entity body0, entt::entity body1,
-                           scalar separation_threshold);
+                           entt::entity body0, entt::entity body1);
 
-void swap_manifold(contact_manifold &manifold);
+void swap_manifold(entt::registry &registry, entt::entity manifold_entity);
 
 scalar get_effective_mass(const constraint_row &);
 
@@ -138,28 +138,12 @@ void create_graph_edge_for_constraints(entt::registry &registry, entt::entity en
 template<typename Constraint, typename It>
 void clear_applied_impulses_single(entt::registry &registry, It first, It last) {
     auto con_view = registry.view<Constraint>();
-    auto manifold_view = registry.view<contact_manifold>();
     std::vector<scalar> impulses(16, scalar{0});
 
     for (; first != last; ++first) {
         auto entity = *first;
-        if (!con_view.contains(entity)) continue;
-        auto &con = con_view.template get<Constraint>(entity);
-
-        if constexpr(std::is_same_v<Constraint, contact_constraint>) {
-            auto [manifold] = manifold_view.get(entity);
-            manifold.each_point([](contact_point &cp) {
-                cp.normal_impulse = 0;
-                cp.spin_friction_impulse = 0;
-                cp.normal_restitution_impulse = 0;
-
-                for (int i = 0; i < 2; ++i) {
-                    cp.friction_impulse[i] = 0;
-                    cp.rolling_friction_impulse[i] = 0;
-                    cp.friction_restitution_impulse[i] = 0;
-                }
-            });
-        } else {
+        if (con_view.contains(entity)) {
+            auto &con = con_view.template get<Constraint>(entity);
             con.store_applied_impulses(impulses);
         }
     }

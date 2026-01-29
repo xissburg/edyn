@@ -1,6 +1,4 @@
 #include "edyn/simulation/stepper_async.hpp"
-#include "edyn/collision/contact_event_emitter.hpp"
-#include "edyn/collision/contact_manifold_events.hpp"
 #include "edyn/collision/query_aabb.hpp"
 #include "edyn/comp/child_list.hpp"
 #include "edyn/comp/island.hpp"
@@ -169,11 +167,6 @@ void stepper_async::on_step_update(message<msg::step_update> &msg) {
 
     m_importing = false;
     m_op_observer->set_active(true);
-
-    // Must consume events after each snapshot to avoid losing any event that
-    // could be overriden in the next snapshot.
-    auto &emitter = registry.ctx().get<contact_event_emitter>();
-    emitter.consume_events();
 
     if (m_post_step_callback) {
         (*m_post_step_callback)(*m_registry);

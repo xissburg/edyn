@@ -21,10 +21,8 @@ struct constraint_row_prep_cache;
 struct gravity_constraint : public constraint_base {
     scalar applied_impulse {scalar(0)};
 
-    void prepare(
-        const entt::registry &, entt::entity,
-        constraint_row_prep_cache &cache, scalar dt,
-        const constraint_body &bodyA, const constraint_body &bodyB);
+    void prepare(constraint_row_prep_cache &cache, scalar dt,
+                 const constraint_body &bodyA, const constraint_body &bodyB);
 
     void store_applied_impulses(const std::vector<scalar> &impulses);
 };

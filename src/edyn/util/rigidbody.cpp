@@ -1,6 +1,7 @@
 #include <entt/entity/registry.hpp>
 #include "edyn/collision/broadphase.hpp"
 #include "edyn/collision/contact_manifold.hpp"
+#include "edyn/collision/contact_point.hpp"
 #include "edyn/comp/center_of_mass.hpp"
 #include "edyn/comp/delta_angvel.hpp"
 #include "edyn/comp/delta_linvel.hpp"
@@ -8,6 +9,7 @@
 #include "edyn/comp/origin.hpp"
 #include "edyn/comp/roll_direction.hpp"
 #include "edyn/comp/shape_index.hpp"
+#include "edyn/comp/transient.hpp"
 #include "edyn/config/config.h"
 #include "edyn/math/matrix3x3.hpp"
 #include "edyn/math/transform.hpp"
@@ -15,6 +17,7 @@
 #include "edyn/shapes/shapes.hpp"
 #include "edyn/simulation/island_manager.hpp"
 #include "edyn/simulation/stepper_sequential.hpp"
+#include "edyn/util/contact_manifold_util.hpp"
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/util/island_util.hpp"
 #include "edyn/util/rigidbody.hpp"
@@ -33,6 +36,7 @@
 #include "edyn/comp/graph_node.hpp"
 #include "edyn/dynamics/moment_of_inertia.hpp"
 #include "edyn/util/aabb_util.hpp"
+#include "edyn/util/transient_util.hpp"
 #include "edyn/util/tuple_util.hpp"
 #include "edyn/util/gravity_util.hpp"
 #include "edyn/simulation/stepper_async.hpp"
@@ -165,6 +169,14 @@ void make_rigidbody(entt::entity entity, entt::registry &registry, const rigidbo
         registry.emplace<island_resident>(entity);
     } else {
         registry.emplace<multi_island_resident>(entity);
+    }
+
+    // Mark transform and velocity as transient by default so they're synchronized
+    // with the main registry continuously while they're awake.
+    if (registry.ctx().get<settings>().execution_mode == execution_mode::asynchronous) {
+        if (def.kind != rigidbody_kind::rb_static) {
+            mark_transient<position, orientation, linvel, angvel>(registry, entity);
+        }
     }
 
     // Always do this last to signal the completion of the construction of this
@@ -303,7 +315,7 @@ void set_rigidbody_friction(entt::registry &registry, entt::entity entity, scala
     EDYN_ASSERT(registry.any_of<rigidbody_tag>(entity));
 
     auto material_view = registry.view<material>();
-    auto manifold_view = registry.view<contact_manifold>();
+    auto manifold_view = registry.view<contact_manifold, contact_manifold_state>();
 
     auto &material = registry.patch<edyn::material>(entity, [friction](auto &mat) {
         mat.friction = friction;
@@ -321,11 +333,7 @@ void set_rigidbody_friction(entt::registry &registry, entt::entity entity, scala
             return;
         }
 
-        auto &manifold = manifold_view.get<contact_manifold>(edge_entity);
-
-        if (manifold.num_points == 0) {
-            return;
-        }
+        auto [manifold, manifold_state] = manifold_view.get(edge_entity);
 
         // One of the bodies could be a sensor and not have a material.
         if (!material_view.contains(manifold.body[0]) ||
@@ -344,12 +352,12 @@ void set_rigidbody_friction(entt::registry &registry, entt::entity entity, scala
 
         auto combined_friction = material_mix_friction(friction, other_material.friction);
 
-        manifold.each_point([combined_friction](contact_point &cp) {
-            cp.friction = combined_friction;
+        contact_point_for_each(registry, manifold_state.contact_entity, [&](entt::entity contact_entity) {
+            registry.patch<contact_point_material>(contact_entity,
+                [combined_friction](contact_point_material &cp_mat) {
+                    cp_mat.friction = combined_friction;
+                });
         });
-
-        // Force changes to be propagated to simulation worker.
-        registry.patch<contact_manifold>(edge_entity);
     });
 }
 
@@ -478,10 +486,10 @@ void rigidbody_set_shape(entt::registry &registry, entt::entity entity, std::opt
 
     // Remove all contacts associated with this body since all existing contact
     // points are now most likely invalid.
-    auto manifold_view = registry.view<contact_manifold>();
+    auto manifold_view = registry.view<contact_manifold_state>();
     visit_edges(registry, entity, [&](entt::entity edge_entity) {
-        if (manifold_view.contains(edge_entity)) {
-            registry.destroy(edge_entity);
+        if (manifold_view.contains(edge_entity) && !registry.all_of<clear_contact_manifold_tag>(edge_entity)) {
+            registry.emplace<clear_contact_manifold_tag>(edge_entity);
         }
     });
 }

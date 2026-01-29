@@ -1,6 +1,6 @@
 #include "edyn/util/constraint_util.hpp"
 #include "edyn/collision/contact_manifold.hpp"
-#include "edyn/collision/contact_manifold_events.hpp"
+#include "edyn/collision/contact_point.hpp"
 #include "edyn/comp/island.hpp"
 #include "edyn/comp/material.hpp"
 #include "edyn/comp/tag.hpp"
@@ -13,6 +13,8 @@
 #include "edyn/core/entity_graph.hpp"
 #include "edyn/constraints/constraint_row.hpp"
 #include "edyn/dynamics/material_mixing.hpp"
+#include "edyn/util/transient_util.hpp"
+#include "edyn/util/contact_manifold_util.hpp"
 
 namespace edyn {
 
@@ -56,27 +58,25 @@ void clear_constraint(entt::registry &registry, entt::entity entity) {
 }
 
 entt::entity make_contact_manifold(entt::registry &registry,
-                                   entt::entity body0, entt::entity body1,
-                                   scalar separation_threshold) {
+                                   entt::entity body0, entt::entity body1) {
     auto manifold_entity = registry.create();
-    make_contact_manifold(manifold_entity, registry, body0, body1, separation_threshold);
+    make_contact_manifold(manifold_entity, registry, body0, body1);
     return manifold_entity;
 }
 
 void make_contact_manifold(entt::entity manifold_entity, entt::registry &registry,
-                           entt::entity body0, entt::entity body1,
-                           scalar separation_threshold) {
+                           entt::entity body0, entt::entity body1) {
     EDYN_ASSERT(registry.valid(body0) && registry.valid(body1));
-    registry.emplace<contact_manifold>(manifold_entity, body0, body1, separation_threshold);
-    registry.emplace<contact_manifold_events>(manifold_entity);
+    registry.emplace<contact_manifold>(manifold_entity, body0, body1);
+    registry.emplace<contact_manifold_state>(manifold_entity);
+    // Create a null constraint to ensure an edge will exist in the entity graph
+    // for this manifold.
+    make_constraint<null_constraint>(registry, manifold_entity, body0, body1);
 
     auto material_view = registry.view<material>();
 
     // Only create contact constraint if bodies have material.
     if (!material_view.contains(body0) || !material_view.contains(body1)) {
-        // If not, emplace a null constraint to ensure an edge will exist in
-        // the entity graph.
-        make_constraint<null_constraint>(registry, manifold_entity, body0, body1);
         return;
     }
 
@@ -95,23 +95,33 @@ void make_contact_manifold(entt::entity manifold_entity, entt::registry &registr
     if (restitution > EDYN_EPSILON) {
         registry.emplace<contact_manifold_with_restitution>(manifold_entity);
     }
-
-    // Assign contact constraint to manifold.
-    make_constraint<contact_constraint>(registry, manifold_entity, body0, body1);
 }
 
-void swap_manifold(contact_manifold &manifold) {
+void swap_manifold(entt::registry &registry, entt::entity manifold_entity) {
+    auto [manifold, manifold_state] = registry.get<contact_manifold, contact_manifold_state>(manifold_entity);
     std::swap(manifold.body[0], manifold.body[1]);
+    auto cp_view = registry.view<contact_point, contact_point_geometry, contact_point_list>();
+    auto con_view = registry.view<contact_constraint>();
+    auto con_ex_view = registry.view<contact_extras_constraint>();
 
-    manifold.each_point([](contact_point &cp) {
+    contact_point_for_each(cp_view, manifold_state.contact_entity, [&, &manifold=manifold](entt::entity contact_entity) {
+        auto [cp, cp_geom] = cp_view.get<contact_point, contact_point_geometry>(contact_entity);
         std::swap(cp.pivotA, cp.pivotB);
-        std::swap(cp.featureA, cp.featureB);
+        std::swap(cp_geom.featureA, cp_geom.featureB);
         cp.normal *= -1; // Point towards new A.
 
-        if (cp.normal_attachment == contact_normal_attachment::normal_on_A) {
-            cp.normal_attachment = contact_normal_attachment::normal_on_B;
-        } else if (cp.normal_attachment == contact_normal_attachment::normal_on_B) {
-            cp.normal_attachment = contact_normal_attachment::normal_on_A;
+        if (cp_geom.normal_attachment == contact_normal_attachment::normal_on_A) {
+            cp_geom.normal_attachment = contact_normal_attachment::normal_on_B;
+        } else if (cp_geom.normal_attachment == contact_normal_attachment::normal_on_B) {
+            cp_geom.normal_attachment = contact_normal_attachment::normal_on_A;
+        }
+
+        if (con_view.contains(contact_entity)) {
+            auto [con] = con_view.get(contact_entity);
+            con.body = manifold.body;
+        } else if (con_ex_view.contains(contact_entity)) {
+            auto [con] = con_ex_view.get(contact_entity);
+            con.body = manifold.body;
         }
     });
 }

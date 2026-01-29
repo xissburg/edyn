@@ -112,7 +112,7 @@ During broad-phase, intersections between the AABBs of all entities are found us
 
 In narrow-phase, closest point calculation is performed for the rigid body pair in all `edyn::contact_manifold`s. The _Separating-Axis Theorem (SAT)_ is employed. A _GJK_ implementation is planned but _SAT_ is preferred due to greater control and precision and better ability to debug and reason about the code.
 
-The `edyn::contact_manifold` component holds information of all contact points and if the rigid body has a material, a `edyn::contact_constraint` is assigned to the same entity. In the constraint preparation function, the `edyn::contact_constraint` gets information from the `edyn::contact_manifold` to set up constraint rows.
+The `edyn::contact_manifold` component holds an entity that is the head of a `edyn::contact_point` linked list. The `edyn::contact_point` component has an entity which points to the next point in the list. A `edyn::contact_constraint` is assigned to the same entity as the contact. Before solving constraints, relevant data from the `edyn::contact_point` is copied over to member variables of the corresponding `edyn::contact_constraint` and after solving constraints, the values that have changed such as applied impulses, are copied back from the `edyn::contact_constraint` over to their `edyn::contact_point`.
 
 Contact point persistence is important for stability and to preserve continuity over time. New contact points that are near existing points get merged together, thus extending the lifetime of an existing contact and reusing the previously applied impulse for _warm starting_ later in the constraint solver. Contact points that are separating (in either tangential or normal directions) are destroyed.
 
@@ -134,9 +134,9 @@ The features are intersected on a case-by-case basis and contact points are inse
 
 ## Collision Events
 
-Contact points are part of the `edyn::contact_manifold` component and they're added and removed to its list of points during the collision detection step. To allow users to watch contact points come and go, a set of signals are provided.
+Observe collision events by subscribing to EnTT component events on `edyn::contact_point`. Note that `on_construct<edyn::contact_point>` will be triggered before the constraint solver runs, thus the applied impulses will be zero. If that information is necessary, postpone collision event processing by storing new contacts into a list and going over them later, for example, to play sounds with a volume that's proportional to collision impulse.
 
-To generate these signals, the id of all contact points that were created and destroyed are stored in a `edyn::contact_manifold_events` component during collision detection. This makes it possible to store all contact events that happened in one step for later consumption.
+If per-manifold event processing is necessary, observe `on_construct<edyn::contact_point_list>` and store the `edyn::contact_point_list::parent` entity for later processing.
 
 ## Restitution
 
@@ -222,7 +222,7 @@ Another function of islands is to allow entities to _sleep_ when they're inactiv
 
 # The Entity Graph
 
-Islands are modeled as a graph, where the rigid bodies are nodes and the constraints and contact manifolds are edges. The graph is stored in a data structure outside of the ECS, `edyn::entity_graph`, where nodes and edges have a numerical id, i.e. `edyn::entity_graph::index_type`. This is an undirected, non-weighted graph which allows multiple edges between nodes. Node entities are assigned a `edyn::graph_node` and edges are assigned a `edyn::graph_edge` which hold the id of the node or edge in the graph. This allows a conversion from node/edge index to entity and vice-versa.
+Islands are modeled as a graph, where the rigid bodies are nodes and the constraints are edges. The graph is stored in a data structure outside of the ECS, `edyn::entity_graph`, where nodes and edges have a numerical id, i.e. `edyn::entity_graph::index_type`. This is an undirected, non-weighted graph which allows multiple edges between nodes. Node entities are assigned a `edyn::graph_node` and edges are assigned a `edyn::graph_edge` which hold the id of the node or edge in the graph. This allows a conversion from node/edge index to entity and vice-versa.
 
 Individual islands can be found using the concept of _connected components_ from graph theory. Islands are represented by an entity with a `edyn::island` component and all node and edge entities have a `edyn::island_resident` component (or `edyn::multi_island_resident` for non-procedural entities) which holds the entity id of the island where they're located at the moment. As nodes are created, destroyed or modified, islands can split into two or more islands, and they can also merge with other islands.
 
@@ -274,7 +274,7 @@ Since each `edyn::island_worker` has its own registry where entities from the ma
 
 Registry operations are always written with the local entities and then have to be applied into another registry to replicate changes. In the context of the recipient, the entities in the operations are considered _remote_ and have to be mapped into _local_ before applying changes, including those that are properties of components.
 
-Of special consideration are components that have `entt::entity`s in them, such as the `edyn::contact_manifold`. These `entt::entity`s must be mapped from _remote_ to _local_ before being imported. Static reflection provided by `entt::meta` is used to iterate over the members of the component and finding which ones contain `entt::entity` values and these are then mapped into local space using the entity map.
+Of special consideration are components that have `entt::entity`s in them. These `entt::entity`s must be mapped from _remote_ to _local_ before being imported. Static reflection provided by `entt::meta` is used to iterate over the members of the component and finding which ones contain `entt::entity` values and these are then mapped into local space using the entity map.
 
 If the worker creates a new entity (e.g. when a new contact point is created), it won't yet have an entity mapping for it, since there's no corresponding entity in the main registry yet. It will be added to the current set of registry operations as a created entity and when received on the main thread, a new entity will be instantiated and a mapping will be created. The worker needs to know into which remote entity its local entity was mapped, so that it can make the connection later when the main thread sends an operation containing that entity. The entity mapping is added to the current set of registry operations and sent to the worker later, which when executed, will add the mapping to the worker's entity map.
 

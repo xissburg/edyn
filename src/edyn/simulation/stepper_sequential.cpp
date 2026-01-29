@@ -1,5 +1,4 @@
 #include "edyn/simulation/stepper_sequential.hpp"
-#include "edyn/collision/contact_event_emitter.hpp"
 #include "edyn/context/profile.hpp"
 #include "edyn/context/settings.hpp"
 #include "edyn/collision/broadphase.hpp"
@@ -55,7 +54,6 @@ void stepper_sequential::update(double time) {
 
     auto &bphase = m_registry->ctx().get<broadphase>();
     auto &nphase = m_registry->ctx().get<narrowphase>();
-    auto &emitter = m_registry->ctx().get<contact_event_emitter>();
 
     auto effective_steps = num_steps;
     auto step_dt = fixed_dt;
@@ -84,15 +82,13 @@ void stepper_sequential::update(double time) {
         bphase.update(m_multithreaded);
         EDYN_PROFILE_MEASURE_ACCUM(task_time, profile, broadphase);
 
-        m_island_manager.update(step_time);
-        EDYN_PROFILE_MEASURE_ACCUM(task_time, profile, islands);
-
         nphase.update(m_multithreaded);
         EDYN_PROFILE_MEASURE_ACCUM(task_time, profile, narrowphase);
 
-        m_solver.update(m_multithreaded);
+        m_island_manager.update(step_time);
+        EDYN_PROFILE_MEASURE_ACCUM(task_time, profile, islands);
 
-        emitter.consume_events();
+        m_solver.update(m_multithreaded);
 
         if (settings.clear_actions_func) {
             (*settings.clear_actions_func)(*m_registry);
@@ -129,7 +125,6 @@ void stepper_sequential::step_simulation(double time) {
 
     auto &bphase = m_registry->ctx().get<broadphase>();
     auto &nphase = m_registry->ctx().get<narrowphase>();
-    auto &emitter = m_registry->ctx().get<contact_event_emitter>();
     auto &settings = m_registry->ctx().get<edyn::settings>();
 
     if (settings.pre_step_callback) {
@@ -138,10 +133,9 @@ void stepper_sequential::step_simulation(double time) {
 
     m_poly_initializer.init_new_shapes();
     bphase.update(m_multithreaded);
-    m_island_manager.update(m_last_time);
     nphase.update(m_multithreaded);
+    m_island_manager.update(m_last_time);
     m_solver.update(m_multithreaded);
-    emitter.consume_events();
 
     if (settings.clear_actions_func) {
         (*settings.clear_actions_func)(*m_registry);

@@ -3,6 +3,7 @@
 
 #include <tuple>
 #include <entt/entity/fwd.hpp>
+#include "edyn/constraints/contact_extras_constraint.hpp"
 #include "edyn/constraints/distance_constraint.hpp"
 #include "edyn/constraints/soft_distance_constraint.hpp"
 #include "edyn/constraints/point_constraint.hpp"
@@ -28,7 +29,8 @@ using constraints_tuple_t = std::tuple<
     cvjoint_constraint,
     cone_constraint,
     point_constraint,
-    contact_constraint
+    contact_constraint,
+    contact_extras_constraint
 >;
 
 static const constraints_tuple_t constraints_tuple = constraints_tuple_t{};
