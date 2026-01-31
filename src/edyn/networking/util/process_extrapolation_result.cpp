@@ -46,7 +46,6 @@ void process_extrapolation_result(entt::registry &registry, entity_map &emap,
 
     // Wake up affected entities.
     auto remote_entities = get_entities_from_extrapolation_result(result);
-    wake_up_island_residents(registry, remote_entities, emap);
 
     std::vector<entt::entity> local_entities;
     local_entities.reserve(remote_entities.size());
@@ -57,6 +56,7 @@ void process_extrapolation_result(entt::registry &registry, entity_map &emap,
         }
     }
 
+    wake_up_island_residents(registry, local_entities);
     post_extrapolation_update(registry, local_entities);
 }
 
