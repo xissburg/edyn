@@ -134,7 +134,7 @@ The features are intersected on a case-by-case basis and contact points are inse
 
 ## Collision Events
 
-Observe collision events by subscribing to EnTT component events on `edyn::contact_point`. Note that `on_construct<edyn::contact_point>` will be triggered before the constraint solver runs, thus the applied impulses will be zero. If that information is necessary, postpone collision event processing by storing new contacts into a list and going over them later, for example, to play sounds with a volume that's proportional to collision impulse.
+Observe collision events by subscribing to EnTT component events on `edyn::contact_point`. Note that `on_construct<edyn::contact_point>` will be triggered before the constraint solver runs, thus the applied impulses will be zero. If that information is necessary, observe construction of `edyn::contact_started_tag` instead. It's an empty component added to all new contacts after the solver step, thus ensuring the `edyn::contact_point_impulse` will contain the first applied impulse.
 
 If per-manifold event processing is necessary, observe `on_construct<edyn::contact_point_list>` and store the `edyn::contact_point_list::parent` entity for later processing.
 

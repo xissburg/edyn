@@ -122,6 +122,8 @@ void narrowphase::patch_new_contacts() {
         if (registry.all_of<contact_point_roll_friction_impulse>(contact_entity)) {
             registry.patch<contact_point_roll_friction_impulse>(contact_entity);
         }
+
+        registry.emplace<contact_started_tag>(contact_entity);
     }
 
     m_new_contacts.clear();

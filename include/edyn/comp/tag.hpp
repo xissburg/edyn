@@ -80,6 +80,12 @@ struct rolling_tag {};
  */
 struct external_tag {};
 
+/**
+ * Added to a contact point after it's solved for the first time. Watch its
+ * construction to get new points with their first applied impulses.
+ */
+struct contact_started_tag {};
+
 }
 
 #endif // EDYN_COMP_TAG_HPP
