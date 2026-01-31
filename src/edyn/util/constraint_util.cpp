@@ -67,6 +67,10 @@ entt::entity make_contact_manifold(entt::registry &registry,
 void make_contact_manifold(entt::entity manifold_entity, entt::registry &registry,
                            entt::entity body0, entt::entity body1) {
     EDYN_ASSERT(registry.valid(body0) && registry.valid(body1));
+    EDYN_ASSERT(registry.all_of<rigidbody_tag>(body0) && registry.all_of<rigidbody_tag>(body1));
+    // One of the bodies must be dynamic.
+    EDYN_ASSERT(registry.all_of<dynamic_tag>(body0) || registry.all_of<dynamic_tag>(body1));
+
     registry.emplace<contact_manifold>(manifold_entity, body0, body1);
     registry.emplace<contact_manifold_state>(manifold_entity);
     // Create a null constraint to ensure an edge will exist in the entity graph
