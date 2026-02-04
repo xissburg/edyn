@@ -12,16 +12,19 @@ using tree_node_id_t = uint32_t;
 constexpr static tree_node_id_t null_tree_node_id = std::numeric_limits<tree_node_id_t>::max();
 
 struct tree_node {
-    entt::entity entity;
-    AABB aabb;
-
     union {
         tree_node_id_t parent;
         tree_node_id_t next;
     };
 
     tree_node_id_t child1;
-    tree_node_id_t child2;
+
+    union {
+        tree_node_id_t child2;
+        entt::entity entity;
+    };
+
+    AABB aabb;
 
     // Height from the bottom of the tree, i.e. leaf = 0. If free, -1.
     int height;

@@ -162,8 +162,9 @@ void broadphase::collide_tree_async(const dynamic_tree &tree, entt::entity entit
 
     tree.query(offset_aabb, [&](tree_node_id_t id) {
         auto &node = tree.get_node(id);
+        auto collides = (*settings.should_collide_func)(*m_registry, entity, node.entity);
 
-        if ((*settings.should_collide_func)(*m_registry, entity, node.entity) && !disabled_view.contains(node.entity)) {
+        if (collides && !disabled_view.contains(node.entity)) {
             auto [other_aabb] = aabb_view.get(node.entity);
 
             if (intersect(offset_aabb, other_aabb)) {
