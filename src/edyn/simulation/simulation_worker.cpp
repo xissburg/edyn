@@ -340,6 +340,9 @@ void simulation_worker::stop() {
     m_finish_cv.wait(lock, [&]() {
         return m_finished.load(std::memory_order_relaxed);
     });
+
+    // Do not leave unprocessed messages behind.
+    m_message_queue.update();
 }
 
 void simulation_worker::update() {
