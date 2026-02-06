@@ -148,6 +148,8 @@ void registry_clear(entt::registry &registry, [[maybe_unused]] const std::tuple<
 void detach(entt::registry &registry) {
     internal::deinit_paged_mesh_load_reporting(registry);
 
+    registry.ctx().erase<stepper_async>();
+    registry.ctx().erase<stepper_sequential>();
     registry.ctx().erase<settings>();
     registry.ctx().erase<entity_graph>();
     registry.ctx().erase<material_mix_table>();
@@ -155,8 +157,6 @@ void detach(entt::registry &registry) {
     registry.ctx().erase<registry_operation_context>();
     registry.ctx().erase<broadphase>();
     registry.ctx().erase<narrowphase>();
-    registry.ctx().erase<stepper_async>();
-    registry.ctx().erase<stepper_sequential>();
 
 #ifndef EDYN_DISABLE_PROFILING
     registry.ctx().erase<profile_timers>();
@@ -194,9 +194,6 @@ void detach(entt::registry &registry) {
     // All manifolds are created by the engine thus destroy all entities.
     auto manifold_view = registry.view<contact_manifold>();
     registry.destroy(manifold_view.begin(), manifold_view.end());
-
-    job_dispatcher::global().stop();
-    message_dispatcher::global().clear_queues();
 }
 
 scalar get_fixed_dt(const entt::registry &registry) {
