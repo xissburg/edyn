@@ -33,6 +33,8 @@ void update_paged_mesh_load_reporting(entt::registry &registry) {
 }
 
 void deinit_paged_mesh_load_reporting(entt::registry &registry) {
+    auto &ctx = registry.ctx().get<paged_mesh_page_load_context>();
+    ctx.queue.sink<msg::paged_triangle_mesh_load_page>().disconnect<&on_paged_triangle_mesh_load_page>(registry);
     registry.ctx().erase<paged_mesh_page_load_context>();
 }
 
