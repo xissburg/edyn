@@ -124,6 +124,7 @@ template<typename Constraint>
 void create_graph_edge_for_constraint(entt::registry &registry, entt::entity entity, entity_graph &graph) {
     if (!registry.all_of<Constraint>(entity) || registry.all_of<graph_edge>(entity)) return;
     auto &con = registry.get<Constraint>(entity);
+    for (int i = 0; i < 2; ++ i) if (con.body[i] == entt::null || !registry.valid(con.body[i])) return;
     auto &node0 = registry.get<graph_node>(con.body[0]);
     auto &node1 = registry.get<graph_node>(con.body[1]);
     auto edge_index = graph.insert_edge(entity, node0.node_index, node1.node_index);
