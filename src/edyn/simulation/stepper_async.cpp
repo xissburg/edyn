@@ -43,12 +43,12 @@ stepper_async::stepper_async(entt::registry &registry, double time)
     m_connections.push_back(registry.on_destroy<graph_edge>().connect<&stepper_async::on_destroy_graph_edge>(*this));
     m_connections.push_back(registry.on_construct<child_list>().connect<&stepper_async::on_construct_shared>(*this));
 
-    m_message_queue_handle.sink<msg::step_update>().connect<&stepper_async::on_step_update>(*this);
-    m_message_queue_handle.sink<msg::raycast_response>().connect<&stepper_async::on_raycast_response>(*this);
-    m_message_queue_handle.sink<msg::query_aabb_response>().connect<&stepper_async::on_query_aabb_response>(*this);
+    m_msg_connections.push_back(m_message_queue_handle.sink<msg::step_update>().connect<&stepper_async::on_step_update>(*this));
+    m_msg_connections.push_back(m_message_queue_handle.sink<msg::raycast_response>().connect<&stepper_async::on_raycast_response>(*this));
+    m_msg_connections.push_back(m_message_queue_handle.sink<msg::query_aabb_response>().connect<&stepper_async::on_query_aabb_response>(*this));
 
 #ifndef EDYN_DISABLE_PROFILING
-    m_message_queue_handle.sink<msg::profiling>().connect<&stepper_async::on_profiling>(*this);
+    m_msg_connections.push_back(m_message_queue_handle.sink<msg::profiling>().connect<&stepper_async::on_profiling>(*this));
 #endif
 
     auto &reg_op_ctx = m_registry->ctx().get<registry_operation_context>();
@@ -56,6 +56,12 @@ stepper_async::stepper_async(entt::registry &registry, double time)
     m_op_observer = (*reg_op_ctx.make_reg_op_observer)(*m_op_builder);
 
     m_worker.start();
+}
+
+stepper_async::~stepper_async() {
+    m_msg_connections.clear(); // Remove message handlers
+    m_worker.stop(); // Stop simulation worker thread
+    m_message_queue_handle.update(); // Flush remaining messages.
 }
 
 void stepper_async::on_construct_shared(entt::registry &registry, entt::entity entity) {

@@ -45,6 +45,8 @@ public:
     stepper_async operator=(stepper_async const&) = delete;
     stepper_async(entt::registry &, double time);
 
+    ~stepper_async();
+
     void on_construct_shared(entt::registry &, entt::entity);
 
     void on_destroy_graph_node(entt::registry &, entt::entity);
@@ -130,6 +132,7 @@ private:
     step_callback_t m_post_step_callback {nullptr};
 
     std::vector<entt::scoped_connection> m_connections;
+    std::vector<entt::scoped_connection> m_msg_connections;
 };
 
 }
