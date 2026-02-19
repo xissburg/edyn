@@ -47,6 +47,20 @@ AABB point_cloud_aabb(const std::vector<vector3> &points);
 AABB point_cloud_aabb(const std::vector<vector3> &points,
                       const vector3 &pos, const quaternion &orn);
 
+template<typename It>
+AABB point_cloud_aabb(It first, It last) {
+    // TODO: implement and use `parallel_reduce`.
+    auto aabb = AABB{vector3_max, -vector3_max};
+
+    for (; first != last; ++first) {
+        auto &point = *first;
+        aabb.min = min(aabb.min, point);
+        aabb.max = max(aabb.max, point);
+    }
+
+    return aabb;
+}
+
 // Calculate AABB for all types of shapes.
 AABB shape_aabb(const plane_shape &sh, const vector3 &pos, const quaternion &orn);
 AABB shape_aabb(const sphere_shape &sh, const vector3 &pos, const quaternion &orn);
