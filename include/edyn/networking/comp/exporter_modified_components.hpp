@@ -50,7 +50,7 @@ struct exporter_modified_components {
                 // Note that `i` isn't incremented in this case.
                 entry[i] = entry[--count];
             } else {
-                entry[i].remaining -= elapsed_ms;
+                entry[i].remaining = static_cast<uint16_t>(entry[i].remaining - elapsed_ms);
                 ++i;
             }
         }

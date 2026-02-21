@@ -26,8 +26,8 @@ class message_queue_handle {
 public:
     const message_queue_identifier identifier;
 
-    message_queue_handle(message_queue_identifier identifier, message_queue &queue)
-        : identifier(identifier)
+    message_queue_handle(message_queue_identifier id, message_queue &queue)
+        : identifier(id)
         , m_queue(&queue)
     {}
 

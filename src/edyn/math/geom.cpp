@@ -1246,7 +1246,7 @@ intersect_ray_cylinder_result intersect_ray_cylinder(vector3 p0, vector3 p1,
     scalar s, t;
 
     if (!closest_point_line_line(cyl_vertices[0], cyl_vertices[1], p0, p1, s, t)) {
-        return {intersect_ray_cylinder_result::kind::parallel_directions};
+        return {intersect_ray_cylinder_result::kind::parallel_directions, {}, {}};
     }
 
     auto radius_sqr = square(radius);
@@ -1257,7 +1257,7 @@ intersect_ray_cylinder_result intersect_ray_cylinder(vector3 p0, vector3 p1,
 
     // Distance between lines bigger than radius.
     if (dist_sqr > radius_sqr) {
-        return {intersect_ray_cylinder_result::kind::distance_greater_than_radius};
+        return {intersect_ray_cylinder_result::kind::distance_greater_than_radius, {}, {}};
     }
 
     // Offset `t` backwards to place it where the intersection happens.

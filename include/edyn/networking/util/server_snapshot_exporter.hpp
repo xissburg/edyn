@@ -118,7 +118,7 @@ class server_snapshot_exporter_impl : public server_snapshot_exporter {
                 auto entity = *first;
 
                 if (m_registry->all_of<Component>(entity)) {
-                    internal::snapshot_insert_entity<Component>(*m_registry, entity, snap, index);
+                    internal::snapshot_insert_entity<Component>(*m_registry, entity, snap, static_cast<component_index_type>(index));
                 }
             }
         }
@@ -208,8 +208,8 @@ public:
             bool temporary_ownership = false;
 
             if (allow_ownership) {
-                graph.traverse(node_index, [&](auto node_index) {
-                    auto neighbor = graph.node_entity(node_index);
+                graph.traverse(node_index, [&](auto edge_node_index) {
+                    auto neighbor = graph.node_entity(edge_node_index);
 
                     if (owner_view.contains(neighbor)) {
                         auto [owner] = owner_view.get(neighbor);

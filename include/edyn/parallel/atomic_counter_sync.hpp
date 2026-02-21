@@ -9,8 +9,8 @@ namespace edyn {
 
 class atomic_counter_sync {
 public:
-    atomic_counter_sync(size_t count)
-        : count(count)
+    atomic_counter_sync(size_t initial_count)
+        : count(initial_count)
         , done(false)
     {}
 

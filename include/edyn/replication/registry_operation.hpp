@@ -61,7 +61,7 @@ struct operation_create : public operation_base {
          }
     }
 
-    void execute(entt::registry &registry) const override {}
+    void execute(entt::registry &) const override {}
 
     void remap(const entity_map &emap) override {
         entity = emap.at(entity);
@@ -120,7 +120,7 @@ struct operation_map_entity : public operation_base {
         }
     }
 
-    void execute(entt::registry &registry) const override {}
+    void execute(entt::registry &) const override {}
 
     void remap(const entity_map &emap) override {
         entity = emap.at(entity);
@@ -352,7 +352,7 @@ public:
         auto s = 0u;
 
         for (auto &block : data_blocks) {
-            s += block.size();
+            s += static_cast<unsigned int>(block.size());
         }
 
         return s;

@@ -43,7 +43,7 @@
 
 namespace edyn {
 
-static void process_packet(entt::registry &registry, entt::entity client_entity, packet::registry_snapshot &snapshot) {
+static void process_packet(entt::registry &registry, entt::entity /*client_entity*/, packet::registry_snapshot &snapshot) {
     if (auto *stepper = registry.ctx().find<stepper_async>()) {
         stepper->send_message_to_worker<msg::apply_network_pools>(std::move(snapshot.entities), std::move(snapshot.pools), false);
     } else {
@@ -130,7 +130,7 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
             EDYN_ASSERT(
                 (registry.all_of<dynamic_tag>(local_entity) && *mass > 0 && *mass < EDYN_SCALAR_MAX) ||
                 (registry.any_of<kinematic_tag, static_tag>(local_entity) && *mass == EDYN_SCALAR_MAX));
-            auto inv = registry.all_of<dynamic_tag>(local_entity) ? scalar(1) / *mass : scalar(0);
+            auto inv = registry.all_of<dynamic_tag>(local_entity) ? scalar(1) / mass->s : scalar(0);
             registry.emplace<mass_inv>(local_entity, inv);
         }
 
@@ -275,13 +275,13 @@ static void process_packet(entt::registry &registry, entt::entity client_entity,
     ctx.packet_signal.publish(client_entity, packet::edyn_packet{res});
 }
 
-static void process_packet([[maybe_unused]] entt::registry &, [[maybe_unused]] entt::entity, [[maybe_unused]] const packet::entity_response &) {}
-static void process_packet([[maybe_unused]] entt::registry &, [[maybe_unused]] entt::entity, [[maybe_unused]] const packet::client_created &) {}
-static void process_packet([[maybe_unused]] entt::registry &, [[maybe_unused]] entt::entity, [[maybe_unused]] const packet::set_playout_delay &) {}
-static void process_packet([[maybe_unused]] entt::registry &, [[maybe_unused]] entt::entity, [[maybe_unused]] const packet::server_settings &) {}
-static void process_packet([[maybe_unused]] entt::registry &, [[maybe_unused]] entt::entity, [[maybe_unused]] const packet::entity_entered &) {}
-static void process_packet([[maybe_unused]] entt::registry &, [[maybe_unused]] entt::entity, [[maybe_unused]] const packet::entity_exited &) {}
-static void process_packet([[maybe_unused]] entt::registry &, [[maybe_unused]] entt::entity, [[maybe_unused]] const packet::asset_sync_response &) {}
+static void process_packet(entt::registry &, entt::entity, const packet::entity_response &) {}
+static void process_packet(entt::registry &, entt::entity, const packet::client_created &) {}
+static void process_packet(entt::registry &, entt::entity, const packet::set_playout_delay &) {}
+static void process_packet(entt::registry &, entt::entity, const packet::server_settings &) {}
+static void process_packet(entt::registry &, entt::entity, const packet::entity_entered &) {}
+static void process_packet(entt::registry &, entt::entity, const packet::entity_exited &) {}
+static void process_packet(entt::registry &, entt::entity, const packet::asset_sync_response &) {}
 
 void init_network_server(entt::registry &registry) {
     registry.ctx().emplace<server_network_context>(registry);
@@ -445,7 +445,7 @@ static void process_aabb_of_interest_entities_entered(entt::registry &registry,
         auto &ctx = registry.ctx().get<server_network_context>();
         auto asset_view = registry.view<asset_ref>();
         auto owner_view = registry.view<entity_owner>();
-        auto entry_view = registry.view<asset_entry>();
+        auto entry_view2 = registry.view<asset_entry>();
         auto packet = packet::entity_entered{};
 
         for (auto asset_entity : assets) {
@@ -456,7 +456,7 @@ static void process_aabb_of_interest_entities_entered(entt::registry &registry,
                          std::get<0>(owner_view.get(asset_entity)).client_entity : entt::null;
 
             for (auto [asset_id, entity] : info.asset.entity_map) {
-                auto [entry] = entry_view.get(entity);
+                auto [entry] = entry_view2.get(entity);
                 if (!entry.sync_indices.empty()) {
                     ctx.snapshot_exporter->export_comp_index(info, entity, entry.sync_indices);
                 }

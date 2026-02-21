@@ -19,7 +19,7 @@ void compound_shape::finish() {
         aabbs.push_back(node.aabb);
     }
 
-    auto report_leaf = [](static_tree::tree_node &node, auto ids_begin, auto ids_end) {
+    auto report_leaf = [](static_tree::tree_node &node, auto ids_begin, auto /*ids_end*/) {
         node.id = *ids_begin;
     };
     tree.build(aabbs.begin(), aabbs.end(), report_leaf);

@@ -69,8 +69,8 @@ void collide(const sphere_shape &shA, const sphere_shape &shB,
 
 // Plane-Plane
 inline
-void collide(const plane_shape &shA, const plane_shape &shB,
-             const collision_context &ctx, collision_result &result) {
+void collide(const plane_shape &, const plane_shape &,
+             const collision_context &, collision_result &) {
     // collision between infinite planes is undefined here.
 }
 
@@ -132,15 +132,15 @@ void collide(const cylinder_shape &shA, const capsule_shape &shB,
 
 // Mesh-Mesh
 inline
-void collide(const mesh_shape &shA, const mesh_shape &shB,
-             const collision_context &ctx, collision_result &result) {
+void collide(const mesh_shape &, const mesh_shape &,
+             const collision_context &, collision_result &) {
     // collision between triangle meshes still undefined.
 }
 
 // Plane-Mesh
 inline
-void collide(const plane_shape &shA, const mesh_shape &shB,
-             const collision_context &ctx, collision_result &result) {
+void collide(const plane_shape &, const mesh_shape &,
+             const collision_context &, collision_result &) {
     // collision between triangle meshes and planes still undefined.
 }
 
@@ -189,15 +189,15 @@ void collide(const box_shape &shA, const cylinder_shape &shB,
 
 // Paged Mesh-Paged Mesh
 inline
-void collide(const paged_mesh_shape &shA, const paged_mesh_shape &shB,
-             const collision_context &ctx, collision_result &result) {
+void collide(const paged_mesh_shape &, const paged_mesh_shape &,
+             const collision_context &, collision_result &) {
     // collision between paged triangle meshes is undefined.
 }
 
 // Plane-Paged Mesh
 inline
-void collide(const plane_shape &shA, const paged_mesh_shape &shB,
-             const collision_context &ctx, collision_result &result) {
+void collide(const plane_shape &, const paged_mesh_shape &,
+             const collision_context &, collision_result &) {
     // collision between paged triangle meshes and planes is undefined.
 }
 
@@ -210,8 +210,8 @@ void collide(const paged_mesh_shape &shA, const plane_shape &shB,
 
 // Mesh-Paged Mesh
 inline
-void collide(const mesh_shape &shA, const paged_mesh_shape &shB,
-             const collision_context &ctx, collision_result &result) {
+void collide(const mesh_shape &, const paged_mesh_shape &,
+             const collision_context &, collision_result &) {
     // collision between triangle meshes is undefined.
 }
 

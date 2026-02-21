@@ -41,11 +41,11 @@ void register_networked_components(entt::registry &registry, std::tuple<Actions.
             std::shared_ptr<std::remove_pointer_t<decltype(input_history)>>(input_history);
         ctx->input_history.reset(new input_state_history_writer_impl(input_history_ptr));
 
-        ctx->make_extrapolation_modified_comp = [](entt::registry &registry) {
-            auto external = std::tuple<Components...>{};
-            auto all = std::tuple_cat(networked_components, external);
+        ctx->make_extrapolation_modified_comp = [](entt::registry &reg) {
+            auto ext = std::tuple<Components...>{};
+            auto comps = std::tuple_cat(networked_components, ext);
             return std::unique_ptr<extrapolation_modified_comp>(
-                new extrapolation_modified_comp_impl(registry, all));
+                new extrapolation_modified_comp_impl(reg, comps));
         };
 
         auto input_history_reader = new input_state_history_reader_impl(input_history_ptr, actions);

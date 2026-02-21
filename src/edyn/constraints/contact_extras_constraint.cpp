@@ -24,8 +24,8 @@ void contact_extras_constraint::prepare(constraint_row_prep_cache &cache, scalar
         auto normal_relvel = dot(relvel, normal);
         // Divide stiffness by number of points for correct force
         // distribution. All points have the same stiffness.
-        auto spring_force = -distance * stiffness / num_points;
-        auto damper_force = -normal_relvel * damping / num_points;
+        auto spring_force = -distance * stiffness / static_cast<scalar>(num_points);
+        auto damper_force = -normal_relvel * damping / static_cast<scalar>(num_points);
 
         auto &normal_row = cache.get_current_row();
         normal_row.upper_limit = std::max(spring_force + damper_force, scalar(0)) * dt;

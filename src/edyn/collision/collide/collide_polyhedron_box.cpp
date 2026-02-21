@@ -142,7 +142,7 @@ void collide(const polyhedron_shape &shA, const box_shape &shB,
     // Separating axis is in A's space. Transform to global.
     point.normal = rotate(ctx.ornA, sep_axis);
     point.distance = distance;
-    point.featureB = {featureB, feature_indexB};
+    point.featureB = {featureB, feature_indexB, 0};
 
     switch (featureB) {
     case box_feature::face: {
@@ -269,9 +269,9 @@ void collide(const polyhedron_shape &shA, const box_shape &shB,
             // Polygon vertex against box edge.
             EDYN_ASSERT(polygon.hull.size() == 1);
             point.pivotA = polygon.vertices[polygon.hull[0]];
-            auto edge_dir = edge_vertices[1] - edge_vertices[0];
+            auto contact_edge_dir = edge_vertices[1] - edge_vertices[0];
             vector3 pivotB_world; scalar t;
-            closest_point_line(edge_vertices[0], edge_dir, point.pivotA, t, pivotB_world);
+            closest_point_line(edge_vertices[0], contact_edge_dir, point.pivotA, t, pivotB_world);
             point.pivotB = lerp(edge_vertices_local[0], edge_vertices_local[1], t);
             result.add_point(point);
         }

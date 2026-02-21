@@ -48,12 +48,12 @@ namespace edyn::internal {
         using pool_snapshot_data_t = pool_snapshot_data_impl<Component>;
 
         auto pool = std::find_if(pools.begin(), pools.end(),
-                                 [component_index](auto &&pool) {
-                                     return pool.component_index == component_index;
+                                 [component_index](auto &&p) {
+                                     return p.component_index == component_index;
                                  });
 
         if (pool == pools.end()) {
-            pools.push_back(pool_snapshot{component_index});
+            pools.push_back(pool_snapshot{component_index, {}});
             pool = pools.end();
             std::advance(pool, -1);
             pool->ptr.reset(new pool_snapshot_data_t);

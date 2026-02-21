@@ -48,14 +48,14 @@ std::array<vector3, 2> convex_mesh::get_rotated_edge(const rotated_mesh &rmesh,
 }
 
 vector3 convex_mesh::get_edge_direction(size_t idx) const {
-    auto vertices = get_edge(idx);
-    return vertices[1] - vertices[0];
+    auto edge_verts = get_edge(idx);
+    return edge_verts[1] - edge_verts[0];
 }
 
 vector3 convex_mesh::get_rotated_edge_direction(const rotated_mesh &rmesh,
                                                 size_t idx) const {
-    auto vertices = get_rotated_edge(rmesh, idx);
-    return vertices[1] - vertices[0];
+    auto edge_verts = get_rotated_edge(rmesh, idx);
+    return edge_verts[1] - edge_verts[0];
 }
 
 std::array<uint32_t, 2> convex_mesh::get_edge_vertices(size_t idx) const {
@@ -149,7 +149,7 @@ void convex_mesh::calculate_edges() {
                     // edge will be directed along the circumference of the first face
                     // as well.
                     EDYN_ASSERT(edge_faces[edge_idx * 2 + 1] == std::numeric_limits<uint32_t>::max());
-                    edge_faces[edge_idx * 2 + 1] = face_idx;
+                    edge_faces[edge_idx * 2 + 1] = static_cast<uint32_t>(face_idx);
                     edge_normals[edge_idx * 2 + 1] = normals[face_idx];
                     break;
                 }
@@ -158,7 +158,7 @@ void convex_mesh::calculate_edges() {
             if (!contains) {
                 edges.push_back(vertex_idx0);
                 edges.push_back(vertex_idx1);
-                edge_faces.push_back(face_idx);
+                edge_faces.push_back(static_cast<uint32_t>(face_idx));
                 edge_faces.push_back(std::numeric_limits<uint32_t>::max());
 
                 edge_vertices.push_back(vertices[vertex_idx0]);
@@ -179,10 +179,10 @@ void convex_mesh::calculate_neighbors() {
         // Find all edges that contain this vertex and add the other vertex to
         // the list of neighbors.
         for (size_t edge_idx = 0; edge_idx < num_edges(); ++edge_idx) {
-            auto edge_vertices = get_edge_vertices(edge_idx);
+            auto ev = get_edge_vertices(edge_idx);
 
-            if (edge_vertices[0] == vertex_idx || edge_vertices[1] == vertex_idx) {
-                auto neighbor_idx = edge_vertices[0] == vertex_idx ? edge_vertices[1] : edge_vertices[0];
+            if (ev[0] == vertex_idx || ev[1] == vertex_idx) {
+                auto neighbor_idx = ev[0] == vertex_idx ? ev[1] : ev[0];
                 neighbor_indices.push_back(neighbor_idx);
                 ++neighbor_count;
             }
@@ -202,7 +202,7 @@ void convex_mesh::calculate_relevant_faces() {
         });
 
         if (found_it == relevant_faces.end()) {
-            relevant_faces.push_back(face_idx);
+            relevant_faces.push_back(static_cast<uint32_t>(face_idx));
             relevant_normals.push_back(normals[face_idx]);
         }
     }
@@ -221,7 +221,7 @@ void convex_mesh::calculate_relevant_edges() {
         });
 
         if (found_it == relevant_edges.end()) {
-            relevant_edges.push_back(edge_idx);
+            relevant_edges.push_back(static_cast<uint32_t>(edge_idx));
         }
     }
 }

@@ -215,7 +215,7 @@ void broadphase::collide_parallel() {
     m_pair_results.resize(aabb_proc_size);
 
     auto task = task_delegate_t(entt::connect_arg_t<&broadphase::collide_parallel_task>{}, *this);
-    enqueue_task_wait(*m_registry, task, aabb_proc_size);
+    enqueue_task_wait(*m_registry, task, static_cast<unsigned int>(aabb_proc_size));
 }
 
 void broadphase::finish_collide() {

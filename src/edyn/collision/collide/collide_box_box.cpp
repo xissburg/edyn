@@ -102,9 +102,9 @@ void collide(const box_shape &shA, const box_shape &shB,
         return;
     }
 
-    box_feature featureA, featureB;
-    size_t feature_indexA, feature_indexB;
-    scalar projectionA, projectionB;
+    box_feature featureA {}, featureB {};
+    size_t feature_indexA {0}, feature_indexB {0};
+    scalar projectionA {0}, projectionB {0};
 
     shA.support_feature(posA, ornA, vector3_zero, -sep_axis,
                         featureA, feature_indexA, projectionA,
@@ -116,8 +116,8 @@ void collide(const box_shape &shA, const box_shape &shB,
     collision_result::collision_point point;
     point.normal = sep_axis;
     point.distance = distance;
-    point.featureA = {featureA, feature_indexA};
-    point.featureB = {featureB, feature_indexB};
+    point.featureA = {featureA, feature_indexA, 0};
+    point.featureB = {featureB, feature_indexB, 0};
 
     if (featureA == box_feature::face && featureB == box_feature::face) {
         // Face-Face.

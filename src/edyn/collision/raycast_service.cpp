@@ -29,7 +29,7 @@ void raycast_service::run_broadphase(bool mt) {
         };
 
         auto task = task_delegate_t(entt::connect_arg_t<&decltype(task_func)::operator()>{}, task_func);
-        enqueue_task_wait(*m_registry, task, m_broad_ctx.size());
+        enqueue_task_wait(*m_registry, task, static_cast<unsigned int>(m_broad_ctx.size()));
     } else {
         for (auto &ctx : m_broad_ctx) {
             bphase.raycast(ctx.p0, ctx.p1, [&](entt::entity entity) {
@@ -81,21 +81,21 @@ void raycast_service::run_narrowphase(bool mt) {
         };
 
         auto task = task_delegate_t(entt::connect_arg_t<&decltype(task_func)::operator()>{}, task_func);
-        enqueue_task_wait(*m_registry, task, m_narrow_ctx.size());
+        enqueue_task_wait(*m_registry, task, static_cast<unsigned int>(m_narrow_ctx.size()));
     } else {
-        auto index_view = m_registry->view<shape_index>();
-        auto tr_view = m_registry->view<position, orientation>();
-        auto origin_view = m_registry->view<origin>();
-        auto shape_views_tuple = get_tuple_of_shape_views(*m_registry);
+        auto np_index_view = m_registry->view<shape_index>();
+        auto np_tr_view = m_registry->view<position, orientation>();
+        auto np_origin_view = m_registry->view<origin>();
+        auto np_shape_views_tuple = get_tuple_of_shape_views(*m_registry);
 
         for (auto &ctx : m_narrow_ctx) {
-            auto sh_idx = index_view.get<shape_index>(ctx.entity);
-            auto pos = origin_view.contains(ctx.entity) ?
-                static_cast<vector3>(origin_view.get<origin>(ctx.entity)) : tr_view.get<position>(ctx.entity);
-            auto orn = tr_view.get<orientation>(ctx.entity);
+            auto sh_idx = np_index_view.get<shape_index>(ctx.entity);
+            auto pos = np_origin_view.contains(ctx.entity) ?
+                static_cast<vector3>(np_origin_view.get<origin>(ctx.entity)) : np_tr_view.get<position>(ctx.entity);
+            auto orn = np_tr_view.get<orientation>(ctx.entity);
             auto ray_ctx = raycast_context{pos, orn, ctx.p0, ctx.p1};
 
-            visit_shape(sh_idx, ctx.entity, shape_views_tuple, [&](auto &&shape) {
+            visit_shape(sh_idx, ctx.entity, np_shape_views_tuple, [&](auto &&shape) {
                 ctx.result = shape_raycast(shape, ray_ctx);
             });
         }

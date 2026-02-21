@@ -21,7 +21,7 @@ void collide(const sphere_shape &shA, const box_shape &shB,
         return;
     }
 
-    scalar center_distance;
+    scalar center_distance {0};
     auto normal_attachment = contact_normal_attachment::none;
 
     // If `posA_in_B` lies inside the box, `closest_point_box_outside`
@@ -51,7 +51,7 @@ void collide(const sphere_shape &shA, const box_shape &shB,
     auto pivotB = closest;
     auto normal = rotate(ctx.ornB, normalB);
     auto distance = center_distance - shA.radius;
-    result.add_point({pivotA, pivotB, normal, distance, normal_attachment});
+    result.add_point({pivotA, pivotB, normal, distance, normal_attachment, {}, {}});
 }
 
 void collide(const box_shape &shA, const sphere_shape &shB,

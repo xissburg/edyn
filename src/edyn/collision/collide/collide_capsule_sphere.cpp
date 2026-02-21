@@ -10,7 +10,7 @@ namespace edyn {
 void collide(const capsule_shape &shA, const sphere_shape &shB,
              const collision_context &ctx, collision_result &result) {
     auto capsule_vertices = shA.get_vertices(ctx.posA, ctx.ornA);
-    vector3 closest; scalar t;
+    vector3 closest; scalar t {0};
     auto dist_sqr = closest_point_segment(capsule_vertices[0], capsule_vertices[1], ctx.posB, t, closest);
     auto min_dist = shA.radius + shB.radius + ctx.threshold;
 
@@ -20,7 +20,7 @@ void collide(const capsule_shape &shA, const sphere_shape &shB,
 
     auto normal = closest - ctx.posB;
     auto normal_len_sqr = length_sqr(normal);
-    scalar distance;
+    scalar distance {0};
 
     if (normal_len_sqr > EDYN_EPSILON) {
         auto normal_len = std::sqrt(normal_len_sqr);
@@ -42,9 +42,9 @@ void collide(const capsule_shape &shA, const sphere_shape &shB,
     point.normal_attachment = contact_normal_attachment::none;
 
     if (t > 0 && t < 1) {
-        point.featureA = {capsule_feature::side};
+        point.featureA = {capsule_feature::side, 0, 0};
     } else {
-        point.featureA = {capsule_feature::hemisphere};
+        point.featureA = {capsule_feature::hemisphere, 0, 0};
         point.featureA->index = t == 0 ? 0 : 1;
     }
 

@@ -494,7 +494,7 @@ static void process_packet(entt::registry &registry, const packet::create_entity
             EDYN_ASSERT(
                 (registry.all_of<dynamic_tag>(entity) && *mass > 0 && *mass < EDYN_SCALAR_MAX) ||
                 (registry.any_of<kinematic_tag, static_tag>(entity) && *mass == EDYN_SCALAR_MAX));
-            auto inv = registry.all_of<dynamic_tag>(entity) ? scalar(1) / *mass : scalar(0);
+            auto inv = registry.all_of<dynamic_tag>(entity) ? scalar(1) / mass->s : scalar(0);
             registry.emplace<mass_inv>(entity, inv);
         }
 
@@ -860,9 +860,9 @@ static void process_packet(entt::registry &registry, packet::asset_sync_response
     ctx.snapshot_exporter->set_observer_enabled(true);
 }
 
-static void process_packet([[maybe_unused]] entt::registry &registry, [[maybe_unused]] const packet::set_aabb_of_interest &packet) {}
-static void process_packet([[maybe_unused]] entt::registry &registry, [[maybe_unused]] const packet::query_entity &packet) {}
-static void process_packet([[maybe_unused]] entt::registry &registry, [[maybe_unused]] const packet::asset_sync &packet) {}
+static void process_packet(entt::registry &, const packet::set_aabb_of_interest &) {}
+static void process_packet(entt::registry &, const packet::query_entity &) {}
+static void process_packet(entt::registry &, const packet::asset_sync &) {}
 
 void client_receive_packet(entt::registry &registry, packet::edyn_packet &packet) {
 #ifndef EDYN_DISABLE_PROFILING

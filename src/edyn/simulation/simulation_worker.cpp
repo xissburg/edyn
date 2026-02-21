@@ -155,11 +155,11 @@ void simulation_worker::deinit() {
     }
 }
 
-void simulation_worker::on_construct_shared_entity(entt::registry &registry, entt::entity entity) {
+void simulation_worker::on_construct_shared_entity(entt::registry &/*registry*/, entt::entity entity) {
     m_op_observer->observe(entity);
 }
 
-void simulation_worker::on_destroy_shared_entity(entt::registry &registry, entt::entity entity) {
+void simulation_worker::on_destroy_shared_entity(entt::registry &/*registry*/, entt::entity entity) {
     m_op_observer->unobserve(entity);
 
     if (m_entity_map.contains_local(entity)) {
@@ -393,7 +393,7 @@ void simulation_worker::update() {
         // Scale up the effective delta time of each step. Physics will be
         // updated using fixed dt always but the presentation step dt will be
         // greater thus slowing down the simulation.
-        step_dt = advance_dt / effective_steps;
+        step_dt = static_cast<scalar>(advance_dt / static_cast<double>(effective_steps));
     }
 
     m_poly_initializer.init_new_shapes();
@@ -486,7 +486,7 @@ void simulation_worker::run() {
         auto error = desired_dt - dt;
         i_term = std::max(-1.0, std::min(i_term + integral_term * error, 1.0));
         auto delay = std::max(0.0, proportional_term * error + i_term);
-        edyn::delay(delay * 1000);
+        edyn::delay(static_cast<uint32_t>(delay * 1000));
     }
 
     deinit();

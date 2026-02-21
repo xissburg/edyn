@@ -135,7 +135,7 @@ bool paged_triangle_mesh::has_per_vertex_material_id() const {
     return false;
 }
 
-AABB make_point_aabb(vector3 point, scalar size = 0.005) {
+AABB make_point_aabb(vector3 point, scalar size = scalar(0.005)) {
     auto extents = vector3_one * size;
     return {point - extents, point + extents};
 }

@@ -169,7 +169,7 @@ void collide(const polyhedron_shape &shA, const cylinder_shape &shB,
     collision_result::collision_point point;
     point.normal = normal;
     point.distance = distance;
-    point.featureB = {featureB, feature_indexB};
+    point.featureB = {featureB, feature_indexB, 0};
 
     auto cyl_ax_idx = static_cast<std::underlying_type_t<coordinate_axis>>(shB.axis);
     auto cyl_ax_idx_ortho0 = (cyl_ax_idx + 1) % 3;

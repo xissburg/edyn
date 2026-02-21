@@ -49,21 +49,21 @@ protected:
 template<typename... Components>
 class registry_operation_observer_impl : public registry_operation_observer {
     template<typename Component>
-    void on_construct(entt::registry &registry, entt::entity entity) {
+    void on_construct(entt::registry &, entt::entity entity) {
         if (m_active && m_observed_entities.contains(entity)) {
             m_builder->emplace<Component>(entity);
         }
     }
 
     template<typename Component>
-    void on_update(entt::registry &registry, entt::entity entity) {
+    void on_update(entt::registry &, entt::entity entity) {
         if (m_active && m_observed_entities.contains(entity)) {
             m_builder->replace<Component>(entity);
         }
     }
 
     template<typename Component>
-    void on_destroy(entt::registry &registry, entt::entity entity) {
+    void on_destroy(entt::registry &, entt::entity entity) {
         if (m_active && m_observed_entities.contains(entity)) {
             m_builder->remove<Component>(entity);
         }

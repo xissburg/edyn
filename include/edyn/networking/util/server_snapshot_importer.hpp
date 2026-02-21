@@ -90,8 +90,8 @@ class server_snapshot_importer_impl : public server_snapshot_importer {
             node_index = node.node_index;
         }
 
-        graph.traverse(node_index, [&](auto node_index) {
-            auto neighbor = graph.node_entity(node_index);
+        graph.traverse(node_index, [&](auto traversed_node_index) {
+            auto neighbor = graph.node_entity(traversed_node_index);
 
             if (owner_view.contains(neighbor)) {
                 auto [owner] = owner_view.get(neighbor);

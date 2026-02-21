@@ -163,8 +163,8 @@ void collide(const capsule_shape &shA, const cylinder_shape &shB,
     collision_result::collision_point point;
     point.normal = sep_axis;
     point.distance = distance;
-    point.featureA = {featureA, feature_indexA};
-    point.featureB = {featureB, feature_indexB};
+    point.featureA = {featureA, feature_indexA, 0};
+    point.featureB = {featureB, feature_indexB, 0};
 
     switch (featureB) {
     case cylinder_feature::face: {
