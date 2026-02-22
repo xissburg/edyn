@@ -124,7 +124,7 @@ void visit_shape(entt::registry &registry, entt::entity entity, VisitorType visi
  * direction.
  */
 template<typename ShapeType>
-constexpr vector3 shape_rolling_direction(const ShapeType &shape) {
+constexpr vector3 shape_rolling_direction(const ShapeType &) {
     return vector3_zero;
 }
 

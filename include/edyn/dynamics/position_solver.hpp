@@ -65,7 +65,7 @@ public:
     scalar inv_mA, inv_mB;
     inertia_world_inv *inv_IA, *inv_IB;
     inertia_inv *inv_IA_local, *inv_IB_local;
-    scalar error_correction_rate {0.2};
+    scalar error_correction_rate {0.2f};
     scalar max_error {};
 };
 

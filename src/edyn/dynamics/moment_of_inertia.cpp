@@ -156,7 +156,7 @@ matrix3x3 moment_of_inertia_polyhedron(scalar mass,
     };
 }
 
-matrix3x3 moment_of_inertia(const plane_shape &sh, scalar mass) {
+matrix3x3 moment_of_inertia(const plane_shape &/*sh*/, scalar /*mass*/) {
     return diagonal_matrix(vector3_max);
 }
 
@@ -172,7 +172,7 @@ matrix3x3 moment_of_inertia(const capsule_shape &sh, scalar mass) {
     return diagonal_matrix(moment_of_inertia_solid_capsule(mass, sh.half_length * 2, sh.radius, sh.axis));
 }
 
-matrix3x3 moment_of_inertia(const mesh_shape &sh, scalar mass) {
+matrix3x3 moment_of_inertia(const mesh_shape &/*sh*/, scalar /*mass*/) {
     return diagonal_matrix(vector3_max);
 }
 
@@ -202,7 +202,7 @@ matrix3x3 moment_of_inertia(const compound_shape &sh, scalar mass) {
     return inertia;
 }
 
-matrix3x3 moment_of_inertia(const paged_mesh_shape &sh, scalar mass) {
+matrix3x3 moment_of_inertia(const paged_mesh_shape &/*sh*/, scalar /*mass*/) {
     return diagonal_matrix(vector3_max);
 }
 

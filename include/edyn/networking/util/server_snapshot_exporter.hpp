@@ -118,7 +118,7 @@ class server_snapshot_exporter_impl : public server_snapshot_exporter {
                 auto entity = *first;
 
                 if (m_registry->all_of<Component>(entity)) {
-                    internal::snapshot_insert_entity<Component>(*m_registry, entity, snap, index);
+                    internal::snapshot_insert_entity<Component>(*m_registry, entity, snap, static_cast<component_index_type>(index));
                 }
             }
         }

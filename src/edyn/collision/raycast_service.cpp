@@ -29,7 +29,7 @@ void raycast_service::run_broadphase(bool mt) {
         };
 
         auto task = task_delegate_t(entt::connect_arg_t<&decltype(task_func)::operator()>{}, task_func);
-        enqueue_task_wait(*m_registry, task, m_broad_ctx.size());
+        enqueue_task_wait(*m_registry, task, static_cast<unsigned int>(m_broad_ctx.size()));
     } else {
         for (auto &ctx : m_broad_ctx) {
             bphase.raycast(ctx.p0, ctx.p1, [&](entt::entity entity) {
@@ -81,7 +81,7 @@ void raycast_service::run_narrowphase(bool mt) {
         };
 
         auto task = task_delegate_t(entt::connect_arg_t<&decltype(task_func)::operator()>{}, task_func);
-        enqueue_task_wait(*m_registry, task, m_narrow_ctx.size());
+        enqueue_task_wait(*m_registry, task, static_cast<unsigned int>(m_narrow_ctx.size()));
     } else {
         auto index_view = m_registry->view<shape_index>();
         auto tr_view = m_registry->view<position, orientation>();

@@ -84,7 +84,7 @@ static thread_local delta_linvel dummy_dv {vector3_zero};
 static thread_local delta_angvel dummy_dw {vector3_zero};
 
 bool solve_restitution_iteration(entt::registry &registry, entt::entity island_entity,
-                                 scalar dt, unsigned individual_iterations) {
+                                 scalar /*dt*/, unsigned individual_iterations) {
     auto body_view = registry.view<position, orientation, linvel, angvel,
                                    mass_inv, inertia_world_inv,
                                    delta_linvel, delta_angvel>();
@@ -166,13 +166,13 @@ bool solve_restitution_iteration(entt::registry &registry, entt::entity island_e
             // Use zero mass, inertia and velocities otherwise.
             vector3 linvelA, linvelB;
             vector3 angvelA, angvelB;
-            scalar inv_mA, inv_mB;
-            matrix3x3 inv_IA, inv_IB;
-            delta_linvel *dvA, *dvB;
-            delta_angvel *dwA, *dwB;
+            scalar inv_mA {0}, inv_mB {0};
+            matrix3x3 inv_IA {}, inv_IB {};
+            delta_linvel *dvA {nullptr}, *dvB {nullptr};
+            delta_angvel *dwA {nullptr}, *dwB {nullptr};
 
             if (procedural_view.contains(manifold.body[0])) {
-                inv_mA = body_view.get<mass_inv>(manifold.body[0]);
+                inv_mA = body_view.get<mass_inv>(manifold.body[0]).s;
                 inv_IA = body_view.get<inertia_world_inv>(manifold.body[0]);
             } else {
                 inv_mA = 0;
@@ -196,7 +196,7 @@ bool solve_restitution_iteration(entt::registry &registry, entt::entity island_e
             }
 
             if (procedural_view.contains(manifold.body[1])) {
-                inv_mB = body_view.get<mass_inv>(manifold.body[1]);
+                inv_mB = body_view.get<mass_inv>(manifold.body[1]).s;
                 inv_IB = body_view.get<inertia_world_inv>(manifold.body[1]);
             } else {
                 inv_mB = 0;
@@ -229,7 +229,7 @@ bool solve_restitution_iteration(entt::registry &registry, entt::entity island_e
                 auto rA = pivotA - posA;
                 auto rB = pivotB - posB;
 
-                auto normal_row_index = normal_rows.size();
+                auto normal_row_index = static_cast<unsigned>(normal_rows.size());
                 auto &normal_row = normal_rows.emplace_back();
                 normal_row.J = {normal, cross(rA, normal), -normal, -cross(rB, normal)};
                 normal_row.inv_mA = inv_mA; normal_row.inv_IA = inv_IA;

@@ -81,7 +81,7 @@ auto make_view_for_each_task_func(View &view, Func &func) {
 }
 
 template<typename C, typename BodyView, typename OriginView, typename ProceduralView, typename StaticView>
-void invoke_prepare_constraint(entt::registry &registry, entt::entity entity, C &&con,
+void invoke_prepare_constraint(entt::registry &/*registry*/, entt::entity /*entity*/, C &&con,
                                constraint_row_prep_cache &cache, scalar dt,
                                const BodyView &body_view, const OriginView &origin_view,
                                const ProceduralView &procedural_view, const StaticView &static_view) {
@@ -93,13 +93,13 @@ void invoke_prepare_constraint(entt::registry &registry, entt::entity entity, C 
     // Use zero mass, inertia and velocities otherwise.
     vector3 linvelA, linvelB;
     vector3 angvelA, angvelB;
-    scalar inv_mA, inv_mB;
-    matrix3x3 inv_IA, inv_IB;
-    delta_linvel *dvA, *dvB;
-    delta_angvel *dwA, *dwB;
+    scalar inv_mA {0}, inv_mB {0};
+    matrix3x3 inv_IA {}, inv_IB {};
+    delta_linvel *dvA {nullptr}, *dvB {nullptr};
+    delta_angvel *dwA {nullptr}, *dwB {nullptr};
 
     if (procedural_view.contains(con.body[0])) {
-        inv_mA = body_view.template get<mass_inv>(con.body[0]);
+        inv_mA = body_view.template get<mass_inv>(con.body[0]).s;
         inv_IA = body_view.template get<inertia_world_inv>(con.body[0]);
     } else {
         inv_mA = 0;
@@ -123,7 +123,7 @@ void invoke_prepare_constraint(entt::registry &registry, entt::entity entity, C 
     }
 
     if (procedural_view.contains(con.body[1])) {
-        inv_mB = body_view.template get<mass_inv>(con.body[1]);
+        inv_mB = body_view.template get<mass_inv>(con.body[1]).s;
         inv_IB = body_view.template get<inertia_world_inv>(con.body[1]);
     } else {
         inv_mB = 0;
@@ -206,7 +206,7 @@ static void prepare_constraints(entt::registry &registry, scalar dt, bool mt) {
     if (mt && num_constraints > max_sequential_size) {
         auto task_func = make_view_for_each_task_func(cache_view, for_loop_body);
         auto task = task_delegate_t(entt::connect_arg_t<&decltype(task_func)::operator()>{}, task_func);
-        enqueue_task_wait(registry, task, num_constraints);
+        enqueue_task_wait(registry, task, static_cast<unsigned>(num_constraints));
     } else {
         for (auto entity : cache_view) {
             for_loop_body(entity);
@@ -320,7 +320,7 @@ void transfer_contact_points_to_constraints(entt::registry &registry, bool mt) {
     if (mt && num_constraints > transfer_contact_max_sequential_size) {
         auto task_func = make_view_for_each_task_func(contact_view, for_loop_body);
         auto task = task_delegate_t(entt::connect_arg_t<&decltype(task_func)::operator()>{}, task_func);
-        enqueue_task_wait(registry, task, num_constraints);
+        enqueue_task_wait(registry, task, static_cast<unsigned>(num_constraints));
     } else {
         for (auto entity : contact_view) {
             for_loop_body(entity);
@@ -376,7 +376,7 @@ void transfer_contact_constraints_to_points(entt::registry &registry, bool mt) {
     if (mt && num_constraints > transfer_contact_max_sequential_size) {
         auto task_func = make_view_for_each_task_func(contact_view, for_loop_body);
         auto task = task_delegate_t(entt::connect_arg_t<&decltype(task_func)::operator()>{}, task_func);
-        enqueue_task_wait(registry, task, num_constraints);
+        enqueue_task_wait(registry, task, static_cast<unsigned>(num_constraints));
     } else {
         for (auto entity : contact_view) {
             for_loop_body(entity);

@@ -131,8 +131,8 @@ static void collide_box_triangle(
     collision_result::collision_point point;
     point.normal = sep_axis;
     point.distance = distance;
-    point.featureA = {box_feature, box_feature_index};
-    point.featureB = {tri_feature};
+    point.featureA = {box_feature, box_feature_index, 0};
+    point.featureB = {tri_feature, 0, 0};
     point.featureB->index = get_triangle_mesh_feature_index(mesh, tri_idx, tri_feature, tri_feature_index);
 
     if (box_feature == box_feature::face && tri_feature == triangle_feature::face) {

@@ -349,7 +349,7 @@ void dynamic_tree::clear() {
     if (!m_nodes.empty()) {
         m_free_list = 0;
 
-        for (tree_node_id_t id = 0; id < m_nodes.size(); ++id) {
+        for (tree_node_id_t id = 0; id < static_cast<tree_node_id_t>(m_nodes.size()); ++id) {
             auto &node = m_nodes[id];
             node.entity = entt::null;
             node.height = -1;

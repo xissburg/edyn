@@ -40,11 +40,11 @@ polyhedron_shape_initializer::~polyhedron_shape_initializer() {
     }
 }
 
-void polyhedron_shape_initializer::on_construct_polyhedron_shape(entt::registry &registry, entt::entity entity) {
+void polyhedron_shape_initializer::on_construct_polyhedron_shape(entt::registry &/*registry*/, entt::entity entity) {
     m_new_polyhedron_shapes.push_back(entity);
 }
 
-void polyhedron_shape_initializer::on_construct_compound_shape(entt::registry &registry, entt::entity entity) {
+void polyhedron_shape_initializer::on_construct_compound_shape(entt::registry &/*registry*/, entt::entity entity) {
     m_new_compound_shapes.push_back(entity);
 }
 

@@ -36,11 +36,11 @@ island_manager::~island_manager() {
     m_registry->destroy(island_view.begin(), island_view.end());
 }
 
-void island_manager::on_construct_graph_node(entt::registry &registry, entt::entity entity) {
+void island_manager::on_construct_graph_node(entt::registry &/*registry*/, entt::entity entity) {
     m_new_graph_nodes.push_back(entity);
 }
 
-void island_manager::on_construct_graph_edge(entt::registry &registry, entt::entity entity) {
+void island_manager::on_construct_graph_edge(entt::registry &/*registry*/, entt::entity entity) {
     m_new_graph_edges.push_back(entity);
 }
 
@@ -425,10 +425,10 @@ void island_manager::split_islands() {
 
         // Find biggest island among all and move that into the original as to
         // minimize the amount of changes.
-        unsigned biggest_size = 0;
-        unsigned biggest_idx = 0;
+        size_t biggest_size = 0;
+        size_t biggest_idx = 0;
 
-        for (unsigned i = 0; i < islands.size(); ++i) {
+        for (size_t i = 0; i < islands.size(); ++i) {
             auto &island = islands[i];
 
             if (island.nodes.size() > biggest_size) {

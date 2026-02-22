@@ -91,8 +91,8 @@ uint32_t ticks()
 #elif HAVE_CLOCK_GETTIME
         struct timespec now;
         clock_gettime(EDYN_MONOTONIC_CLOCK, &now);
-        ticks = (now.tv_sec - info.start_ts.tv_sec) * 1e3 + (now.tv_nsec -
-                                                 info.start_ts.tv_nsec) / 1e6;
+        ticks = static_cast<uint32_t>((now.tv_sec - info.start_ts.tv_sec) * 1000 + (now.tv_nsec -
+                                                 info.start_ts.tv_nsec) / 1000000);
 #else
         EDYN_ASSERT(false);
         ticks = 0;
@@ -101,7 +101,7 @@ uint32_t ticks()
         struct timeval now;
 
         gettimeofday(&now, nullptr);
-        ticks = (uint32_t)((now.tv_sec - info.start_tv.tv_sec) * 1e3 + (now.tv_usec - info.start_tv.tv_usec) / 1e3);
+        ticks = static_cast<uint32_t>((now.tv_sec - info.start_tv.tv_sec) * 1000 + (now.tv_usec - info.start_tv.tv_usec) / 1000);
     }
     return (ticks);
 }
@@ -115,7 +115,7 @@ uint64_t performance_counter() {
 
         clock_gettime(EDYN_MONOTONIC_CLOCK, &now);
         ticks = now.tv_sec;
-        ticks *= 1e9;
+        ticks *= 1000000000;
         ticks += now.tv_nsec;
 #elif defined(__APPLE__)
         ticks = mach_absolute_time();
@@ -128,7 +128,7 @@ uint64_t performance_counter() {
 
         gettimeofday(&now, nullptr);
         ticks = now.tv_sec;
-        ticks *= 1e6;
+        ticks *= 1000000;
         ticks += now.tv_usec;
     }
     return (ticks);
@@ -162,8 +162,8 @@ void delay(uint32_t ms) {
 
     /* Set the timeout interval */
 #if HAVE_NANOSLEEP
-    elapsed.tv_sec = ms / 1e3;
-    elapsed.tv_nsec = (ms % 1000) * 1e6;
+    elapsed.tv_sec = ms / 1000;
+    elapsed.tv_nsec = (ms % 1000) * 1000000;
 #else
     then = ticks();
 #endif

@@ -93,7 +93,7 @@ void collide(const polyhedron_shape &shA, const capsule_shape &shB,
             contact_normal_attachment::none;
 
     if (is_capsule_edge) {
-        point.featureB = {capsule_feature::side};
+        point.featureB = {capsule_feature::side, 0, 0};
 
         // Check if the vertices of the capsule are inside the polygon.
         if (polygon.hull.size() > 2) {
@@ -159,7 +159,7 @@ void collide(const polyhedron_shape &shA, const capsule_shape &shB,
         auto pivotB_world = closest_capsule_vertex + sep_axis * shB.radius;
         point.pivotB = to_object_space(pivotB_world, posB, ornB);
         point.pivotA = pivotB_world + sep_axis * distance;
-        point.featureB = {capsule_feature::hemisphere, closest_capsule_vertex_index};
+        point.featureB = {capsule_feature::hemisphere, closest_capsule_vertex_index, 0};
         result.add_point(point);
     }
 }
