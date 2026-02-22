@@ -53,17 +53,17 @@ void triangle_mesh::init_edge_indices() {
                 m_edge_face_indices.push_back({idx_max, idx_max});
             }
 
-            vertex_edge_indices[i0].insert(edge_idx);
-            vertex_edge_indices[i1].insert(edge_idx);
+            vertex_edge_indices[i0].insert(static_cast<unsigned int>(edge_idx));
+            vertex_edge_indices[i1].insert(static_cast<unsigned int>(edge_idx));
 
-            m_face_edge_indices[face_idx][i] = edge_idx;
+            m_face_edge_indices[face_idx][i] = static_cast<unsigned int>(edge_idx);
 
             auto &edge_face_indices = m_edge_face_indices[edge_idx];
 
             if (edge_face_indices[0] == idx_max) {
-                edge_face_indices[0] = face_idx;
+                edge_face_indices[0] = static_cast<unsigned int>(face_idx);
             } else if (face_idx != edge_face_indices[0]){
-                edge_face_indices[1] = face_idx;
+                edge_face_indices[1] = static_cast<unsigned int>(face_idx);
             }
         }
     }
@@ -79,7 +79,7 @@ void triangle_mesh::init_edge_indices() {
     m_is_boundary_edge.resize(m_edge_vertex_indices.size());
 
     // Edges with a single valid _edge face index_ are at the boundary.
-    for (index_type edge_idx = 0; edge_idx < m_edge_face_indices.size(); ++edge_idx) {
+    for (index_type edge_idx = 0; edge_idx < static_cast<index_type>(m_edge_face_indices.size()); ++edge_idx) {
         auto &edge_face_indices = m_edge_face_indices[edge_idx];
         EDYN_ASSERT(edge_face_indices[0] != idx_max);
 
@@ -112,7 +112,7 @@ void triangle_mesh::calculate_adjacent_normals() {
             if (other_face_idx == face_idx) {
                 // This is a boundary edge. Make adjacent normal point slightly
                 // away in the edge direction to form a near 180 degree angle.
-                m_adjacent_normals[face_idx][i] = -normalize(m_normals[face_idx] + edge_normal * 0.1);
+                m_adjacent_normals[face_idx][i] = -normalize(m_normals[face_idx] + edge_normal * scalar(0.1));
                 // Boundary edges are always convex.
                 m_is_convex_edge[edge_idx] = true;
             } else {
@@ -137,7 +137,7 @@ void triangle_mesh::build_triangle_tree() {
         aabbs.push_back(tri_aabb);
     }
 
-    auto report_leaf = [](static_tree::tree_node &node, auto ids_begin, auto ids_end) {
+    auto report_leaf = [](static_tree::tree_node &node, auto ids_begin, auto /*ids_end*/) {
         node.id = *ids_begin;
     };
     m_triangle_tree.build(aabbs.begin(), aabbs.end(), report_leaf);

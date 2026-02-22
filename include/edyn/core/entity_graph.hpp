@@ -219,9 +219,9 @@ void entity_graph::visit_edges(index_type node_index0, index_type node_index1, F
                 } else {
                     func(edge_index);
                 }
-                auto &edge = m_edges[edge_index];
-                EDYN_ASSERT(edge.next != edge_index);
-                edge_index = edge.next;
+                auto &current_edge = m_edges[edge_index];
+                EDYN_ASSERT(current_edge.next != edge_index);
+                edge_index = current_edge.next;
             }
             break;
         }
@@ -241,9 +241,9 @@ void entity_graph::visit_edges(index_type node_index, Func func) const {
         auto edge_index = adj.edge_index;
 
         while (edge_index != null_index) {
-            auto &edge = m_edges[edge_index];
-            EDYN_ASSERT(edge.next != edge_index);
-            auto next_edge_index = edge.next;
+            auto &current_edge = m_edges[edge_index];
+            EDYN_ASSERT(current_edge.next != edge_index);
+            auto next_edge_index = current_edge.next;
             if constexpr(std::is_invocable_r_v<bool, Func, index_type>) {
                 if (!func(edge_index)) {
                     return;
@@ -296,33 +296,33 @@ void entity_graph::reach(It first, It last, VisitNodeFunc visit_node_func,
 
             visited[node_index] = true;
 
-            const auto &node = m_nodes[node_index];
-            EDYN_ASSERT(node.entity != entt::null);
-            visit_node_func(node.entity);
+            const auto &current_node = m_nodes[node_index];
+            EDYN_ASSERT(current_node.entity != entt::null);
+            visit_node_func(current_node.entity);
 
             // Stop here for non-connecting nodes. Do not visit edges.
-            if (node.non_connecting) {
+            if (current_node.non_connecting) {
                 non_connecting_indices.push_back(node_index);
                 continue;
             }
 
             // Visit all edges in all adjacencies.
-            auto adj_index = node.adjacency_index;
+            auto adj_index = current_node.adjacency_index;
 
             while (adj_index != null_index) {
                 auto &adj = m_adjacencies[adj_index];
                 auto edge_index = adj.edge_index;
 
                 while (edge_index != null_index) {
-                    auto &edge = m_edges[edge_index];
+                    auto &current_edge = m_edges[edge_index];
 
                     if (!visited_edges[edge_index]) {
-                        EDYN_ASSERT(edge.entity != entt::null);
-                        visit_edge_func(edge.entity);
+                        EDYN_ASSERT(current_edge.entity != entt::null);
+                        visit_edge_func(current_edge.entity);
                         visited_edges[edge_index] = true;
                     }
 
-                    edge_index = edge.next;
+                    edge_index = current_edge.next;
                 }
 
                 // Perhaps visit neighboring node and its edges next.
@@ -375,18 +375,18 @@ void entity_graph::traverse(index_type start_node_index,
         to_visit.pop_back();
 
         visited[node_index] = true;
-        const auto &node = m_nodes[node_index];
-        EDYN_ASSERT(node.entity != entt::null);
+        const auto &current_node = m_nodes[node_index];
+        EDYN_ASSERT(current_node.entity != entt::null);
 
         visit_node_func(node_index);
 
         // Do not visit neighbors of non-connecting nodes.
-        if (node.non_connecting) {
+        if (current_node.non_connecting) {
             continue;
         }
 
         // Add neighbors to be visited.
-        auto adj_index = node.adjacency_index;
+        auto adj_index = current_node.adjacency_index;
 
         while (adj_index != null_index) {
             auto &adj = m_adjacencies[adj_index];
@@ -395,15 +395,15 @@ void entity_graph::traverse(index_type start_node_index,
                 auto edge_index = adj.edge_index;
 
                 while (edge_index != null_index) {
-                    auto &edge = m_edges[edge_index];
+                    auto &current_edge = m_edges[edge_index];
 
                     if (!visited_edges[edge_index]) {
-                        EDYN_ASSERT(edge.entity != entt::null);
+                        EDYN_ASSERT(current_edge.entity != entt::null);
                         visit_edge_func(edge_index);
                         visited_edges[edge_index] = true;
                     }
 
-                    edge_index = edge.next;
+                    edge_index = current_edge.next;
                 }
             }
 

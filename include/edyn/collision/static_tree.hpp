@@ -14,7 +14,7 @@ constexpr uint32_t EDYN_NULL_NODE = UINT32_MAX;
 
 namespace detail {
     template<typename Iterator_AABB, typename Iterator_ids>
-    Iterator_ids aabb_set_partition(Iterator_AABB aabb_begin, Iterator_AABB aabb_end,
+    Iterator_ids aabb_set_partition(Iterator_AABB aabb_begin, Iterator_AABB,
                                     Iterator_ids ids_begin, Iterator_ids ids_end,
                                     const AABB &set_aabb) {
         auto aabb_size = set_aabb.max - set_aabb.min;
@@ -118,8 +118,8 @@ public:
             auto child1 = m_nodes.size();
             auto child2 = m_nodes.size() + 1;
 
-            node.child1 = child1;
-            node.child2 = child2;
+            node.child1 = static_cast<uint32_t>(child1);
+            node.child2 = static_cast<uint32_t>(child2);
 
             m_nodes.emplace_back();
             m_nodes.emplace_back();

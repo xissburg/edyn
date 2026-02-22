@@ -64,7 +64,7 @@ stepper_async::~stepper_async() {
     m_message_queue_handle.update(); // Flush remaining messages.
 }
 
-void stepper_async::on_construct_shared(entt::registry &registry, entt::entity entity) {
+void stepper_async::on_construct_shared(entt::registry &/*registry*/, entt::entity entity) {
     m_op_observer->observe(entity);
 }
 
@@ -224,7 +224,7 @@ void stepper_async::on_query_aabb_response(message<msg::query_aabb_response> &ms
     m_query_aabb_ctx.erase(response.id);
 }
 
-void stepper_async::on_profiling(message<msg::profiling> &msg) {
+void stepper_async::on_profiling([[maybe_unused]] message<msg::profiling> &msg) {
 #ifndef EDYN_DISABLE_PROFILING
     m_registry->ctx().get<profile_timers>() = msg.content.timers;
     m_registry->ctx().get<profile_counters>() = msg.content.counters;
@@ -246,7 +246,7 @@ void stepper_async::calculate_presentation_delay(double current_time, double ela
     auto time_diff = std::min(current_time - m_sim_time, 1.0);
     m_time_diff_samples.back() = time_diff;
 
-    auto time_diff_avg = std::accumulate(m_time_diff_samples.begin(), m_time_diff_samples.end(), 0.0) / m_time_diff_samples.size();
+    auto time_diff_avg = std::accumulate(m_time_diff_samples.begin(), m_time_diff_samples.end(), 0.0) / static_cast<double>(m_time_diff_samples.size());
     auto time_diff_dev = m_time_diff_samples; // Calculate deviation from average.
 
     for (auto &val : time_diff_dev) {

@@ -157,7 +157,7 @@ shape_raycast_result shape_raycast(const cylinder_shape &cylinder, const raycast
         auto result = shape_raycast_result{};
         result.fraction = fraction_in;
         result.normal = intersect_result.normal / std::sqrt(intersect_result.dist_sqr);
-        result.info_var = cylinder_raycast_info{cylinder_feature::side_edge};
+        result.info_var = cylinder_raycast_info{cylinder_feature::side_edge, 0};
         return result;
     }
 
@@ -245,7 +245,7 @@ shape_raycast_result shape_raycast(const capsule_shape &capsule, const raycast_c
         auto result = shape_raycast_result{};
         result.fraction = u_in;
         result.normal = intersect_result.normal / std::sqrt(intersect_result.dist_sqr);
-        result.info_var = capsule_raycast_info{capsule_feature::side};
+        result.info_var = capsule_raycast_info{capsule_feature::side, 0};
 
         return result;
     }
@@ -337,7 +337,7 @@ shape_raycast_result shape_raycast(const compound_shape &compound, const raycast
         if (child_result.fraction < result.fraction) {
             result.fraction = child_result.fraction;
             result.normal = rotate(ctx.orn, child_result.normal);
-            auto info = compound_raycast_info{node_index};
+            auto info = compound_raycast_info{node_index, {}};
             // Obtain and assign relevant child info.
             using child_info_var_t = decltype(info.child_info_var);
             std::visit([&](auto &&child_info) {

@@ -21,10 +21,10 @@ struct action_history {
         std::vector<uint8_t> data; // Serialized action list binary data.
 
         entry() = default;
-        entry(double timestamp, action_index_type action_index, std::vector<uint8_t> &&data)
-            : timestamp(timestamp)
-            , action_index(action_index)
-            , data(std::move(data))
+        entry(double t, action_index_type idx, std::vector<uint8_t> &&d)
+            : timestamp(t)
+            , action_index(idx)
+            , data(std::move(d))
         {}
     };
 
@@ -37,7 +37,7 @@ struct action_history {
 
     void erase_until(double timestamp) {
         auto it = std::find_if(entries.begin(), entries.end(),
-                               [timestamp](auto &&entry) { return entry.timestamp >= timestamp; });
+                               [timestamp](auto &&e) { return e.timestamp >= timestamp; });
         entries.erase(entries.begin(), it);
     }
 
@@ -46,7 +46,7 @@ struct action_history {
 
         // Only append newer entries.
         auto other_begin = std::find_if(other.entries.begin(), other.entries.end(),
-                                        [&](auto &&entry) { return entry.timestamp > last_timestamp; });
+                                        [&](auto &&e) { return e.timestamp > last_timestamp; });
         entries.insert(entries.end(), other_begin, other.entries.end());
 
         if (!entries.empty()) {

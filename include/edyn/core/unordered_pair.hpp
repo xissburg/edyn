@@ -14,9 +14,9 @@ struct unordered_pair {
     T second;
 
     unordered_pair() = default;
-    unordered_pair(T first, T second)
-        : first(first)
-        , second(second)
+    unordered_pair(T f, T s)
+        : first(f)
+        , second(s)
     {}
 
     auto operator[](unsigned idx) const {

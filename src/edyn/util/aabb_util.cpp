@@ -41,7 +41,7 @@ AABB plane_aabb(const vector3 &normal, scalar constant) {
 
 AABB box_aabb(const vector3 &half_extents, const vector3 &pos, const quaternion &orn) {
     // Reference: Real-Time Collision Detection - Christer Ericson, section 4.2.6.
-    auto aabb = AABB{pos, pos};
+    auto result = AABB{pos, pos};
     auto basis = to_matrix3x3(orn);
 
     for (int i = 0; i < 3; ++i) {
@@ -50,16 +50,16 @@ AABB box_aabb(const vector3 &half_extents, const vector3 &pos, const quaternion 
             auto f = -e;
 
             if (e < f) {
-                aabb.min[i] += e;
-                aabb.max[i] += f;
+                result.min[i] += e;
+                result.max[i] += f;
             } else {
-                aabb.min[i] += f;
-                aabb.max[i] += e;
+                result.min[i] += f;
+                result.max[i] += e;
             }
         }
     }
 
-    return aabb;
+    return result;
 }
 
 AABB sphere_aabb(scalar radius, const vector3 &pos) {
@@ -164,12 +164,12 @@ AABB point_cloud_aabb(const std::vector<vector3> &points,
     return aabb;
 }
 
-AABB shape_aabb(const plane_shape &sh, const vector3 &pos, const quaternion &orn) {
+AABB shape_aabb(const plane_shape &sh, const vector3 &/*pos*/, const quaternion &/*orn*/) {
     // Position and orientation are ignored for planes.
     return plane_aabb(sh.normal, sh.constant);
 }
 
-AABB shape_aabb(const sphere_shape &sh, const vector3 &pos, const quaternion &orn) {
+AABB shape_aabb(const sphere_shape &sh, const vector3 &pos, const quaternion &/*orn*/) {
     return sphere_aabb(sh.radius, pos);
 }
 
@@ -181,7 +181,7 @@ AABB shape_aabb(const capsule_shape &sh, const vector3 &pos, const quaternion &o
     return capsule_aabb(sh.radius, sh.half_length, sh.axis, pos, orn);
 }
 
-AABB shape_aabb(const mesh_shape &sh, const vector3 &pos, const quaternion &orn) {
+AABB shape_aabb(const mesh_shape &sh, const vector3 &pos, const quaternion &/*orn*/) {
     return {
         sh.trimesh->get_aabb().min + pos,
         sh.trimesh->get_aabb().max + pos
@@ -196,7 +196,7 @@ AABB shape_aabb(const polyhedron_shape &sh, const vector3 &pos, const quaternion
     return point_cloud_aabb(sh.mesh->vertices, pos, orn);
 }
 
-AABB shape_aabb(const paged_mesh_shape &sh, const vector3 &pos, const quaternion &orn) {
+AABB shape_aabb(const paged_mesh_shape &sh, const vector3 &pos, const quaternion &/*orn*/) {
     return {
         sh.trimesh->get_aabb().min + pos,
         sh.trimesh->get_aabb().max + pos

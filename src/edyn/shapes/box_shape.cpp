@@ -104,7 +104,7 @@ void box_shape::support_feature(const vector3 &pos, const quaternion &orn,
     projection += dot(pos - axis_pos, axis_dir);
 }
 
-void box_shape::support_feature(const vector3 &pos, const quaternion &orn,
+void box_shape::support_feature(const vector3 &/*pos*/, const quaternion &orn,
                                 const vector3 &axis_dir, box_feature &feature,
                                 size_t &feature_index, scalar threshold) const {
     auto local_dir = rotate(conjugate(orn), axis_dir);

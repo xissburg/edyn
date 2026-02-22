@@ -61,7 +61,7 @@ void stepper_sequential::update(double time) {
     if (effective_steps > settings.max_steps_per_update) {
         effective_steps = settings.max_steps_per_update;
         // Scale up the effective delta time in each step.
-        step_dt = advance_dt / effective_steps;
+        step_dt = static_cast<scalar>(advance_dt / static_cast<double>(effective_steps));
     }
 
     // Initialize new AABBs and shapes even in case num_steps is zero.
@@ -71,7 +71,7 @@ void stepper_sequential::update(double time) {
     for (unsigned i = 0; i < effective_steps; ++i) {
         EDYN_PROFILE_BEGIN(step_prof_time);
 
-        auto step_time = sim_time + step_dt * i;
+        auto step_time = sim_time + step_dt * static_cast<scalar>(i);
 
         if (settings.pre_step_callback) {
             (*settings.pre_step_callback)(*m_registry);

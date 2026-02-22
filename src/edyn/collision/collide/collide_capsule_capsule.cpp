@@ -29,7 +29,7 @@ void collide(const capsule_shape &shA, const capsule_shape &shB,
     }
 
     vector3 normal;
-    scalar distance;
+    scalar distance {0};
 
     if (dist_sqr > EDYN_EPSILON) {
         auto dist = std::sqrt(dist_sqr);
@@ -58,16 +58,16 @@ void collide(const capsule_shape &shA, const capsule_shape &shB,
     point.normal_attachment = contact_normal_attachment::none;
 
     if (num_points == 2 || (s[0] > 0 && s[0] < 1)) {
-        point.featureA = {capsule_feature::side};
+        point.featureA = {capsule_feature::side, 0, 0};
     } else {
-        point.featureA = {capsule_feature::hemisphere};
+        point.featureA = {capsule_feature::hemisphere, 0, 0};
         point.featureA->index = s[0] == 0 ? 0 : 1;
     }
 
     if (num_points == 2 || (t[0] > 0 && t[0] < 1)) {
-        point.featureB = {capsule_feature::side};
+        point.featureB = {capsule_feature::side, 0, 0};
     } else {
-        point.featureB = {capsule_feature::hemisphere};
+        point.featureB = {capsule_feature::hemisphere, 0, 0};
         point.featureB->index = t[0] == 0 ? 0 : 1;
     }
 

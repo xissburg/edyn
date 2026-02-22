@@ -57,7 +57,7 @@ void generic_constraint::prepare(
                 }
 
                 options.restitution = dof.limit_restitution;
-                options.erp = 0.9;
+                options.erp = scalar(0.9);
             } else {
                 row.lower_limit = -large_scalar;
                 row.upper_limit = large_scalar;

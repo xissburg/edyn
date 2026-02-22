@@ -20,7 +20,7 @@ AABB updated_aabb(const ShapeType &shape, const vector3 &pos, const quaternion &
 
 template<>
 AABB updated_aabb(const polyhedron_shape &polyhedron,
-                  const vector3 &pos, const quaternion &orn) {
+                  const vector3 &pos, const quaternion &/*orn*/) {
     // `shape_aabb(const polyhedron_shape &, ...)` rotates each vertex of a
     // polyhedron to calculate the AABB. Specialize `updated_aabb` for
     // polyhedrons to use the rotated mesh.
@@ -117,7 +117,7 @@ void update_island_aabbs(entt::registry &registry, It first, It last) {
             }
         }
 
-        auto [island, aabb] = island_view.get(island_entity);
+        auto [island, island_aabb] = island_view.get(island_entity);
         auto is_first_node = true;
 
         for (auto entity : island.nodes) {
@@ -128,10 +128,10 @@ void update_island_aabbs(entt::registry &registry, It first, It last) {
             auto &node_aabb = aabb_view.get<AABB>(entity);
 
             if (is_first_node) {
-                aabb = {node_aabb};
+                island_aabb = {node_aabb};
                 is_first_node = false;
             } else {
-                aabb = {enclosing_aabb(aabb, node_aabb)};
+                island_aabb = {enclosing_aabb(island_aabb, node_aabb)};
             }
         }
     }

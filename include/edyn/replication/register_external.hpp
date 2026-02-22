@@ -27,12 +27,12 @@ namespace edyn {
 template<typename... Components, typename... Actions>
 void register_external_components(entt::registry &registry, std::tuple<Actions...> actions = {}) {
     auto &reg_op_ctx = registry.ctx().get<registry_operation_context>();
-    reg_op_ctx.make_reg_op_builder = [](entt::registry &registry) {
+    reg_op_ctx.make_reg_op_builder = [](entt::registry &reg) {
         auto external = std::tuple<Components...>{};
         auto action_lists = std::tuple<action_list<Actions>...>{};
         auto all_components = std::tuple_cat(shared_components_t{}, external, action_lists);
         return std::unique_ptr<registry_operation_builder>(
-            new registry_operation_builder_impl(registry, all_components));
+            new registry_operation_builder_impl(reg, all_components));
     };
     reg_op_ctx.make_reg_op_observer = [](registry_operation_builder &builder) {
         auto external = std::tuple<Components...>{};
@@ -44,8 +44,8 @@ void register_external_components(entt::registry &registry, std::tuple<Actions..
 
     if constexpr(sizeof...(Actions) > 0) {
         auto &settings = registry.ctx().get<edyn::settings>();
-        settings.clear_actions_func = [](entt::registry &registry) {
-            (registry.view<action_list<Actions>>().each([](auto &&list) { list.actions.clear(); }), ...);
+        settings.clear_actions_func = [](entt::registry &reg) {
+            (reg.view<action_list<Actions>>().each([](auto &&list) { list.actions.clear(); }), ...);
         };
     }
 

@@ -71,7 +71,7 @@ static void collide_polyhedron_triangle(
 
     // Edge vs edge.
     scalar min_edge_dist = -EDYN_SCALAR_MAX;
-    scalar edge_projection_poly, edge_projection_tri;
+    scalar edge_projection_poly {0}, edge_projection_tri {0};
     vector3 edge_dir;
 
     for (auto edge_idxA = 0u; edge_idxA < poly_mesh.num_edges(); ++edge_idxA) {
@@ -184,7 +184,7 @@ static void collide_polyhedron_triangle(
     collision_result::collision_point point;
     point.normal = sep_axis;
     point.distance = distance;
-    point.featureB = {tri_feature};
+    point.featureB = {tri_feature, 0, 0};
     point.featureB->index = get_triangle_mesh_feature_index(tri_mesh, tri_idx, tri_feature, tri_feature_index);
     point.normal_attachment = contact_normal_attachment::none;
 

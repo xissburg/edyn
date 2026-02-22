@@ -97,7 +97,7 @@ void collide(const polyhedron_shape &shA, const polyhedron_shape &shB,
 
     // Edge vs edge.
     scalar min_edge_dist = -EDYN_SCALAR_MAX;
-    scalar edge_projectionA, edge_projectionB;
+    scalar edge_projectionA {0}, edge_projectionB {0};
     vector3 edge_dir;
 
     for (auto edge_idxA = 0u; edge_idxA < meshA.num_edges(); ++edge_idxA) {
@@ -186,7 +186,7 @@ void collide(const polyhedron_shape &shA, const polyhedron_shape &shB,
                 auto pivotA = to_object_space(pointA, posA, ornA);
                 auto pivotB_world = project_plane(pointA, polygonB.origin, sep_axis);
                 auto pivotB = to_object_space(pivotB_world, posB, ornB);
-                result.maybe_add_point({pivotA, pivotB, sep_axis, distance, normal_attachment});
+                result.maybe_add_point({pivotA, pivotB, sep_axis, distance, normal_attachment, {}, {}});
             }
         }
     }
@@ -199,7 +199,7 @@ void collide(const polyhedron_shape &shA, const polyhedron_shape &shB,
                 auto pivotB = to_object_space(pointB, posB, ornB);
                 auto pivotA_world = project_plane(pointB, polygonA.origin, sep_axis);
                 auto pivotA = to_object_space(pivotA_world, posA, ornA);
-                result.maybe_add_point({pivotA, pivotB, sep_axis, distance, normal_attachment});
+                result.maybe_add_point({pivotA, pivotB, sep_axis, distance, normal_attachment, {}, {}});
             }
         }
     }
@@ -234,7 +234,7 @@ void collide(const polyhedron_shape &shA, const polyhedron_shape &shB,
                     auto pivotB_world = lerp(polygonB.vertices[idx0B], polygonB.vertices[idx1B], t[k]);
                     auto pivotA = to_object_space(pivotA_world, posA, ornA);
                     auto pivotB = to_object_space(pivotB_world, posB, ornB);
-                    result.maybe_add_point({pivotA, pivotB, sep_axis, distance, normal_attachment});
+                    result.maybe_add_point({pivotA, pivotB, sep_axis, distance, normal_attachment, {}, {}});
                 }
             }
         }

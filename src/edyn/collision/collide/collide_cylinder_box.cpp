@@ -177,8 +177,8 @@ void collide(const cylinder_shape &shA, const box_shape &shB,
     collision_result::collision_point point;
     point.normal = sep_axis;
     point.distance = distance;
-    point.featureA = {featureA, feature_indexA};
-    point.featureB = {featureB, feature_indexB};
+    point.featureA = {featureA, feature_indexA, 0};
+    point.featureB = {featureB, feature_indexB, 0};
 
     // Index of vector element in cylinder object space that represents the
     // cylinder axis followed by the indices of the elements of the axes

@@ -125,7 +125,7 @@ void paged_triangle_mesh_file_input_archive::load(paged_triangle_mesh *trimesh, 
     }
 }
 
-void load_mesh_context::load(unsigned start, unsigned end) {
+void load_mesh_context::load(unsigned /*start*/, unsigned /*end*/) {
     auto *input = reinterpret_cast<paged_triangle_mesh_file_input_archive *>(m_input);
     auto mesh = std::make_shared<triangle_mesh>();
 

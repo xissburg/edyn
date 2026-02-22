@@ -120,8 +120,8 @@ static void collide_capsule_triangle(
     collision_result::collision_point point;
     point.normal = sep_axis;
     point.distance = distance;
-    point.featureA = {featureA, feature_indexA};
-    point.featureB = {tri_feature};
+    point.featureA = {featureA, feature_indexA, 0};
+    point.featureB = {tri_feature, 0, 0};
     point.featureB->index = get_triangle_mesh_feature_index(mesh, tri_idx, tri_feature, tri_feature_index);
 
     switch (tri_feature) {

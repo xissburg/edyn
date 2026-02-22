@@ -32,7 +32,7 @@ void collide(const polyhedron_shape &shA, const plane_shape &shB,
         auto pivotA = rotate(conjugate(ctx.ornA), pointA);
         auto local_distance = dot(pointA - center, normal);
         auto pivotB = pointA - normal * local_distance + posA; // Project onto plane.
-        result.maybe_add_point({pivotA, pivotB, normal, local_distance, normal_attachment});
+        result.maybe_add_point({pivotA, pivotB, normal, local_distance, normal_attachment, {}, {}});
     }
 }
 

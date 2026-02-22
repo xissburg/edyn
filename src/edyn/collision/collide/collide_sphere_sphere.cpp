@@ -23,7 +23,7 @@ void collide(const sphere_shape &shA, const sphere_shape &shB,
     auto pivotB = rB;
     auto normal = dn;
     auto distance = dist - shA.radius - shB.radius;
-    result.add_point({pivotA, pivotB, normal, distance, contact_normal_attachment::none});
+    result.add_point({pivotA, pivotB, normal, distance, contact_normal_attachment::none, {}, {}});
 }
 
 }

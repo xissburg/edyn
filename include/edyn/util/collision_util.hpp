@@ -188,7 +188,7 @@ void process_collision(entt::registry &registry, entt::entity manifold_entity,
         contact_point_for_each(cp_view, manifold_state.contact_entity, [&](entt::entity contact_entity) {
             if (points_removed.contains(contact_entity)) return;
             auto [cp, cp_geom] = cp_view.template get<contact_point, contact_point_geometry>(contact_entity);
-            local_points[pt_idx].point = {cp.pivotA, cp.pivotB, cp.normal, cp_geom.distance};
+            local_points[pt_idx].point = {cp.pivotA, cp.pivotB, cp.normal, cp_geom.distance, {}, {}, {}};
             local_points[pt_idx].contact_entity = contact_entity;
             ++pt_idx;
         });

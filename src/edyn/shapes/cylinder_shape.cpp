@@ -49,7 +49,7 @@ void cylinder_shape::support_feature(const vector3 &dir, cylinder_feature &out_f
     out_feature_index = dir[cyl_ax_idx] > 0 ? 0 : 1;
 }
 
-void cylinder_shape::support_feature(const vector3 &pos, const quaternion &orn, const vector3 &axis_dir,
+void cylinder_shape::support_feature(const vector3 &/*pos*/, const quaternion &orn, const vector3 &axis_dir,
                                      cylinder_feature &out_feature, size_t &out_feature_index,
                                      scalar threshold) const {
     auto local_dir = rotate(conjugate(orn), axis_dir);

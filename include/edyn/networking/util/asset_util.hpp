@@ -33,8 +33,8 @@ void assign_to_asset(entt::registry &registry, entt::entity entity, entt::entity
     if constexpr(sizeof...(Component) > 0) {
         if (auto *ctx = registry.ctx().find<client_network_context>()) {
             (entry.sync_indices.push_back(ctx->snapshot_exporter->get_component_index<Component>()), ...);
-        } else if (auto *ctx = registry.ctx().find<server_network_context>()) {
-            (entry.sync_indices.push_back(ctx->snapshot_exporter->get_component_index<Component>()), ...);
+        } else if (auto *server_ctx = registry.ctx().find<server_network_context>()) {
+            (entry.sync_indices.push_back(server_ctx->snapshot_exporter->get_component_index<Component>()), ...);
         }
     }
 }

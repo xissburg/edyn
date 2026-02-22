@@ -44,7 +44,7 @@ class registry_operation_builder {
     }
 
 public:
-    registry_operation_builder(entt::registry &registry) : registry(&registry) {}
+    registry_operation_builder(entt::registry &reg) : registry(&reg) {}
     virtual ~registry_operation_builder() = default;
 
     template<typename It>
@@ -248,13 +248,13 @@ public:
 
     registry_operation_builder_impl() = default;
 
-    registry_operation_builder_impl(entt::registry &registry)
-        : registry_operation_builder(registry)
+    registry_operation_builder_impl(entt::registry &reg)
+        : registry_operation_builder(reg)
         , m_indices(detail::make_component_indices_map<Components...>())
     {}
 
-    registry_operation_builder_impl(entt::registry &registry, [[maybe_unused]] std::tuple<Components...>)
-        : registry_operation_builder(registry)
+    registry_operation_builder_impl(entt::registry &reg, [[maybe_unused]] std::tuple<Components...>)
+        : registry_operation_builder(reg)
         , m_indices(detail::make_component_indices_map<Components...>())
     {}
 
