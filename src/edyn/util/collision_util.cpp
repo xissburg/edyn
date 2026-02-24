@@ -349,7 +349,10 @@ entt::entity create_contact_point(entt::registry &registry,
     auto cp_list = contact_point_list{};
     cp_list.parent = manifold_entity;
     cp_list.next = manifold_state.contact_entity;
+
     manifold_state.contact_entity = contact_entity;
+    ++manifold_state.num_points;
+    registry.patch<contact_manifold_state>(manifold_entity);
 
     // Assign material properties to contact point.
     if (registry.all_of<material>(manifold.body[0]) && registry.all_of<material>(manifold.body[1])) {
@@ -384,13 +387,10 @@ entt::entity create_contact_point(entt::registry &registry,
     registry.emplace<contact_point_list>(contact_entity, std::move(cp_list));
     registry.emplace<contact_point>(contact_entity, std::move(cp));
 
-    ++manifold_state.num_points;
-
     if (transient_contact) {
         registry.emplace<transient>(contact_entity, *transient_contact);
     }
 
-    registry.patch<contact_manifold_state>(manifold_entity);
     return contact_entity;
 }
 
