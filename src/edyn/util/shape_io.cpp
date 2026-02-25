@@ -57,12 +57,12 @@ static void read_face(std::istringstream &iss,
                       std::vector<uint32_t> &faces,
                       uint32_t offset, bool triangulate) {
     // Store where this face starts in the `indices` array.
-    faces.push_back(indices.size());
+    faces.push_back(static_cast<uint32_t>(indices.size()));
 
     read_face_indices(iss, indices, offset, triangulate);
 
     // Store the number of vertices in this face.
-    auto count = indices.size() - faces.back();
+    auto count = static_cast<uint32_t>(indices.size() - faces.back());
     faces.push_back(count);
 }
 
@@ -87,7 +87,7 @@ void load_meshes_from_obj_stream(Stream &stream,
 
         if (cmd == "o") {
             if (!mesh.vertices.empty()) {
-                index_offset += mesh.vertices.size();
+                index_offset += static_cast<uint32_t>(mesh.vertices.size());
                 meshes.emplace_back(std::move(mesh));
             }
             auto iss = std::istringstream(line.substr(pos_space, line.size() - pos_space));

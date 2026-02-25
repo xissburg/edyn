@@ -204,7 +204,19 @@ target_link_options(Edyn
 )
 
 if(MSVC)
-    target_compile_options(Edyn PRIVATE /W4 /bigobj)
+    target_compile_options(Edyn PRIVATE 
+        /W4 /bigobj
+        # Suppress common MSVC warnings that don't affect functionality
+        /wd4244  # conversion from 'type1' to 'type2', possible loss of data
+        /wd4100  # unreferenced formal parameter
+        /wd4996  # function was declared deprecated
+        /wd4701  # potentially uninitialized local variable used
+        /wd4305  # truncation from 'type1' to 'type2'
+        /wd4267  # conversion from 'size_t' to 'type', possible loss of data
+        /wd4127  # conditional expression is constant
+        /wd4456  # declaration hides previous local declaration
+        /wd4458  # declaration hides class member
+    )
 else()
     target_compile_options(Edyn PRIVATE -Wall -Wno-reorder -Wno-long-long -Wimplicit-fallthrough)
 endif()

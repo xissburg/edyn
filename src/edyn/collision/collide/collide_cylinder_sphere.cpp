@@ -44,7 +44,7 @@ void collide(const cylinder_shape &shA, const sphere_shape &shB,
         point.distance = dist - shA.radius - shB.radius;
         point.normal = normal;
         point.normal_attachment = contact_normal_attachment::none;
-        point.featureA = {cylinder_feature::side_edge};
+        point.featureA = {cylinder_feature::side_edge, 0, 0};
         result.add_point(point);
         return;
     }
@@ -76,10 +76,10 @@ void collide(const cylinder_shape &shA, const sphere_shape &shB,
 
     if (distance_sqr(sphere_proj, posA) < shA.radius * shA.radius) {
         point.normal_attachment = contact_normal_attachment::normal_on_A;
-        point.featureA = {cylinder_feature::face, cyl_face_idx};
+        point.featureA = {cylinder_feature::face, cyl_face_idx, 0};
     } else {
         point.normal_attachment = contact_normal_attachment::none;
-        point.featureA = {cylinder_feature::side_edge, cyl_face_idx};
+        point.featureA = {cylinder_feature::side_edge, cyl_face_idx, 0};
     }
 
     result.add_point(point);

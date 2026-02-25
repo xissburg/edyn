@@ -53,7 +53,7 @@ namespace edyn::internal {
                                  });
 
         if (pool == pools.end()) {
-            pools.push_back(pool_snapshot{component_index});
+            pools.push_back(pool_snapshot{component_index, {}});
             pool = pools.end();
             std::advance(pool, -1);
             pool->ptr.reset(new pool_snapshot_data_t);

@@ -76,7 +76,7 @@ void run_parallel_for(parallel_for_context &ctx) {
         }
 
         auto end = std::min(begin + ctx.chunk_size, ctx.last);
-        ctx.task(begin, end);
+        ctx.task(static_cast<unsigned>(begin), static_cast<unsigned>(end));
     }
 }
 
@@ -112,7 +112,7 @@ struct parallel_for_async_context {
         , step(step)
         , chunk_size(chunk_size)
         , completed_counter(0)
-        , ref_counter(num_jobs)
+        , ref_counter(static_cast<int>(num_jobs))
         , task(task)
         , completion(completion)
     {}
@@ -133,10 +133,10 @@ void parallel_for_async_job_func(job::data_type &data) {
             break;
         }
 
-        ctx->task(begin, end);
+        ctx->task(static_cast<unsigned>(begin), static_cast<unsigned>(end));
 
         const auto progress = end - begin;
-        const auto completed = ctx->completed_counter.fetch_add(progress, std::memory_order_relaxed) + progress;
+        const auto completed = ctx->completed_counter.fetch_add(static_cast<int>(progress), std::memory_order_relaxed) + progress;
         EDYN_ASSERT(completed <= total);
 
         if (completed == total) {
@@ -160,12 +160,12 @@ void enqueue_task_default(task_delegate_t task, unsigned size, task_completion_d
     auto num_workers = dispatcher.num_workers();
 
     // Size of chunk that will be processed per job iteration.
-    unsigned count_per_worker_ceil = size / num_workers + (size % num_workers != 0);
+    unsigned count_per_worker_ceil = size / static_cast<unsigned>(num_workers) + (size % static_cast<unsigned>(num_workers) != 0);
     auto chunk_size = std::max(count_per_worker_ceil, 1u);
 
     // Number of jobs that will be dispatched. Must not be greater than number
     // of workers.
-    auto num_jobs = std::min(num_workers, size_t{size});
+    auto num_jobs = std::min(num_workers, static_cast<size_t>(size));
 
     // Context that's shared among all jobs. It is deallocated when the last
     // job finishes.
@@ -186,7 +186,7 @@ void enqueue_task_default(task_delegate_t task, unsigned size, task_completion_d
 
 void enqueue_task_wait_default(task_delegate_t task, unsigned size) {
     auto &dispatcher = job_dispatcher::global();
-    unsigned num_workers = dispatcher.num_workers();
+    unsigned num_workers = static_cast<unsigned>(dispatcher.num_workers());
     unsigned chunk_size = std::max(size / (num_workers + 1), 1u);
     unsigned num_jobs = std::min(num_workers, size - 1u);
     auto context = parallel_for_context{0u, size, 1u, chunk_size, num_jobs, task};

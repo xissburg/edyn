@@ -42,7 +42,7 @@ void collide(const box_shape &shA, const plane_shape &shB,
     collision_result::collision_point point;
     point.normal = shB.normal;
     point.distance = distance;
-    point.featureA = {featureA, feature_indexA};
+    point.featureA = {featureA, feature_indexA, 0};
     point.normal_attachment = contact_normal_attachment::normal_on_B;
 
     for (size_t i = 0; i < num_vertices; ++i) {

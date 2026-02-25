@@ -565,7 +565,7 @@ void rigidbody_replace_kind_tags(entt::registry &registry, entt::entity entity, 
     }
 }
 
-void rigidbody_assert_supports_kind(entt::registry &registry, entt::entity entity, rigidbody_kind kind) {
+void rigidbody_assert_supports_kind([[maybe_unused]] entt::registry &registry, [[maybe_unused]] entt::entity entity, [[maybe_unused]] rigidbody_kind kind) {
 #ifndef EDYN_DISABLE_ASSERT
     if (kind == rigidbody_kind::rb_dynamic) {
         auto &mass = registry.get<edyn::mass>(entity);

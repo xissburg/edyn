@@ -149,8 +149,8 @@ void collide_cylinder_triangle(
     collision_result::collision_point point;
     point.normal = sep_axis;
     point.distance = distance;
-    point.featureA = {cyl_feature, cyl_feature_index};
-    point.featureB = {tri_feature};
+    point.featureA = {cyl_feature, cyl_feature_index, 0};
+    point.featureB = {tri_feature, 0, 0};
     point.featureB->index = get_triangle_mesh_feature_index(mesh, tri_idx, tri_feature, tri_feature_index);
 
     // Index of vector element in cylinder object space that represents the

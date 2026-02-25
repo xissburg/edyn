@@ -21,10 +21,10 @@ struct server_settings {
     server_settings(settings &settings, bool allow_full_ownership)
         : fixed_dt(settings.fixed_dt)
         , gravity(settings.gravity)
-        , num_solver_velocity_iterations(settings.num_solver_velocity_iterations)
-        , num_solver_position_iterations(settings.num_solver_position_iterations)
-        , num_restitution_iterations(settings.num_restitution_iterations)
-        , num_individual_restitution_iterations(settings.num_individual_restitution_iterations)
+        , num_solver_velocity_iterations(static_cast<uint8_t>(settings.num_solver_velocity_iterations))
+        , num_solver_position_iterations(static_cast<uint8_t>(settings.num_solver_position_iterations))
+        , num_restitution_iterations(static_cast<uint8_t>(settings.num_restitution_iterations))
+        , num_individual_restitution_iterations(static_cast<uint8_t>(settings.num_individual_restitution_iterations))
         , allow_full_ownership(allow_full_ownership)
     {}
 };

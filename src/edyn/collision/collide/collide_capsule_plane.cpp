@@ -33,7 +33,7 @@ void collide(const capsule_shape &shA, const plane_shape &shB,
         auto pivotA_world = vertex - shB.normal * shA.radius;
         auto pivotA = to_object_space(pivotA_world, ctx.posA, ctx.ornA);
         auto pivotB = project_plane(vertex, center, shB.normal);
-        result.add_point({pivotA, pivotB, shB.normal, distance, contact_normal_attachment::normal_on_B, featureA});
+        result.add_point({pivotA, pivotB, shB.normal, distance, contact_normal_attachment::normal_on_B, featureA, {}});
     }
 }
 

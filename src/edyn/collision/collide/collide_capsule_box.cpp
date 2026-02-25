@@ -52,7 +52,7 @@ void collide(const capsule_shape &shA, const box_shape &shB,
     // Box edges vs capsule edge.
     for (size_t i = 0; i < get_box_num_features(box_feature::edge); ++i) {
         auto [vertexA0, vertexA1] = shB.get_edge(i, posB, ornB);
-        scalar s, t;
+        scalar s {0}, t {0};
         vector3 closestA, closestB;
         closest_point_segment_segment(vertexA0, vertexA1,
                                       capsule_vertices[0], capsule_vertices[1],
@@ -100,9 +100,9 @@ void collide(const capsule_shape &shA, const box_shape &shB,
     }
 
     auto contact_origin_box = sep_axis * projection_box;
-    scalar feature_distanceB;
-    box_feature featureB;
-    size_t feature_indexB;
+    scalar feature_distanceB {0};
+    box_feature featureB {};
+    size_t feature_indexB {0};
     shB.support_feature(posB, ornB, contact_origin_box, sep_axis,
                         featureB, feature_indexB,
                         feature_distanceB, support_feature_tolerance);
@@ -110,8 +110,8 @@ void collide(const capsule_shape &shA, const box_shape &shB,
     collision_result::collision_point point;
     point.normal = sep_axis;
     point.distance = distance;
-    point.featureA = {featureA, feature_indexA};
-    point.featureB = {featureB, feature_indexB};
+    point.featureA = {featureA, feature_indexA, 0};
+    point.featureB = {featureB, feature_indexB, 0};
 
     switch (featureB) {
     case box_feature::face: {

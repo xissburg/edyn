@@ -139,9 +139,9 @@ struct pool_snapshot_data_impl : public pool_snapshot_data {
         index_type idx;
 
         if (found_it != pool_entities.end()) {
-            idx = std::distance(pool_entities.begin(), found_it);
+            idx = static_cast<index_type>(std::distance(pool_entities.begin(), found_it));
         } else {
-            idx = pool_entities.size();
+            idx = static_cast<index_type>(pool_entities.size());
             pool_entities.push_back(entity);
         }
 

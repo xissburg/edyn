@@ -5,7 +5,7 @@
 namespace edyn {
 
 polyhedron_shape::polyhedron_shape(std::shared_ptr<convex_mesh> mesh)
-    : mesh(mesh)
+    : mesh(std::move(mesh))
 {}
 
 }

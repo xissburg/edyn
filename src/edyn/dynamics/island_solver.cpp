@@ -48,7 +48,7 @@ struct island_solver_context {
     entt::registry *registry;
     entt::entity island_entity;
     atomic_counter_sync *counter_sync {nullptr};
-    scalar dt;
+    scalar dt {0};
     uint8_t num_iterations;
     uint8_t num_position_iterations;
     uint8_t iteration {};
@@ -131,29 +131,29 @@ void insert_rows(entt::registry &registry, row_cache &cache, const entt::sparse_
         auto [prep_cache] = prep_view.get(entity);
 
         // Insert the number of rows for the current constraint before consuming.
-        cache.con_num_rows.push_back(prep_cache.current_num_rows());
+        cache.con_num_rows.push_back(static_cast<unsigned>(prep_cache.current_num_rows()));
 
         // Insert all constraint rows into island row cache. Since an entity
         // can have multiple constraints (of different types), these could be
         // rows of more than one constraint.
         prep_cache.consume_rows([&](constraint_row_prep_cache::element &elem) {
-            auto normal_row_index = cache.rows.size();
+            auto normal_row_index = static_cast<unsigned>(cache.rows.size());
             cache.rows.push_back(elem.row);
             cache.flags.push_back(elem.flags);
 
             if (elem.flags & constraint_row_flag_friction) {
                 cache.friction.push_back(elem.friction);
-                cache.friction.back().normal_row_index = normal_row_index;
+                cache.friction.back().normal_row_index = static_cast<unsigned>(normal_row_index);
             }
 
             if (elem.flags & constraint_row_flag_rolling_friction) {
                 cache.rolling.push_back(elem.rolling);
-                cache.rolling.back().normal_row_index = normal_row_index;
+                cache.rolling.back().normal_row_index = static_cast<unsigned>(normal_row_index);
             }
 
             if (elem.flags & constraint_row_flag_spinning_friction) {
                 cache.spinning.push_back(elem.spinning);
-                cache.spinning.back().normal_row_index = normal_row_index;
+                cache.spinning.back().normal_row_index = static_cast<unsigned>(normal_row_index);
             }
         });
     }
@@ -285,21 +285,21 @@ scalar solve_position_constraints_each(entt::registry &registry, const std::vect
             solver.ornB = &ornB;
 
             if (procedural_view.contains(con.body[0])) {
-                solver.inv_mA = body_view.template get<mass_inv>(con.body[0]);
+                solver.inv_mA = body_view.template get<mass_inv>(con.body[0]).s;
                 solver.inv_IA = &body_view.template get<inertia_world_inv>(con.body[0]);
                 solver.inv_IA_local = &body_view.template get<inertia_inv>(con.body[0]);
             } else {
-                solver.inv_mA = inv_mA;
+                solver.inv_mA = inv_mA.s;
                 solver.inv_IA = &inv_IA;
                 solver.inv_IA_local = &inv_IA_local;
             }
 
             if (procedural_view.contains(con.body[1])) {
-                solver.inv_mB = body_view.template get<mass_inv>(con.body[1]);
+                solver.inv_mB = body_view.template get<mass_inv>(con.body[1]).s;
                 solver.inv_IB = &body_view.template get<inertia_world_inv>(con.body[1]);
                 solver.inv_IB_local = &body_view.template get<inertia_inv>(con.body[1]);
             } else {
-                solver.inv_mB = inv_mB;
+                solver.inv_mB = inv_mB.s;
                 solver.inv_IB = &inv_IB;
                 solver.inv_IB_local = &inv_IB_local;
             }
@@ -380,7 +380,7 @@ bool apply_solution(entt::registry &registry, scalar dt, const entt::sparse_set 
 
     struct apply_solution_context {
         entt::registry *registry;
-        scalar dt;
+        scalar dt {0};
         std::vector<entt::entity> entities;
         island_solver_context *isle_ctx;
 
@@ -421,7 +421,7 @@ bool apply_solution(entt::registry &registry, scalar dt, const entt::sparse_set 
         ctx.isle_ctx = isle_ctx;
 
         auto task = task_delegate_t(entt::connect_arg_t<&apply_solution_context::task_func>{}, ctx);
-        enqueue_task_wait(registry, task, entities.size());
+        enqueue_task_wait(registry, task, static_cast<unsigned>(entities.size()));
         return true;
     } else {
         EDYN_ASSERT(mode == execution_mode::asynchronous);
@@ -434,7 +434,7 @@ bool apply_solution(entt::registry &registry, scalar dt, const entt::sparse_set 
 
         auto task = task_delegate_t(entt::connect_arg_t<&apply_solution_context::task_func>{}, *ctx);
         auto completion = task_completion_delegate_t(entt::connect_arg_t<&apply_solution_context::completion_func>{}, *ctx);
-        enqueue_task(registry, task, entities.size(), completion);
+        enqueue_task(registry, task, static_cast<unsigned>(entities.size()), completion);
         return false;
     }
 }
@@ -513,7 +513,7 @@ static void island_solver_update(island_solver_context &ctx) {
 void run_island_solver_seq_mt(entt::registry &registry, entt::entity island_entity,
                              unsigned num_iterations, unsigned num_position_iterations,
                              scalar dt, atomic_counter_sync *counter) {
-    auto *ctx = new island_solver_context(registry, island_entity, num_iterations, num_position_iterations, dt, counter);
+    auto *ctx = new island_solver_context(registry, island_entity, static_cast<uint8_t>(num_iterations), static_cast<uint8_t>(num_position_iterations), dt, counter);
     auto task = task_delegate_t(entt::connect_arg_t<&island_solver_update>{}, *ctx);
     enqueue_task(registry, task, 1, {});
 }

@@ -70,7 +70,7 @@ void narrowphase::detect_collision_parallel() {
     m_cp_destruction_infos.resize(num_manifolds);
 
     auto task = task_delegate_t(entt::connect_arg_t<&narrowphase::detect_collision_parallel_range>{}, *this);
-    enqueue_task_wait(*m_registry, task, num_manifolds);
+    enqueue_task_wait(*m_registry, task, static_cast<unsigned int>(num_manifolds));
 }
 
 void narrowphase::finish_detect_collision() {

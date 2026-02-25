@@ -34,13 +34,13 @@ static void update_discontinuities(entt::registry &registry, double dt) {
     const auto rate = network_settings.discontinuity_decay_rate;
     dis_view.each([rate, dt](discontinuity &dis) {
         if (length_sqr(dis.position_offset) > scalar(0.0001)) {
-            dis.position_offset -= dis.position_offset * std::min(rate * dt, 1.0);
+            dis.position_offset -= dis.position_offset * static_cast<scalar>(std::min(rate * dt, 1.0));
         } else {
             dis.position_offset = edyn::vector3_zero;
         }
 
         if (std::abs(dis.orientation_offset.w) < scalar(0.9999)) {
-            dis.orientation_offset = slerp(dis.orientation_offset, quaternion_identity, std::min(rate * dt, 1.0));
+            dis.orientation_offset = slerp(dis.orientation_offset, quaternion_identity, static_cast<scalar>(std::min(rate * dt, 1.0)));
         } else {
             dis.orientation_offset = quaternion_identity;
         }
