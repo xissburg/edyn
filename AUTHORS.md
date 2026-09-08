@@ -13,3 +13,5 @@
 [Quintin](https://github.com/qhdwight)
 
 [RazielZ](https://github.com/RazielZ)
+
+[Quaylyn Rimer](https://github.com/killerdevildog)
