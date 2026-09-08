@@ -277,7 +277,7 @@ shape_raycast_result shape_raycast(const polyhedron_shape &poly, const raycast_c
         if (std::abs(denom) < EDYN_EPSILON) {
             // Segment does not intersect polyhedron if there's any face that is
             // parallel to it and it lies in front of the face.
-            if (dist > 0) {
+            if (dist < 0) {
                 return {};
             }
         } else {
